@@ -19,14 +19,13 @@ thead th{color:#94a0b4;font-weight:600}
   padding:10px 14px;border-radius:10px;font-size:12.5px;margin-bottom:18px}
 .foot{margin-top:24px;padding-top:14px;border-top:1px solid #2a3142;color:#94a0b4;font-size:12px}
 </style><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#0f2148"><link rel="apple-touch-icon" href="icon-180.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="市場儀表板"><script>if("serviceWorker" in navigator){addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})})}</script></head><body><style>
-.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:60;display:flex;gap:4px;
- padding:7px 12px calc(7px + env(safe-area-inset-bottom,0px));
- background:rgba(10,14,20,.72);-webkit-backdrop-filter:blur(26px) saturate(1.7);backdrop-filter:blur(26px) saturate(1.7);
- border-top:1px solid rgba(255,255,255,.10);box-shadow:0 -8px 24px rgba(0,0,0,.3)}
-.tabbar a.tab{flex:1;max-width:200px;margin:0 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;
- gap:3px;text-decoration:none;color:#9aa6b8;font-size:11px;padding:6px 0;border-radius:14px;transition:color .15s,background .15s}
-.tabbar a.tab .ic{font-size:21px;line-height:1}
-.tabbar a.tab.on{color:#fff;background:rgba(120,170,255,.16)}
+/* iOS 26 風格：置中浮動的玻璃膠囊（外觀玻璃由 GLASS_CSS 提供） */
+.tabbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(11px + env(safe-area-inset-bottom,0px));
+ z-index:60;display:flex;gap:3px;padding:6px}
+.tabbar a.tab{display:flex;flex-direction:column;align-items:center;gap:2px;text-decoration:none;
+ color:#aeb8c8;font-size:11px;padding:7px 21px;border-radius:18px;transition:color .15s,background .15s}
+.tabbar a.tab .ic{font-size:20px;line-height:1}
+.tabbar a.tab.on{color:#fff;background:rgba(120,170,255,.22)}
 .tabbar a.tab.on .ic{filter:drop-shadow(0 2px 9px rgba(120,170,255,.55))}
 .wrap{padding-top:calc(16px + env(safe-area-inset-top,0px))!important;padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))!important}
 /* 切換分頁時內容滑入、底部 bar 不動（原生 View Transitions；不支援則直接切換） */
@@ -55,7 +54,14 @@ body::before{content:"";position:fixed;inset:-12%;z-index:-1;pointer-events:none
  border:1px solid rgba(255,255,255,.08)!important;border-radius:24px!important;
  box-shadow:0 16px 46px rgba(0,0,0,.5)!important}
 .hero{border-radius:30px!important}
-/* 鏡面高光 + 折射亮邊（疊在上層、不擋滑鼠） */
+/* 底部浮動分頁列：同款玻璃 + 邊緣高光 */
+.tabbar{background:linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.05))!important;
+ -webkit-backdrop-filter:blur(30px) saturate(1.9);backdrop-filter:blur(30px) saturate(1.9);
+ border:1px solid rgba(255,255,255,.14)!important;border-radius:26px!important;
+ box-shadow:0 16px 48px rgba(0,0,0,.55), inset 0 1px 0.5px rgba(255,255,255,.5)!important}
+.tabbar::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+ box-shadow:inset 0 1px 0.5px rgba(255,255,255,.5), inset 0 0 0 1px rgba(255,255,255,.05);
+ background:linear-gradient(135deg, rgba(255,255,255,.10), rgba(255,255,255,0) 45%)}
 /* 靜態玻璃：邊緣高光 + 固定柔光（無任何動畫/互動） */
 .card::after,.box::after,.pcard::after,.hero::after,.brief::after{
  content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
@@ -72,7 +78,7 @@ input{background:rgba(255,255,255,.06)!important;border:1px solid rgba(255,255,2
 .badge{box-shadow:0 3px 16px rgba(0,0,0,.32)}
 /* 進階：SVG 位移折射（支援的瀏覽器才套用，否則自動退回上面的模糊） */
 @supports (backdrop-filter: url("#lglass")) or (-webkit-backdrop-filter: url("#lglass")){
- .card,.box,.pcard,.hero,.brief{
+ .card,.box,.pcard,.hero,.brief,.tabbar{
   -webkit-backdrop-filter:url(#lglass) blur(6px) saturate(2);
   backdrop-filter:url(#lglass) blur(6px) saturate(2)!important}
 }

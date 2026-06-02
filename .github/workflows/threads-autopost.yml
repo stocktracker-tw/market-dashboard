@@ -1,11 +1,12 @@
 name: Threads 自動發文
 
 on:
-  schedule:
-    # GitHub Actions 用 UTC。台灣 = UTC+8。
-    - cron: "30 0 * * *"   # 08:30 台灣時間 → 今日進場分數
-    - cron: "0 13 * * *"   # 21:00 台灣時間 → 金句 / 互動
-  workflow_dispatch:        # 也可在 Actions 頁面手動觸發
+  # 排程已停用：目前走「半自動」(threads-daily-reminder.yml)。
+  # 若日後完成 Meta API 設定要改回全自動，取消下面註解即可。
+  # schedule:
+  #   - cron: "30 0 * * *"   # 08:30 台灣時間 → 今日進場分數
+  #   - cron: "0 13 * * *"   # 21:00 台灣時間 → 金句 / 互動
+  workflow_dispatch:        # 目前只能手動觸發
     inputs:
       slot:
         description: "要發哪一篇"

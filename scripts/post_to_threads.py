@@ -108,11 +108,17 @@ def publish(text):
 
 
 def main():
-    args = [a for a in sys.argv[1:] if a != "--dry-run"]
+    flags = {"--dry-run", "--text-only"}
+    args = [a for a in sys.argv[1:] if a not in flags]
     dry = "--dry-run" in sys.argv
+    text_only = "--text-only" in sys.argv
     slot = args[0] if args else "morning"
     d = taipei_today()
     text = build_text(slot, d)
+    if text_only:
+        # 只輸出貼文本身，給推播 / 其他工具取用
+        sys.stdout.write(text)
+        return
     print(f"=== slot={slot}  date={d}  chars={len(text)} ===")
     print(text)
     if dry:

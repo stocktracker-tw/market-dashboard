@@ -1,8 +1,10 @@
 name: Threads Token 自動續期
 
 on:
-  schedule:
-    - cron: "0 4 * * 1"   # 每週一 12:00 台灣時間續期一次（遠早於 60 天到期）
+  # 排程已停用：目前走「半自動」，沒在用 Meta API token。
+  # 完成 Meta API 設定後要自動續期，取消下面註解即可。
+  # schedule:
+  #   - cron: "0 4 * * 1"   # 每週一 12:00 台灣時間
   workflow_dispatch:
     inputs:
       dry_run:

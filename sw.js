@@ -1,5 +1,5 @@
 /* 市場儀表板 PWA service worker：網路優先、離線退回快取。 */
-const C = "mkt-v9";
+const C = "mkt-v10";
 const ASSETS = ["index.html", "stocks.html", "news.html", "backtest.html",
   "manifest.webmanifest", "icon-192.png", "icon-512.png", "icon-180.png"];
 

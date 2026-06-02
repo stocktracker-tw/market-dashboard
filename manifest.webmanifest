@@ -2,7 +2,7 @@
   "name": "市場進場儀表板",
   "short_name": "市場儀表板",
   "description": "台股・美股 進場分數、個股、消息、回測",
-  "start_url": "./index.html",
+  "start_url": "./news.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",

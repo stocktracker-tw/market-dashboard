@@ -21,9 +21,9 @@ thead th{color:#94a0b4;font-weight:600}
 </style><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#0f2148"><link rel="apple-touch-icon" href="apple-icon-v9.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Stock Tracker"><script>if("serviceWorker" in navigator){addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})})}</script></head><body><style>
 /* iOS 26 風格：置中浮動的玻璃膠囊（外觀玻璃由 GLASS_CSS 提供） */
 .tabbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(11px + env(safe-area-inset-bottom,0px));
- z-index:60;display:flex;gap:5px;padding:6px 8px;touch-action:none}
-.tabbar a.tab{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:2px;
- text-decoration:none;color:#aeb8c8;font-size:11px;padding:9px 16px;border-radius:999px;
+ z-index:60;display:flex;gap:5px;padding:6px;width:min(340px,calc(100vw - 36px));box-sizing:border-box;touch-action:none}
+.tabbar a.tab{position:relative;z-index:1;flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;
+ text-decoration:none;color:#aeb8c8;font-size:11px;padding:9px 4px;border-radius:999px;
  transition:color .15s;-webkit-user-drag:none;user-select:none;-webkit-touch-callout:none}
 .tabbar a.tab .ic{font-size:20px;line-height:1}
 .tabbar a.tab.on,.tabbar a.tab.hl{color:#fff}

@@ -1,0 +1,25 @@
+/* 市場儀表板 PWA service worker：網路優先、離線退回快取。 */
+const C = "mkt-v2";
+const ASSETS = ["index.html", "stocks.html", "news.html", "backtest.html",
+  "manifest.webmanifest", "icon-192.png", "icon-512.png", "icon-180.png"];
+
+self.addEventListener("install", (e) => {
+  e.waitUntil(caches.open(C).then((c) => c.addAll(ASSETS.map((a) => "./" + a)))
+    .catch(() => {}).then(() => self.skipWaiting()));
+});
+
+self.addEventListener("activate", (e) => {
+  e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== C).map((k) => caches.delete(k))))
+    .then(() => self.clients.claim()));
+});
+
+self.addEventListener("fetch", (e) => {
+  if (e.request.method !== "GET") return;
+  e.respondWith(
+    fetch(e.request).then((r) => {
+      const cp = r.clone();
+      caches.open(C).then((c) => c.put(e.request, cp)).catch(() => {});
+      return r;
+    }).catch(() => caches.match(e.request).then((m) => m || caches.match("./index.html")))
+  );
+});

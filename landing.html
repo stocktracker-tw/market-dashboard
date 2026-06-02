@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Stock Tracker — 台股・美股 進場時機儀表板</title>
+<meta name="description" content="把恐慌、估值、籌碼、景氣循環等數十項指標，濃縮成一個 0–100 進場分數。台股美股、上市上櫃，每日自動更新。研究與決策輔助，非投資建議。">
+<meta name="theme-color" content="#0a0a16">
+<meta property="og:title" content="Stock Tracker — 進場時機儀表板">
+<meta property="og:description" content="幾十項指標 → 一個 0–100 進場分數。法人 vs 散戶背離、景氣循環、AI 噴發偵測、個股搜尋（上市+上櫃）。每日自動更新。">
+<meta property="og:image" content="https://hjack19981006-prog.github.io/market-dashboard/icon-512.png">
+<meta property="og:url" content="https://hjack19981006-prog.github.io/market-dashboard/landing.html">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+:root{--pink:#ff4fb6;--mag:#ff2e88;--cyan:#37e6ff;--bg:#0a0a16;--card:rgba(255,255,255,.05);--line:rgba(255,255,255,.10);--muted:#9aa4be}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:#eef1f8;font-family:"Microsoft JhengHei","PingFang TC",system-ui,sans-serif;line-height:1.65;
+ background-image:radial-gradient(1100px 620px at 50% -10%,rgba(255,46,136,.22),transparent 60%),
+   radial-gradient(900px 600px at 90% 20%,rgba(55,230,255,.10),transparent 55%),
+   radial-gradient(900px 700px at 10% 80%,rgba(150,60,255,.14),transparent 60%)}
+a{color:inherit;text-decoration:none}
+.wrap{max-width:1040px;margin:0 auto;padding:0 20px}
+.grad{background:linear-gradient(95deg,var(--cyan),var(--pink) 55%,var(--mag));-webkit-background-clip:text;background-clip:text;color:transparent}
+.btn{display:inline-block;padding:13px 24px;border-radius:999px;font-weight:700;font-size:15px;cursor:pointer;border:1px solid transparent;transition:transform .15s,box-shadow .15s}
+.btn:hover{transform:translateY(-2px)}
+.btn-p{background:linear-gradient(95deg,var(--mag),var(--pink));color:#fff;box-shadow:0 10px 30px rgba(255,46,136,.45)}
+.btn-g{background:rgba(255,255,255,.06);border-color:var(--line);color:#eef1f8}
+.chip{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:#ffd0e8;background:rgba(255,46,136,.12);
+ border:1px solid rgba(255,46,136,.30);padding:6px 13px;border-radius:999px}
+
+/* nav */
+nav{position:sticky;top:0;z-index:30;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+ background:rgba(10,10,22,.62);border-bottom:1px solid var(--line)}
+nav .wrap{display:flex;align-items:center;justify-content:space-between;height:62px}
+.brand{display:flex;align-items:center;gap:11px;font-weight:800;font-size:17px;letter-spacing:.3px}
+.brand img{width:34px;height:34px;border-radius:9px;box-shadow:0 4px 14px rgba(255,46,136,.4)}
+nav .btn{padding:9px 18px;font-size:14px}
+
+/* hero */
+.hero{text-align:center;padding:64px 0 40px}
+.hero .ic{width:118px;height:118px;border-radius:28px;box-shadow:0 20px 60px rgba(255,46,136,.5),0 0 0 1px rgba(255,255,255,.08)}
+.hero h1{font-size:clamp(30px,7vw,54px);line-height:1.12;margin:22px 0 10px;font-weight:900;letter-spacing:-.5px}
+.hero p.sub{font-size:clamp(15px,3.6vw,19px);color:#d6dcec;max-width:640px;margin:0 auto 8px}
+.hero p.sub2{color:var(--muted);max-width:600px;margin:6px auto 26px;font-size:14.5px}
+.cta-row{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:18px}
+
+/* sections */
+section{padding:46px 0}
+h2.title{font-size:clamp(22px,5vw,32px);font-weight:900;text-align:center;margin:0 0 6px;letter-spacing:-.3px}
+.lead{text-align:center;color:var(--muted);margin:0 auto 30px;max-width:560px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:22px;backdrop-filter:blur(8px);
+ -webkit-backdrop-filter:blur(8px);transition:transform .18s,border-color .18s}
+.card:hover{transform:translateY(-4px);border-color:rgba(255,46,136,.4)}
+.card .e{font-size:28px;line-height:1}
+.card h3{font-size:17px;margin:12px 0 7px}
+.card p{margin:0;color:#c3cadb;font-size:14px}
+.score{display:inline-grid;place-items:center;width:96px;height:96px;border-radius:50%;font-size:30px;font-weight:900;
+ background:conic-gradient(var(--cyan),var(--pink),var(--mag),var(--cyan));color:#0a0a16;margin:0 auto}
+.three{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-top:8px}
+.three .card{text-align:center}
+.src{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:14px}
+.src span{font-size:13px;color:#c3cadb;background:rgba(255,255,255,.05);border:1px solid var(--line);padding:6px 13px;border-radius:999px}
+.cta-final{background:linear-gradient(120deg,rgba(255,46,136,.16),rgba(55,230,255,.10));border:1px solid rgba(255,46,136,.3);
+ border-radius:26px;padding:42px 24px;text-align:center}
+.disc{background:rgba(246,168,33,.08);border:1px solid rgba(246,168,33,.30);color:#ffd98a;border-radius:14px;
+ padding:13px 17px;font-size:13px;max-width:760px;margin:26px auto 0}
+footer{border-top:1px solid var(--line);padding:30px 0 50px;color:var(--muted);font-size:13px;text-align:center}
+footer a{color:#ffb3da}
+</style>
+</head>
+<body>
+
+<nav><div class="wrap">
+  <a class="brand" href="#top"><img src="icon-512.png" alt="Stock Tracker"><span>Stock Tracker</span></a>
+  <a class="btn btn-p" href="index.html">進入儀表板</a>
+</div></nav>
+
+<header id="top" class="hero"><div class="wrap">
+  <img class="ic" src="icon-512.png" alt="Stock Tracker">
+  <h1>用<span class="grad">數據</span>抓進場時機<br>而不是靠感覺</h1>
+  <p class="sub">把恐慌、估值、籌碼、景氣循環…<b>數十項指標</b>，濃縮成一個 <b class="grad">0–100 進場分數</b>。</p>
+  <p class="sub2">台股・美股 ｜ 上市＋上櫃 ｜ 每日自動更新 ｜ 手機可看</p>
+  <div class="cta-row">
+    <a class="btn btn-p" href="index.html">📊 看大盤分數</a>
+    <a class="btn btn-g" href="stocks.html">📈 個股搜尋</a>
+    <a class="btn btn-g" href="news.html">📰 市場消息</a>
+  </div>
+  <span class="chip">⚠️ 研究與決策輔助，非投資建議</span>
+</div></header>
+
+<section><div class="wrap">
+  <h2 class="title">一眼看懂<span class="grad">該不該加碼</span></h2>
+  <p class="lead">分數越高＝越適合分批進場（較主動的定期定額），並給出建議定額倍數。</p>
+  <div style="text-align:center;margin:24px 0">
+    <div class="score">68</div>
+    <div style="color:var(--muted);margin-top:12px;font-size:14px">範例：68 分 → 加碼區 ・ 建議定額 1.5×</div>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <h2 class="title">不只一個分數，<span class="grad">而是一整套視角</span></h2>
+  <p class="lead">把專業投資人會看的東西，自動化、視覺化。</p>
+  <div class="grid">
+    <div class="card"><div class="e">📊</div><h3>進場分數 0–100</h3><p>恐慌・估值・總經・趨勢・籌碼 五大支柱加權，缺資料自動重分配。</p></div>
+    <div class="card"><div class="e">🔍</div><h3>法人 vs 散戶背離</h3><p>自建訊號：外資＋投信買超 vs 融資增減。誰在買、誰在追，一目了然。</p></div>
+    <div class="card"><div class="e">🌡️</div><h3>景氣循環時鐘</h3><p>復甦／過熱／滯脹／趨緩，配合景氣對策信號，知道現在在循環哪一格。</p></div>
+    <div class="card"><div class="e">🚀</div><h3>AI 噴發／泡沫偵測</h3><p>偵測噴發行情與泡沫脆弱度，避免逆勢太早下車。</p></div>
+    <div class="card"><div class="e">📈</div><h3>個股搜尋 1900+</h3><p>上市＋上櫃即時輕量評分＋分析，可自建自選清單，存在你的瀏覽器。</p></div>
+    <div class="card"><div class="e">🧪</div><h3>策略回測</h3><p>主動定額 vs 固定定額，用歷史數據檢驗到底有沒有比較好。</p></div>
+    <div class="card"><div class="e">📰</div><h3>市場消息聚合</h3><p>自動抓財經新聞，標出相關個股、量化「是否已反映」。</p></div>
+    <div class="card"><div class="e">📱</div><h3>手機・離線可看</h3><p>加入主畫面像 App 一樣用，電腦每日自動更新後雲端同步。</p></div>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <h2 class="title">三層<span class="grad">獨立判讀</span></h2>
+  <p class="lead">三個面向各自獨立，一起看才不會被單一指標誤導。</p>
+  <div class="three">
+    <div class="card"><div class="e">🎯</div><h3>進場分數</h3><p>現在便不便宜、值不值得加碼</p></div>
+    <div class="card"><div class="e">🔥</div><h3>噴發脆弱度</h3><p>多頭有沒有過熱、何時轉弱</p></div>
+    <div class="card"><div class="e">🧭</div><h3>景氣位置</h3><p>整體經濟在循環的哪一段</p></div>
+  </div>
+</div></section>
+
+<section><div class="wrap" style="text-align:center">
+  <h2 class="title">資料<span class="grad">透明、每日更新</span></h2>
+  <p class="lead">數據來自公開來源，每天自動抓取運算，非黑箱。</p>
+  <div class="src">
+    <span>證交所 TWSE</span><span>櫃買中心 TPEX</span><span>國發會 景氣信號</span>
+    <span>Yahoo Finance</span><span>美國 BLS CPI</span><span>美債殖利率</span><span>VIX・SOX</span>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <div class="cta-final">
+    <h2 class="title" style="margin-bottom:10px">現在就<span class="grad">開始用</span></h2>
+    <p class="lead" style="margin-bottom:22px">免費、無需註冊、手機即可看。</p>
+    <div class="cta-row">
+      <a class="btn btn-p" href="index.html">📊 進入儀表板</a>
+      <a class="btn btn-g" href="stocks.html">📈 找個股</a>
+    </div>
+  </div>
+  <div class="disc">⚠️ <b>免責聲明</b>：本工具為市場數據彙整與研究、決策輔助用途，<b>不構成任何投資建議或買賣推薦</b>，亦不保證準確性或獲利。投資有風險，請自行判斷並對自己的決策負責。</div>
+</div></section>
+
+<footer><div class="wrap">
+  Stock Tracker ・ 台股美股進場時機儀表板<br>
+  <span style="opacity:.8">數據彙整工具，非投資建議</span>
+</div></footer>
+
+</body>
+</html>

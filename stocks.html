@@ -245,7 +245,7 @@ if(wlBox)wlBox.innerHTML='<div class="muted" style="padding:8px 0">載入中…<
 /* ===== 搜尋 ===== */
 function render(list){
   if(!list.length){res.innerHTML='<div class="muted" style="padding:10px 0">查無符合的個股</div>';return;}
-  res.innerHTML=list.slice(0,40).map(function(x){
+  res.innerHTML=(list.length>40?'<div class="muted" style="padding:4px 0 8px;font-size:12px">找到 '+list.length+' 筆，顯示最相關 40 筆，輸入更精確可縮小範圍。</div>':'')+list.slice(0,40).map(function(x){
     var star='<span class="wlstar'+(inWL(x.c)?' on':'')+'" data-c="'+x.c+'" title="加入/移出自選">'+(inWL(x.c)?'★':'☆')+'</span>';
     return rowHTML(x,star);
   }).join('')+(list.length>40?'<div class="muted" style="padding:8px 0">…共 '+list.length+' 檔，顯示前 40（縮小範圍看更多）</div>':'');
@@ -258,7 +258,7 @@ res.addEventListener('click',function(e){
 box.addEventListener('input',function(){
   const q=box.value.trim();
   if(!q){res.innerHTML='<div class="muted" style="padding:10px 0">輸入代碼或名稱開始搜尋（共 '+U.length+' 檔）…點一下可展開明細</div>';return;}
-  const m=U.filter(function(x){return x.c.indexOf(q)===0 || x.n.indexOf(q)>=0;});
+  const m=U.filter(function(x){return x.c.indexOf(q)===0||x.n.indexOf(q)>=0;}).sort(function(a,b){var ra=a.c.indexOf(q)===0?0:(a.n.indexOf(q)===0?1:2);var rb=b.c.indexOf(q)===0?0:(b.n.indexOf(q)===0?1:2);return ra-rb||(b.s||0)-(a.s||0);});
   m.sort(function(a,b){return b.s-a.s;});
   render(m);
 });

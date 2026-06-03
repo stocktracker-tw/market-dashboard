@@ -452,7 +452,7 @@ SEL.addEventListener("change",render);
 
 ASK_PANEL = (
     '<div class="section-title">🎤 換你問：點上面選一位，再選問題</div>'
-    '<div id="askpanel" data-v="ask3" style="background:linear-gradient(180deg,'
+    '<div id="askpanel" data-v="ask4" style="background:linear-gradient(180deg,'
     'rgba(255,255,255,.06),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.1);'
     'border-radius:16px;padding:15px 16px;margin-bottom:14px">'
     '<div id="askhint" class="lbl">👆 點上面任一張立場卡片，再從下拉選問題</div>'
@@ -468,13 +468,13 @@ ASK_PANEL = (
     '#askpanel .asksel:disabled{opacity:.5;cursor:not-allowed}'
     '#askpanel .asksel option{background:#11203f;color:#eaf0fa}'
     '#askpanel .bubble{display:flex;gap:10px;align-items:flex-start;margin-top:13px}'
-    '#askpanel .av{flex:none;width:34px;height:34px;border-radius:50%;'
+    '#askpanel .av{flex:none;width:40px;height:40px;border-radius:50%;'
     'background:rgba(255,255,255,.08);display:flex;align-items:center;'
-    'justify-content:center;font-size:17px}'
+    'justify-content:center;font-size:21px}'
     '#askpanel .bub{background:rgba(31,111,235,.12);border:1px solid rgba(31,111,235,.28);'
-    'border-radius:4px 14px 14px 14px;padding:10px 13px;font-size:13.5px;line-height:1.75;'
+    'border-radius:4px 16px 16px 16px;padding:14px 17px;font-size:16px;line-height:1.85;'
     'color:#eaf3ff}'
-    '#askpanel .bn{font-weight:700;font-size:12px;color:#9fc0ff;margin-bottom:3px}'
+    '#askpanel .bn{font-weight:700;font-size:13px;color:#9fc0ff;margin-bottom:5px}'
     '.card.askpick{cursor:pointer;transition:outline .12s}'
     '.card.askpick:hover{outline:1px solid rgba(255,255,255,.25);outline-offset:1px}'
     '.card.askon{outline:2px solid #1f6feb!important;outline-offset:1px}'
@@ -489,7 +489,7 @@ ASK_OLD_RE = re.compile(
 
 def patch_ask(html):
     """觀點頁：三方立場卡片直接點選，提問用下拉選單，移除辯論。"""
-    if 'data-v="ask3"' in html:                 # 已是最新版
+    if 'data-v="ask4"' in html:                 # 已是最新版
         return html, False
     if '🔥 三方互嗆' in html:                    # 引擎原版：替換辯論段
         new = ASK_DEBATE_RE.sub(lambda m: ASK_PANEL + '</div></body>', html, count=1)

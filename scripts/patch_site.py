@@ -296,6 +296,24 @@ def patch_seo(html):
     return html.replace(SEO_ANCHOR, SEO_ANCHOR + SEO_JSONLD, 1), True
 
 
+# --- 個股頁內鏈到熱門 SEO 頁 ----------------------------------------------
+# 讓使用者逛得到 /stock/ 熱門個股頁，也幫 Google 爬蟲（內鏈有助 SEO）。
+STOCKLINK_ANCHOR = '<h1>個股進場分數 <span class="muted">推薦 + 自選 + 搜尋</span></h1>'
+STOCKLINK_HTML = (
+    '<a href="stock/" style="display:block;margin:10px 0 4px;padding:11px 14px;'
+    'background:rgba(91,156,255,.1);border:1px solid rgba(91,156,255,.35);'
+    'border-radius:12px;color:#cfe0ff;text-decoration:none;font-size:13.5px">'
+    '🔥 熱門台股進場分數一覽（台積電、鴻海、聯發科…）→</a>'
+)
+
+
+def patch_stocklink(html):
+    """個股頁加一條內鏈到 /stock/ 熱門頁。只動 stocks.html。"""
+    if STOCKLINK_ANCHOR not in html or 'href="stock/"' in html:
+        return html, False
+    return html.replace(STOCKLINK_ANCHOR, STOCKLINK_ANCHOR + STOCKLINK_HTML, 1), True
+
+
 def patch(html):
     changed = False
 
@@ -348,6 +366,10 @@ def patch(html):
     # 9) SEO 結構化資料（index.html）
     html, se = patch_seo(html)
     changed = changed or se
+
+    # 10) 個股頁內鏈到熱門 SEO 頁（stocks.html）
+    html, sl = patch_stocklink(html)
+    changed = changed or sl
 
     return html, changed
 

@@ -331,29 +331,58 @@ def patch_etflink(html):
     return html.replace(ETFLINK_ANCHOR, ETFLINK_ANCHOR + ETFLINK_HTML, 1), True
 
 
-# --- 導覽列 iOS 液態玻璃風（只圖示、無字、更透明）-------------------------
-# 用 !important 覆寫既有 tabbar 樣式；以 id="barglass" 判定是否已注入。
-BARGLASS_ANCHOR = '<nav class="tabbar">'
-BARGLASS_STYLE = (
+# --- 導覽列 iOS 液態玻璃風（單色線條圖示、無字、更透明）--------------------
+# emoji → 單色線條 SVG（currentColor，未選取半透明、選取白色實心）+ 玻璃樣式。
+BAR_ICON_SVGS = {
+    # 進場（大盤分數）— 儀表/錶針
+    '<span class="ic">📊</span>':
+        '<span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+        'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
+        '<path d="M4 18a8 8 0 1 1 16 0"/><path d="M12 18l4.5-5.5"/></svg></span>',
+    # 個股 — 放大鏡（搜尋）
+    '<span class="ic">📈</span>':
+        '<span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+        'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
+        '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span>',
+    # 觀點 — 對話泡泡
+    '<span class="ic">🗣️</span>':
+        '<span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+        'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
+        '<path d="M20 11.5a7.5 7.5 0 0 1-10.8 6.7L4.5 19.5l1.3-4.4A7.5 7.5 0 1 1 20 '
+        '11.5z"/></svg></span>',
+    # 消息 — 文件/報紙
+    '<span class="ic">📰</span>':
+        '<span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+        'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
+        '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h8M8 17h5"/>'
+        '</svg></span>',
+}
+BAR_STYLE = (
     '<style id="barglass">'
-    '.tabbar a.tab span:not(.ic){display:none!important}'           # 拿掉文字
+    '.tabbar a.tab span:not(.ic){display:none!important}'
     '.tabbar a.tab{flex-direction:row!important;justify-content:center!important;'
     'padding:13px 4px!important;gap:0!important}'
-    '.tabbar a.tab .ic{font-size:23px!important;opacity:.42;'        # 未選取半透明
-    'transition:opacity .18s,transform .18s}'
+    '.tabbar a.tab .ic{opacity:.5;transition:opacity .18s,transform .18s}'
+    '.tabbar a.tab .ic svg{width:24px;height:24px;display:block}'
     '.tabbar a.tab.on .ic,.tabbar a.tab.hl .ic{opacity:1;transform:translateY(-1px)}'
-    '.tabbar{width:min(290px,calc(100vw - 64px))!important;'        # 無字可收窄
+    '.tabbar{width:min(290px,calc(100vw - 64px))!important;'
     'background:linear-gradient(180deg,rgba(255,255,255,.085),rgba(255,255,255,.02))!important;'
     'border:1px solid rgba(255,255,255,.16)!important}'
     '</style>'
 )
+BAR_STYLE_RE = re.compile(r'<style id="barglass">.*?</style>', re.S)
 
 
 def patch_barglass(html):
-    """導覽列改成只圖示、無字、更透明的液態玻璃風。所有有 tabbar 的頁面。"""
-    if BARGLASS_ANCHOR not in html or 'id="barglass"' in html:
+    """導覽列：emoji 換單色線條 SVG + 無字 + 更透明玻璃。所有有 tabbar 的頁面。"""
+    if '<nav class="tabbar">' not in html:
         return html, False
-    return html.replace(BARGLASS_ANCHOR, BARGLASS_STYLE + BARGLASS_ANCHOR, 1), True
+    orig = html
+    for old, new in BAR_ICON_SVGS.items():       # 1) emoji → 線條 SVG
+        html = html.replace(old, new)
+    html = BAR_STYLE_RE.sub('', html)            # 2) 移除舊樣式（含上一版）
+    html = html.replace('<nav class="tabbar">', BAR_STYLE + '<nav class="tabbar">', 1)
+    return html, (html != orig)
 
 
 def patch(html):

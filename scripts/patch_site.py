@@ -250,6 +250,28 @@ def patch_calc(html):
     return html.replace(CALC_ANCHOR, CALC_ANCHOR + CALC_BOX, 1), True
 
 
+# --- 自選股「進站變化提醒」(付費推播的第一塊地基) ----------------------
+# 進站時比對自選股分數跟「上次造訪」相比是否跨區，標出變化。純前端、免後端。
+# 用中性字眼描述分數高低，不用「加碼/減碼」動作詞，避開投顧法規。
+WL_ALERT_ANCHOR = 'if(wlBox)renderWL();'
+WL_ALERT_JS = r'''/*wlalert*/(function(){try{
+var ZN=["低分","偏低","中性","偏高","高分"];
+function zone(sc){return sc>=70?4:sc>=58?3:sc>=43?2:sc>=35?1:0;}
+var prev={};try{prev=JSON.parse(localStorage.getItem("wlZones")||"{}");}catch(e){}
+var now={},ch=[];
+for(var i=0;i<WL.length;i++){var c=WL[i],x=byCode[c];if(!x||typeof x.s!=="number")continue;var z=zone(x.s);now[c]=z;if(prev[c]!==undefined&&prev[c]!==z)ch.push({n:x.n||c,f:prev[c],t:z,u:z>prev[c]});}
+try{localStorage.setItem("wlZones",JSON.stringify(now));}catch(e){}
+if(ch.length&&wlBox&&wlBox.parentNode){var h='<div style="margin:0 0 12px;padding:10px 14px;background:rgba(91,156,255,.12);border:1px solid rgba(91,156,255,.4);border-radius:12px;font-size:13px"><b>🔔 自選股分數變化</b>（與你上次造訪相比）<div style="margin-top:6px;line-height:1.8">'+ch.map(function(o){return (o.u?"⬆ ":"⬇ ")+o.n+"："+ZN[o.f]+"→"+ZN[o.t];}).join("<br>")+'</div><div style="margin-top:6px;color:var(--muted);font-size:11px">僅供參考，非投資建議。</div></div>';var d=document.createElement("div");d.innerHTML=h;wlBox.parentNode.insertBefore(d,wlBox);}
+}catch(e){}})();'''
+
+
+def patch_wlalert(html):
+    """自選股進站變化提醒。只動 stocks.html。"""
+    if WL_ALERT_ANCHOR not in html or '/*wlalert*/' in html:
+        return html, False
+    return html.replace(WL_ALERT_ANCHOR, WL_ALERT_ANCHOR + WL_ALERT_JS, 1), True
+
+
 def patch(html):
     changed = False
 
@@ -294,6 +316,10 @@ def patch(html):
     # 7) 「我該扣多少」計算機（index.html）
     html, ca = patch_calc(html)
     changed = changed or ca
+
+    # 8) 自選股進站變化提醒（stocks.html）
+    html, wa = patch_wlalert(html)
+    changed = changed or wa
 
     return html, changed
 

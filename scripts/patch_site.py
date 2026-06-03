@@ -362,7 +362,7 @@ BAR_STYLE = (
     '.tabbar a.tab span:not(.ic){display:none!important}'
     '.tabbar a.tab{flex-direction:row!important;justify-content:center!important;'
     'padding:13px 4px!important;gap:0!important}'
-    '.tabbar a.tab .ic{opacity:.5;transition:opacity .18s,transform .18s}'
+    '.tabbar a.tab .ic{color:#fff!important;opacity:.7;transition:opacity .18s,transform .18s}'
     '.tabbar a.tab .ic svg{width:24px;height:24px;display:block}'
     '.tabbar a.tab.on .ic,.tabbar a.tab.hl .ic{opacity:1;transform:translateY(-1px)}'
     '.tabbar{width:min(290px,calc(100vw - 64px))!important;'

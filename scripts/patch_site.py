@@ -121,6 +121,42 @@ def patch_scoring(html):
     return html, changed
 
 
+# --- Tab Bar 重排 + 改名 ----------------------------------------------------
+# 招牌「進場分數」放第一格：大盤(進場) → 個股 → 觀點 → 消息
+TAB_ORDER = ["index.html", "stocks.html", "perspectives.html", "news.html"]
+NAV_RE = re.compile(r'(<nav class="tabbar">)(.*?)(</nav>)', re.S)
+ANCHOR_RE = re.compile(
+    r'<a class="tab[^"]*" href="((?:index|stocks|perspectives|news)\.html)">.*?</a>')
+TAB_RENAME = ('<span class="ic">📊</span><span>大盤</span>',
+              '<span class="ic">📊</span><span>進場</span>')
+OLD_ORDER_JS = 'order=["news.html","index.html","perspectives.html","stocks.html"]'
+NEW_ORDER_JS = 'order=["index.html","stocks.html","perspectives.html","news.html"]'
+OLD_CURIDX = ('if(f==="news.html")return 0;if(f==="perspectives.html")return 2;'
+              'if(f==="stocks.html")return 3;return 1;')
+NEW_CURIDX = ('if(f==="stocks.html")return 1;if(f==="perspectives.html")return 2;'
+              'if(f==="news.html")return 3;return 0;')
+
+
+def _reorder_nav(m):
+    inner = m.group(2)
+    by_href = {am.group(1): am.group(0) for am in ANCHOR_RE.finditer(inner)}
+    if set(by_href) != set(TAB_ORDER):  # 結構不符就保險不動
+        return m.group(0)
+    return m.group(1) + "".join(by_href[h] for h in TAB_ORDER) + m.group(3)
+
+
+def patch_tabbar(html):
+    """把招牌大盤移到第一格、改名「進場」，並同步拖曳 JS 的順序與 curIdx。"""
+    if '<nav class="tabbar">' not in html:
+        return html, False
+    orig = html
+    html = NAV_RE.sub(_reorder_nav, html, count=1)   # 1) 重排
+    html = html.replace(*TAB_RENAME)                  # 2) 大盤→進場
+    html = html.replace(OLD_ORDER_JS, NEW_ORDER_JS)   # 3) 拖曳順序陣列
+    html = html.replace(OLD_CURIDX, NEW_CURIDX)       # 4) curIdx 對應
+    return html, (html != orig)
+
+
 def patch(html):
     changed = False
 
@@ -149,6 +185,10 @@ def patch(html):
         changed = changed or sc
         html, ux = patch_ux(html)
         changed = changed or ux
+
+    # 4) Tab Bar 重排 + 改名（所有有導覽列的頁面）
+    html, tb = patch_tabbar(html)
+    changed = changed or tb
 
     return html, changed
 

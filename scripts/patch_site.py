@@ -441,7 +441,7 @@ _ASK_DATA = "var Q=%s,A=%s,NAME=%s,ABBR=%s;" % (
 )
 _ASK_JS = r'''
 var SEL=document.getElementById("askq"),AN=document.getElementById("askans"),HINT=document.getElementById("askhint"),cards={},DNAME={},cur=null;
-var PCOL={passive:"#38c5e0",macro:"#f5c531",trend:"#5b9cff"};
+var PCOL={passive:"#38c5e0",macro:"#f5c531",trend:"#3b82f6"};
 function keyOf(t){return t.indexOf("清")>=0?"passive":t.indexOf("財經")>=0?"macro":t.indexOf("股")>=0?"trend":null;}
 function rgba(h,a){var r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),b=parseInt(h.slice(5,7),16);return "rgba("+r+","+g+","+b+","+a+")";}
 function glass(h){return "linear-gradient(180deg,"+rgba(h,0.22)+","+rgba(h,0.06)+")";}
@@ -455,7 +455,7 @@ SEL.addEventListener("change",render);
 
 ASK_PANEL = (
     '<div class="section-title">🎤 換你問：點上面選一位，再選問題</div>'
-    '<div id="askpanel" data-v="ask12" style="background:linear-gradient(180deg,'
+    '<div id="askpanel" data-v="ask13" style="background:linear-gradient(180deg,'
     'rgba(255,255,255,.06),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.1);'
     'border-radius:16px;padding:15px 16px;margin-bottom:14px">'
     '<div id="askhint" class="lbl">👆 點上面任一張立場卡片，再從下拉選問題</div>'
@@ -494,15 +494,21 @@ ASK_OLD_RE = re.compile(
 
 def patch_ask(html):
     """觀點頁：三方立場卡片直接點選，提問用下拉選單，移除辯論。"""
-    if 'data-v="ask12"' in html:                 # 已是最新版
-        return html, False
+    changed = False
+    # 內容已不是辯論 → 標題改字（無論面板是否已注入都套用）
+    if "市場觀點・三方辯論" in html:
+        html = html.replace("市場觀點・三方辯論", "市場觀點・問三方")
+        changed = True
+
+    if 'data-v="ask13"' in html:                 # 面板已是最新版
+        return html, changed
     if '🔥 三方互嗆' in html:                    # 引擎原版：替換辯論段
         new = ASK_DEBATE_RE.sub(lambda m: ASK_PANEL + '</div></body>', html, count=1)
     elif '🎤 換你問' in html:                    # 舊版面板：升級
         new = ASK_OLD_RE.sub(lambda m: ASK_PANEL + '</div></body>', html, count=1)
     else:
-        return html, False
-    return (new, True) if new != html else (html, False)
+        return html, changed
+    return (new, True) if new != html else (html, changed)
 
 
 def patch(html):

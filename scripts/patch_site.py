@@ -314,34 +314,21 @@ def patch_stocklink(html):
     return html.replace(STOCKLINK_ANCHOR, STOCKLINK_ANCHOR + STOCKLINK_HTML, 1), True
 
 
-# --- 儀表板內鏈到 ETF 定期定額頁（放在分數下方、說明盒附近，較顯眼）---------
-# 舊版（計算機下方的小連結），若存在則移除，改放到更顯眼處
-OLD_ETFLINK = (
+# --- 儀表板內鏈到 ETF 定期定額頁 ------------------------------------------
+ETFLINK_ANCHOR = '把分數變成具體金額。⚠️ 非投資建議</div></div>'
+ETFLINK_HTML = (
     '<a href="etf/" style="display:block;margin:10px 0 0;padding:10px 14px;'
     'background:rgba(52,208,127,.1);border:1px solid rgba(52,208,127,.3);'
     'border-radius:12px;color:#bfe8d2;text-decoration:none;font-size:13px">'
     '📦 想用在 0050 / 0056 等 ETF 定期定額？看 ETF 專頁 →</a>'
 )
-ETF_CARD = (
-    '<a href="etf/" id="etflink" style="display:flex;align-items:center;gap:11px;'
-    'margin:0 0 22px;padding:13px 16px;background:linear-gradient(180deg,'
-    'rgba(52,208,127,.13),rgba(52,208,127,.05));border:1px solid rgba(52,208,127,.38);'
-    'border-radius:16px;color:#d8f3e4;text-decoration:none">'
-    '<span style="font-size:22px">📦</span><span style="font-size:13.5px;line-height:1.5">'
-    '<b>ETF 定期定額</b><br>用今天的進場分數，算 0050 / 0056 這個月該扣多少 →</span></a>'
-)
 
 
 def patch_etflink(html):
-    """把 ETF 入口放在分數下方、說明盒附近（pillars 前）。只動 index.html。"""
-    changed = False
-    if OLD_ETFLINK in html:                       # 移除舊的小連結
-        html = html.replace(OLD_ETFLINK, "")
-        changed = True
-    if 'id="etflink"' not in html and '<div class="pillars">' in html:
-        html = html.replace('<div class="pillars">', ETF_CARD + '<div class="pillars">', 1)
-        changed = True
-    return html, changed
+    """大盤計算機下方加一條內鏈到 ETF 定期定額頁。只動 index.html（計算機注入後）。"""
+    if ETFLINK_ANCHOR not in html or 'href="etf/"' in html:
+        return html, False
+    return html.replace(ETFLINK_ANCHOR, ETFLINK_ANCHOR + ETFLINK_HTML, 1), True
 
 
 def patch(html):

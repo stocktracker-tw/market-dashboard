@@ -40,6 +40,63 @@ VERDICT_RE = re.compile(
 )
 
 
+# --- 直覺化 UX --------------------------------------------------------------
+# 「這個分數怎麼用」說明盒（原生 <details>，免 JS；以 id="howto" 判斷是否已注入）
+HOWTO_BOX = (
+    '<details id="howto" style="margin:0 0 22px;background:linear-gradient('
+    '180deg,rgba(255,255,255,.07),rgba(255,255,255,.025));border:1px solid '
+    'rgba(255,255,255,.1);border-radius:16px;padding:14px 16px">'
+    '<summary style="cursor:pointer;font-weight:700;font-size:14px">'
+    '❓ 這個分數是什麼？我該怎麼用？</summary>'
+    '<div style="font-size:13px;color:#aab4c6;margin-top:10px;line-height:1.7">'
+    '我把下面這些指標壓成一個 0–100 分：<br>'
+    '· <b style="color:#34d07f">分數高</b>＝數據偏多，這個月定期定額可以<b>比平常多扣一點</b><br>'
+    '· <b style="color:#ef5d5d">分數低</b>＝偏空，<b>少扣、留點銀彈</b>等更好的價位<br>'
+    '· <b>43–58＝中性</b>，維持原本節奏就好<br>'
+    '重點：這<b>不是</b>叫你買哪一支股票，而是幫你決定「這個月該<b>積極還是保守</b>」。'
+    '⚠️ 非投資建議</div></details>'
+)
+SCORE_H2_RE = re.compile(r'(<h2>進場分數 )(\d+(?:\.\d+)?)(</h2>)')
+UX_TEXT_FIXES = [
+    # 副標白話化
+    ("綜合進場分數越高＝越適合分批加碼（較主動的定期定額）",
+     "分數越高＝越適合多扣一點（定期定額積極些）；越低＝越該少扣、保守"),
+    # 倍數區術語白話化
+    ("已含<b>消息面微調", "已參考<b>今日新聞情緒微調"),
+]
+
+
+def patch_ux(html):
+    """讓儀表板更直覺：說明盒、分數顯示整數、用詞白話化。"""
+    changed = False
+
+    # #1 說明盒：注入在五大支柱之前（已注入則略過）
+    if 'id="howto"' not in html and '<div class="pillars">' in html:
+        html = html.replace('<div class="pillars">',
+                            HOWTO_BOX + '<div class="pillars">', 1)
+        changed = True
+
+    # #2 分數顯示整數：標題 h2 與儀表板 gauge 都四捨五入
+    def round_h2(m):
+        return m.group(1) + str(int(float(m.group(2)) + 0.5)) + m.group(3)
+    new = SCORE_H2_RE.sub(round_h2, html, count=1)
+    if new != html:
+        html = new
+        changed = True
+    if "value:DASH.composite}" in html:
+        html = html.replace("value:DASH.composite}",
+                            "value:Math.round(DASH.composite)}")
+        changed = True
+
+    # #3 用詞白話化
+    for old, new in UX_TEXT_FIXES:
+        if old in html:
+            html = html.replace(old, new)
+            changed = True
+
+    return html, changed
+
+
 def patch_scoring(html):
     """只處理會因『45 vs 43 分界』而標錯的唯一區間，其餘一律不碰 Bot 輸出。"""
     changed = False
@@ -86,10 +143,12 @@ def patch(html):
         html = new
         changed = True
 
-    # 3) 評分一致性（只有含評語區塊的頁面才處理）
+    # 3) 評分一致性 + 直覺化 UX（只有含評語區塊的儀表板頁才處理）
     if 'class="verdict"' in html:
         html, sc = patch_scoring(html)
         changed = changed or sc
+        html, ux = patch_ux(html)
+        changed = changed or ux
 
     return html, changed
 

@@ -1,0 +1,63 @@
+name: Threads 每日提醒（半自動）
+
+# 每天把今天該發的貼文「推播」到你的手機（用免費的 ntfy）。
+# 你收到通知 → 點一下打開頁面 → 按複製 → 貼到 Threads。
+# 不需要 Meta App、不需要 token、不需要任何 GitHub Secret。
+
+on:
+  schedule:
+    - cron: "30 0 * * *"   # 08:30 台灣時間 → 今日進場分數
+    - cron: "0 13 * * *"   # 21:00 台灣時間 → 金句 / 互動
+  workflow_dispatch:
+    inputs:
+      slot:
+        description: "要提醒哪一篇"
+        required: true
+        default: morning
+        type: choice
+        options: [morning, evening]
+
+concurrency:
+  group: threads-daily-reminder
+  cancel-in-progress: false
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main        # 抓 main 上 bot 每天更新後的 threads.html
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 決定 slot
+        id: cfg
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "${{ github.event.schedule }}" != "30 0 * * *" ]; then
+            echo "slot=evening" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "slot=${{ inputs.slot }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "slot=morning" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 產生貼文並推播到手機
+        env:
+          # 你的 ntfy 頻道名稱。可在 repo Variables 設 NTFY_TOPIC 覆蓋；沒設就用預設。
+          NTFY_TOPIC: ${{ vars.NTFY_TOPIC || 'stocktracker-tw-threads-reminder' }}
+        run: |
+          SLOT="${{ steps.cfg.outputs.slot }}"
+          BODY="$(python scripts/post_to_threads.py --text-only "$SLOT")"
+          if [ "$SLOT" = "morning" ]; then TITLE="📱 今日 Threads（早上・進場分數）"; else TITLE="📱 今日 Threads（晚上・金句/互動）"; fi
+          # 送到 ntfy：點通知會打開 threads.html（有複製按鈕）
+          curl -sS \
+            -H "Title: $TITLE" \
+            -H "Tags: chart_with_upwards_trend" \
+            -H "Click: https://stocktracker-tw.github.io/market-dashboard/threads.html" \
+            -H "Actions: view, 打開複製頁, https://stocktracker-tw.github.io/market-dashboard/threads.html" \
+            -d "$BODY" \
+            "https://ntfy.sh/${NTFY_TOPIC}"
+          echo "已推播到頻道：${NTFY_TOPIC}"

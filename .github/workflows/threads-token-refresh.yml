@@ -1,0 +1,43 @@
+name: Threads Token 自動續期
+
+on:
+  # 排程已停用：目前走「半自動」，沒在用 Meta API token。
+  # 完成 Meta API 設定後要自動續期，取消下面註解即可。
+  # schedule:
+  #   - cron: "0 4 * * 1"   # 每週一 12:00 台灣時間
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "只測試續期、不寫回 secret"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: threads-token-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 安裝相依套件
+        run: pip install requests pynacl
+
+      - name: 續期 token
+        env:
+          THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
+          GH_PAT: ${{ secrets.GH_PAT }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.dry_run }}" = "true" ]; then
+            python scripts/refresh_threads_token.py --dry-run
+          else
+            python scripts/refresh_threads_token.py
+          fi

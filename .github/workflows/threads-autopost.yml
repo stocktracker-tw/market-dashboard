@@ -1,0 +1,62 @@
+name: Threads 自動發文
+
+on:
+  # 排程已停用：目前走「半自動」(threads-daily-reminder.yml)。
+  # 若日後完成 Meta API 設定要改回全自動，取消下面註解即可。
+  # schedule:
+  #   - cron: "30 0 * * *"   # 08:30 台灣時間 → 今日進場分數
+  #   - cron: "0 13 * * *"   # 21:00 台灣時間 → 金句 / 互動
+  workflow_dispatch:        # 目前只能手動觸發
+    inputs:
+      slot:
+        description: "要發哪一篇"
+        required: true
+        default: morning
+        type: choice
+        options: [morning, evening]
+      dry_run:
+        description: "只預覽不發文"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: threads-autopost
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main        # 抓 main 上 bot 每天更新後的 threads.html
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 決定 slot 與參數
+        id: cfg
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            if [ "${{ github.event.schedule }}" = "30 0 * * *" ]; then
+              echo "slot=morning" >> "$GITHUB_OUTPUT"
+            else
+              echo "slot=evening" >> "$GITHUB_OUTPUT"
+            fi
+            echo "flag=" >> "$GITHUB_OUTPUT"
+          else
+            echo "slot=${{ inputs.slot }}" >> "$GITHUB_OUTPUT"
+            if [ "${{ inputs.dry_run }}" = "true" ]; then
+              echo "flag=--dry-run" >> "$GITHUB_OUTPUT"
+            else
+              echo "flag=" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+      - name: 發文
+        env:
+          THREADS_USER_ID: ${{ secrets.THREADS_USER_ID }}
+          THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
+        run: python scripts/post_to_threads.py ${{ steps.cfg.outputs.flag }} ${{ steps.cfg.outputs.slot }}

@@ -6,16 +6,15 @@ name: Threads 每日提醒（半自動）
 
 on:
   schedule:
-    - cron: "30 0 * * *"   # 08:30 台灣時間 → 今日進場分數
-    - cron: "0 13 * * *"   # 21:00 台灣時間 → 金句 / 互動
+    - cron: "0 13 * * *"   # 21:00 台灣時間 → 一天一篇（分數/金句/互動 輪流）
   workflow_dispatch:
     inputs:
       slot:
-        description: "要提醒哪一篇"
+        description: "要提醒哪一篇（daily＝今天輪到的那篇）"
         required: true
-        default: morning
+        default: daily
         type: choice
-        options: [morning, evening]
+        options: [daily, morning, evening]
 
 concurrency:
   group: threads-daily-reminder
@@ -36,12 +35,10 @@ jobs:
       - name: 決定 slot
         id: cfg
         run: |
-          if [ "${{ github.event_name }}" = "schedule" ] && [ "${{ github.event.schedule }}" != "30 0 * * *" ]; then
-            echo "slot=evening" >> "$GITHUB_OUTPUT"
-          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "slot=${{ inputs.slot }}" >> "$GITHUB_OUTPUT"
           else
-            echo "slot=morning" >> "$GITHUB_OUTPUT"
+            echo "slot=daily" >> "$GITHUB_OUTPUT"
           fi
 
       - name: 產生貼文並推播到手機
@@ -51,7 +48,7 @@ jobs:
         run: |
           SLOT="${{ steps.cfg.outputs.slot }}"
           BODY="$(python scripts/post_to_threads.py --text-only "$SLOT")"
-          if [ "$SLOT" = "morning" ]; then TITLE="📱 今日 Threads（早上・進場分數）"; else TITLE="📱 今日 Threads（晚上・金句/互動）"; fi
+          TITLE="📱 今日 Threads 貼文（晚上）"
           # 送到 ntfy：點通知會打開 threads.html（有複製按鈕）
           curl -sS \
             -H "Title: $TITLE" \

@@ -74,12 +74,25 @@ def evening_post(d):
     return POLLS[doy % len(POLLS)]
 
 
+def daily_post(d):
+    """一天一篇：進場分數 / 金句 / 互動，三種依日期輪流。"""
+    doy = day_of_year(d)
+    pick = doy % 3
+    if pick == 0:
+        return score_post()
+    if pick == 1:
+        return QUOTES[doy % len(QUOTES)]
+    return POLLS[doy % len(POLLS)]
+
+
 def build_text(slot, d):
+    if slot in ("daily", "auto"):
+        return daily_post(d)
     if slot == "morning":
         return score_post()
     if slot == "evening":
         return evening_post(d)
-    raise SystemExit(f"未知的 slot: {slot}（要 morning 或 evening）")
+    raise SystemExit(f"未知的 slot: {slot}（要 daily / morning / evening）")
 
 
 def _post(url, params):

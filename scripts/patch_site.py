@@ -186,6 +186,35 @@ def patch_perf(html):
     return html, True
 
 
+# --- 個股搜尋 --------------------------------------------------------------
+# ① 結果依相關度(代碼前綴 > 名稱開頭 > 名稱包含)再依分數高低排序，
+#    避免最相關/最高分的被 40 筆上限切掉。② 顯示「找到 N 筆」提示。
+STOCKS_FILTER_OLD = ('const m=U.filter(function(x){return x.c.indexOf(q)===0 || '
+                     'x.n.indexOf(q)>=0;});')
+STOCKS_FILTER_NEW = (
+    'const m=U.filter(function(x){return x.c.indexOf(q)===0||x.n.indexOf(q)>=0;})'
+    '.sort(function(a,b){var ra=a.c.indexOf(q)===0?0:(a.n.indexOf(q)===0?1:2);'
+    'var rb=b.c.indexOf(q)===0?0:(b.n.indexOf(q)===0?1:2);'
+    'return ra-rb||(b.s||0)-(a.s||0);});')
+STOCKS_RENDER_OLD = 'res.innerHTML=list.slice(0,40)'
+STOCKS_RENDER_NEW = (
+    'res.innerHTML=(list.length>40?\'<div class="muted" style="padding:4px 0 8px;'
+    'font-size:12px">找到 \'+list.length+\' 筆，顯示最相關 40 筆，'
+    '輸入更精確可縮小範圍。</div>\':\'\')+list.slice(0,40)')
+
+
+def patch_stocks(html):
+    """個股搜尋：結果排序 + 找到筆數提示。只動 stocks.html。"""
+    changed = False
+    if STOCKS_FILTER_OLD in html:
+        html = html.replace(STOCKS_FILTER_OLD, STOCKS_FILTER_NEW, 1)
+        changed = True
+    if STOCKS_RENDER_OLD in html and '找到 \'+list.length+\'' not in html:
+        html = html.replace(STOCKS_RENDER_OLD, STOCKS_RENDER_NEW, 1)
+        changed = True
+    return html, changed
+
+
 def patch(html):
     changed = False
 
@@ -222,6 +251,10 @@ def patch(html):
     # 5) 載入效能（有 echarts 的頁面）
     html, pf = patch_perf(html)
     changed = changed or pf
+
+    # 6) 個股搜尋優化（stocks.html）
+    html, st = patch_stocks(html)
+    changed = changed or st
 
     return html, changed
 

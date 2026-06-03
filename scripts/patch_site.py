@@ -331,6 +331,31 @@ def patch_etflink(html):
     return html.replace(ETFLINK_ANCHOR, ETFLINK_ANCHOR + ETFLINK_HTML, 1), True
 
 
+# --- 導覽列 iOS 液態玻璃風（只圖示、無字、更透明）-------------------------
+# 用 !important 覆寫既有 tabbar 樣式；以 id="barglass" 判定是否已注入。
+BARGLASS_ANCHOR = '<nav class="tabbar">'
+BARGLASS_STYLE = (
+    '<style id="barglass">'
+    '.tabbar a.tab span:not(.ic){display:none!important}'           # 拿掉文字
+    '.tabbar a.tab{flex-direction:row!important;justify-content:center!important;'
+    'padding:13px 4px!important;gap:0!important}'
+    '.tabbar a.tab .ic{font-size:23px!important;opacity:.42;'        # 未選取半透明
+    'transition:opacity .18s,transform .18s}'
+    '.tabbar a.tab.on .ic,.tabbar a.tab.hl .ic{opacity:1;transform:translateY(-1px)}'
+    '.tabbar{width:min(290px,calc(100vw - 64px))!important;'        # 無字可收窄
+    'background:linear-gradient(180deg,rgba(255,255,255,.085),rgba(255,255,255,.02))!important;'
+    'border:1px solid rgba(255,255,255,.16)!important}'
+    '</style>'
+)
+
+
+def patch_barglass(html):
+    """導覽列改成只圖示、無字、更透明的液態玻璃風。所有有 tabbar 的頁面。"""
+    if BARGLASS_ANCHOR not in html or 'id="barglass"' in html:
+        return html, False
+    return html.replace(BARGLASS_ANCHOR, BARGLASS_STYLE + BARGLASS_ANCHOR, 1), True
+
+
 def patch(html):
     changed = False
 
@@ -391,6 +416,10 @@ def patch(html):
     # 11) 儀表板內鏈到 ETF 定期定額頁（index.html，計算機之後）
     html, el = patch_etflink(html)
     changed = changed or el
+
+    # 12) 導覽列液態玻璃風（只圖示、無字、更透明）
+    html, bg = patch_barglass(html)
+    changed = changed or bg
 
     return html, changed
 

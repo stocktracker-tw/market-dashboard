@@ -444,10 +444,10 @@ var SEL=document.getElementById("askq"),AN=document.getElementById("askans"),HIN
 var PCOL={passive:"#34d07f",macro:"#ef5d5d",trend:"#f9b43a"};
 function keyOf(t){return t.indexOf("清")>=0?"passive":t.indexOf("財經")>=0?"macro":t.indexOf("股")>=0?"trend":null;}
 function rgba(h,a){var r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),b=parseInt(h.slice(5,7),16);return "rgba("+r+","+g+","+b+","+a+")";}
-function full(k){return DNAME[k]+"・"+NAME[k];}
+function glass(h){return "linear-gradient(180deg,"+rgba(h,0.22)+","+rgba(h,0.06)+")";}
 SEL.innerHTML='<option value="">— 選一個問題 —</option>'+Q.map(function(q,i){return '<option value="'+i+'">'+q+'</option>';}).join("");
-[].forEach.call(document.querySelectorAll(".card .name"),function(n){var k=keyOf(n.textContent||"");if(!k)return;var c=n.closest(".card");if(!c)return;cards[k]=c;DNAME[k]=(n.textContent||"").replace(/\s+/g,"");c.style.setProperty("background",rgba(PCOL[k],0.12),"important");c.style.setProperty("border-color",rgba(PCOL[k],0.5),"important");var d=c.querySelector(".dot");if(d)d.style.setProperty("background",PCOL[k],"important");c.classList.add("askpick");c.addEventListener("click",function(){pick(k);});});
-function render(){if(cur===null||!SEL.value){AN.innerHTML="";return;}var i=+SEL.value,c=PCOL[cur];AN.innerHTML='<div class="bubble"><div class="av" style="background:'+c+'">'+ABBR[cur]+'</div><div class="bub" style="border-color:'+c+';background:'+rgba(c,0.12)+'"><div class="bn" style="color:'+c+'">'+full(cur)+'</div>'+A[cur][i]+'</div></div>';}
+[].forEach.call(document.querySelectorAll(".card .name"),function(n){var k=keyOf(n.textContent||"");if(!k)return;var c=n.closest(".card");if(!c)return;cards[k]=c;DNAME[k]=(n.textContent||"").replace(/\s+/g,"");c.style.setProperty("background",glass(PCOL[k]),"important");c.style.setProperty("border-color",rgba(PCOL[k],0.5),"important");c.style.setProperty("box-shadow","inset 0 1px 0.5px rgba(255,255,255,.22)","important");var d=c.querySelector(".dot");if(d)d.style.setProperty("background",PCOL[k],"important");c.classList.add("askpick");c.addEventListener("click",function(){pick(k);});});
+function render(){if(cur===null||!SEL.value){AN.innerHTML="";return;}var i=+SEL.value,c=PCOL[cur];AN.innerHTML='<div class="bubble"><div class="av" style="background:'+c+'">'+ABBR[cur]+'</div><div class="bub" style="border-color:'+c+';background:'+glass(c)+'"><div class="bn" style="color:'+c+'">'+DNAME[cur]+'</div>'+A[cur][i]+'</div></div>';}
 function pick(k){cur=k;for(var x in cards){cards[x].style.outline=(x===k?"2px solid "+PCOL[k]:"");cards[x].style.outlineOffset="2px";}HINT.innerHTML="已選 <b style='color:"+PCOL[k]+"'>"+DNAME[k]+"</b>　選個問題，或點別位比較 👇";SEL.disabled=false;render();}
 SEL.addEventListener("change",render);
 '''
@@ -455,7 +455,7 @@ SEL.addEventListener("change",render);
 
 ASK_PANEL = (
     '<div class="section-title">🎤 換你問：點上面選一位，再選問題</div>'
-    '<div id="askpanel" data-v="ask10" style="background:linear-gradient(180deg,'
+    '<div id="askpanel" data-v="ask11" style="background:linear-gradient(180deg,'
     'rgba(255,255,255,.06),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.1);'
     'border-radius:16px;padding:15px 16px;margin-bottom:14px">'
     '<div id="askhint" class="lbl">👆 點上面任一張立場卡片，再從下拉選問題</div>'
@@ -472,11 +472,15 @@ ASK_PANEL = (
     '#askpanel .asksel option{background:#11203f;color:#eaf0fa}'
     '#askpanel .bubble{display:flex;gap:10px;align-items:flex-start;margin-top:13px}'
     '#askpanel .av{flex:none;width:40px;height:40px;border-radius:50%;'
-    'display:flex;align-items:center;justify-content:center;color:#0a1430;'
+    'display:flex;align-items:center;justify-content:center;color:#fff;'
     'font-size:13px;font-weight:800;letter-spacing:.5px;'
+    'text-shadow:0 1px 3px rgba(0,0,0,.35);'
     'box-shadow:0 0 0 3px rgba(255,255,255,.06)}'
     '#askpanel .bub{border:1px solid;border-radius:4px 16px 16px 16px;'
-    'padding:14px 17px;font-size:16px;line-height:1.85;color:#eaf3ff}'
+    'padding:14px 17px;font-size:16px;line-height:1.85;color:#eaf3ff;'
+    '-webkit-backdrop-filter:blur(18px) saturate(1.6);'
+    'backdrop-filter:blur(18px) saturate(1.6);'
+    'box-shadow:0 8px 26px rgba(0,0,0,.35),inset 0 1px 0.5px rgba(255,255,255,.18)}'
     '#askpanel .bn{font-weight:700;font-size:13px;margin-bottom:5px}'
     '.card.askpick{cursor:pointer}'
     '</style>'
@@ -490,7 +494,7 @@ ASK_OLD_RE = re.compile(
 
 def patch_ask(html):
     """觀點頁：三方立場卡片直接點選，提問用下拉選單，移除辯論。"""
-    if 'data-v="ask10"' in html:                 # 已是最新版
+    if 'data-v="ask11"' in html:                 # 已是最新版
         return html, False
     if '🔥 三方互嗆' in html:                    # 引擎原版：替換辯論段
         new = ASK_DEBATE_RE.sub(lambda m: ASK_PANEL + '</div></body>', html, count=1)

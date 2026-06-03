@@ -13,7 +13,9 @@ on:
     branches: [main]
     paths:
       - "**.html"
-      - "scripts/patch_site.py"   # 補丁邏輯一改也自動套到現有 HTML
+      - "scripts/patch_site.py"        # 補丁邏輯一改也自動套到現有 HTML
+      - "scripts/gen_stock_pages.py"   # 個股頁產生器一改也重產
+      - "universe.json"                # 引擎每天更新分數 → 重產個股頁
   workflow_dispatch:
 
 permissions:
@@ -35,6 +37,9 @@ jobs:
 
       - name: 套用補丁
         run: python scripts/patch_site.py
+
+      - name: 產生熱門個股 SEO 頁
+        run: python scripts/gen_stock_pages.py
 
       - name: 有變更才提交
         run: |

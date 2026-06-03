@@ -272,6 +272,30 @@ def patch_wlalert(html):
     return html.replace(WL_ALERT_ANCHOR, WL_ALERT_ANCHOR + WL_ALERT_JS, 1), True
 
 
+# --- SEO 結構化資料 --------------------------------------------------------
+# 在首頁 <head> 注入 JSON-LD，幫 Google 理解這是什麼網站（只動 index.html）。
+SEO_ANCHOR = '<link rel="manifest" href="manifest.webmanifest">'
+SEO_JSONLD = (
+    '<script type="application/ld+json">{"@context":"https://schema.org",'
+    '"@type":"WebApplication","name":"Stock Tracker",'
+    '"url":"https://stocktracker-tw.github.io/market-dashboard/",'
+    '"applicationCategory":"FinanceApplication","operatingSystem":"Web",'
+    '"inLanguage":"zh-Hant",'
+    '"description":"幾十項指標壓成一個 0–100 台股進場分數，每日自動更新。'
+    '個股進場分數、法人vs散戶背離、景氣循環、策略回測。非投資建議。",'
+    '"offers":{"@type":"Offer","price":"0","priceCurrency":"TWD"}}</script>'
+)
+
+
+def patch_seo(html):
+    """首頁注入 JSON-LD 結構化資料。以 verdict 區塊判定是否為大盤首頁。"""
+    if 'class="verdict"' not in html or SEO_ANCHOR not in html:
+        return html, False
+    if 'application/ld+json' in html:
+        return html, False
+    return html.replace(SEO_ANCHOR, SEO_ANCHOR + SEO_JSONLD, 1), True
+
+
 def patch(html):
     changed = False
 
@@ -320,6 +344,10 @@ def patch(html):
     # 8) 自選股進站變化提醒（stocks.html）
     html, wa = patch_wlalert(html)
     changed = changed or wa
+
+    # 9) SEO 結構化資料（index.html）
+    html, se = patch_seo(html)
+    changed = changed or se
 
     return html, changed
 

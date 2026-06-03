@@ -157,6 +157,35 @@ def patch_tabbar(html):
     return html, (html != orig)
 
 
+# --- 載入效能 --------------------------------------------------------------
+# echarts 從 CDN 載 ~1MB；頁面一載入又會 init 近 30 張圖，手機很卡。
+# 做法：preconnect 加速連線 + 包住 echarts.init 讓圖「滑到才畫」(IntersectionObserver)。
+ECHARTS_TAG = ('<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/'
+               'dist/echarts.min.js"></script>')
+PRECONNECT = ('<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>'
+              '<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">'
+              '<link rel="preconnect" href="https://unpkg.com" crossorigin>')
+LAZY_ECHARTS = (
+    '<script>/*lazy-echarts*/(function(g){if(!g.IntersectionObserver||!g.echarts||'
+    'g.echarts.__lazy)return;var R=g.echarts.init;g.echarts.__lazy=1;'
+    'g.echarts.init=function(el){var a=arguments;if(!el||el.__forceEager)'
+    'return R.apply(g.echarts,a);var p={_q:[],setOption:function(o){this._q.push(o);'
+    'return this},resize:function(){return this}};var io=new g.IntersectionObserver('
+    'function(es){for(var i=0;i<es.length;i++){if(es[i].isIntersecting){io.disconnect();'
+    'var inst=R.apply(g.echarts,a);for(var j=0;j<p._q.length;j++)inst.setOption(p._q[j]);'
+    'p.setOption=function(o){return inst.setOption(o)};p.resize=function(){'
+    'return inst.resize()};break}}},{rootMargin:"200px"});io.observe(el);return p}})(window);</script>'
+)
+
+
+def patch_perf(html):
+    """preconnect + 讓 echarts 圖滑到才畫。只動有 echarts 的頁面。"""
+    if ECHARTS_TAG not in html or '/*lazy-echarts*/' in html:
+        return html, False
+    html = html.replace(ECHARTS_TAG, PRECONNECT + ECHARTS_TAG + LAZY_ECHARTS, 1)
+    return html, True
+
+
 def patch(html):
     changed = False
 
@@ -189,6 +218,10 @@ def patch(html):
     # 4) Tab Bar 重排 + 改名（所有有導覽列的頁面）
     html, tb = patch_tabbar(html)
     changed = changed or tb
+
+    # 5) 載入效能（有 echarts 的頁面）
+    html, pf = patch_perf(html)
+    changed = changed or pf
 
     return html, changed
 

@@ -215,6 +215,41 @@ def patch_stocks(html):
     return html, changed
 
 
+# --- 「我該扣多少」計算機 --------------------------------------------------
+# 把抽象的「建議定額倍數」變成具體金額：輸入平常月扣 → 今天該投多少。
+# 倍數直接讀頁面已渲染的 .mult b，永遠跟引擎顯示一致。
+CALC_ANCHOR = '（相對平常每月定額金額）</span></div>'
+CALC_BOX = (
+    '<div id="calc" style="margin-top:12px;padding:12px 14px;background:rgba(255,255,255,'
+    '.05);border:1px solid rgba(255,255,255,.1);border-radius:14px;font-size:13px">'
+    '<div style="margin-bottom:8px;font-weight:600">💡 我這個月該扣多少？</div>'
+    '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">平常每月定額 '
+    '<input id="calcBase" type="number" inputmode="numeric" placeholder="例 10000" '
+    'style="width:110px;padding:6px 10px;font-size:14px"> 元　→　今天建議 '
+    '<b id="calcOut" style="color:var(--accent);font-size:16px">—</b></div>'
+    '<div style="margin-top:6px;color:var(--muted);font-size:11.5px">今日倍數 '
+    '<span id="calcMult">1</span>x：高分多扣、低分少扣，把分數變成具體金額。'
+    '⚠️ 非投資建議</div></div>'
+    '<script>/*calc*/(function(){var b=document.getElementById("calcBase"),'
+    'o=document.getElementById("calcOut"),mt=document.getElementById("calcMult");'
+    'if(!b)return;var me=document.querySelector(".mult b");'
+    'var mult=me?parseFloat(me.textContent):1;if(!mult||isNaN(mult))mult=1;'
+    'mt.textContent=(Math.round(mult*100)/100);'
+    'try{var s=localStorage.getItem("calcBase");if(s)b.value=s;}catch(e){}'
+    'function f(){var v=parseFloat(b.value)||0;'
+    'o.textContent=v?Math.round(v*mult).toLocaleString()+" 元":"—";'
+    'try{localStorage.setItem("calcBase",b.value);}catch(e){}}'
+    'b.addEventListener("input",f);f();})();</script>'
+)
+
+
+def patch_calc(html):
+    """在大盤倍數區下方加「我該扣多少」計算機。只動 index.html。"""
+    if CALC_ANCHOR not in html or 'id="calc"' in html:
+        return html, False
+    return html.replace(CALC_ANCHOR, CALC_ANCHOR + CALC_BOX, 1), True
+
+
 def patch(html):
     changed = False
 
@@ -255,6 +290,10 @@ def patch(html):
     # 6) 個股搜尋優化（stocks.html）
     html, st = patch_stocks(html)
     changed = changed or st
+
+    # 7) 「我該扣多少」計算機（index.html）
+    html, ca = patch_calc(html)
+    changed = changed or ca
 
     return html, changed
 

@@ -2,6 +2,7 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://stocktracker-tw.github.io/market-dashboard/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>
   <url><loc>https://stocktracker-tw.github.io/market-dashboard/stocks.html</loc><changefreq>daily</changefreq><priority>0.9</priority></url>
+  <url><loc>https://stocktracker-tw.github.io/market-dashboard/etf/</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
   <url><loc>https://stocktracker-tw.github.io/market-dashboard/backtest.html</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
   <url><loc>https://stocktracker-tw.github.io/market-dashboard/perspectives.html</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
   <url><loc>https://stocktracker-tw.github.io/market-dashboard/news.html</loc><changefreq>daily</changefreq><priority>0.6</priority></url>
@@ -52,4 +53,13 @@
   <url><loc>https://stocktracker-tw.github.io/market-dashboard/stock/2376.html</loc><lastmod>2026-06-03</lastmod><changefreq>daily</changefreq><priority>0.6</priority></url>
   <url><loc>https://stocktracker-tw.github.io/market-dashboard/stock/2409.html</loc><lastmod>2026-06-03</lastmod><changefreq>daily</changefreq><priority>0.6</priority></url>
   <url><loc>https://stocktracker-tw.github.io/market-dashboard/stock/1402.html</loc><lastmod>2026-06-03</lastmod><changefreq>daily</changefreq><priority>0.6</priority></url>
+  <url><loc>https://stocktracker-tw.github.io/market-dashboard/etf/0050.html</loc><lastmod>2026-06-03</lastmod><changefreq>daily</changefreq><priority>0.6</priority></url>
+  <url><loc>https://stocktracker-tw.github.io/market-dashboard/etf/006208.html</loc><lastmod>2026-06-03</lastmod><changefreq>daily</changefreq><priority>0.6</priority></url>
+  <url><loc>https://stocktracker-tw.github.io/market-dashboard/etf/00692.html</loc><lastmod>2026-06-03</lastmod><changefreq>daily</changefreq><priority>0.6</priority></url>
+  <url><loc>https://stocktracker-tw.github.io/market-dashboard/etf/0056.html</loc><lastmod>2026-06-03</lastmod><changefreq>daily</changefreq><priority>0.6</priority></url>
+  <url><loc>https://stocktracker-tw.github.io/market-dashboard/etf/00878.html</loc><lastmod>2026-06-03</lastmod><changefreq>daily</changefreq><priority>0.6</priority></url>
+  <url><loc>https://stocktracker-tw.github.io/market-dashboard/etf/00919.html</loc><lastmod>2026-06-03</lastmod><changefreq>daily</changefreq><priority>0.6</priority></url>
+  <url><loc>https://stocktracker-tw.github.io/market-dashboard/etf/00929.html</loc><lastmod>2026-06-03</lastmod><changefreq>daily</changefreq><priority>0.6</priority></url>
+  <url><loc>https://stocktracker-tw.github.io/market-dashboard/etf/00940.html</loc><lastmod>2026-06-03</lastmod><changefreq>daily</changefreq><priority>0.6</priority></url>
+  <url><loc>https://stocktracker-tw.github.io/market-dashboard/etf/00713.html</loc><lastmod>2026-06-03</lastmod><changefreq>daily</changefreq><priority>0.6</priority></url>
 </urlset>

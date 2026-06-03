@@ -314,6 +314,23 @@ def patch_stocklink(html):
     return html.replace(STOCKLINK_ANCHOR, STOCKLINK_ANCHOR + STOCKLINK_HTML, 1), True
 
 
+# --- 儀表板內鏈到 ETF 定期定額頁 ------------------------------------------
+ETFLINK_ANCHOR = '把分數變成具體金額。⚠️ 非投資建議</div></div>'
+ETFLINK_HTML = (
+    '<a href="etf/" style="display:block;margin:10px 0 0;padding:10px 14px;'
+    'background:rgba(52,208,127,.1);border:1px solid rgba(52,208,127,.3);'
+    'border-radius:12px;color:#bfe8d2;text-decoration:none;font-size:13px">'
+    '📦 想用在 0050 / 0056 等 ETF 定期定額？看 ETF 專頁 →</a>'
+)
+
+
+def patch_etflink(html):
+    """大盤計算機下方加一條內鏈到 ETF 定期定額頁。只動 index.html（計算機注入後）。"""
+    if ETFLINK_ANCHOR not in html or 'href="etf/"' in html:
+        return html, False
+    return html.replace(ETFLINK_ANCHOR, ETFLINK_ANCHOR + ETFLINK_HTML, 1), True
+
+
 def patch(html):
     changed = False
 
@@ -370,6 +387,10 @@ def patch(html):
     # 10) 個股頁內鏈到熱門 SEO 頁（stocks.html）
     html, sl = patch_stocklink(html)
     changed = changed or sl
+
+    # 11) 儀表板內鏈到 ETF 定期定額頁（index.html，計算機之後）
+    html, el = patch_etflink(html)
+    changed = changed or el
 
     return html, changed
 

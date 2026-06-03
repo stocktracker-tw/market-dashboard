@@ -8,21 +8,39 @@
 import html as _html
 import json
 import os
+import re
 from datetime import date
 
 BASE = "https://stocktracker-tw.github.io/market-dashboard"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUTDIR = os.path.join(ROOT, "stock")
+ETFDIR = os.path.join(ROOT, "etf")
 TODAY = date.today().isoformat()
 
 # 站台主要頁面（一併寫進 sitemap）
 MAIN_PAGES = [
     ("/", "daily", "1.0"),
     ("/stocks.html", "daily", "0.9"),
+    ("/etf/", "daily", "0.8"),
     ("/backtest.html", "weekly", "0.8"),
     ("/perspectives.html", "daily", "0.7"),
     ("/news.html", "daily", "0.6"),
     ("/stock/", "daily", "0.7"),
+]
+
+# 熱門 ETF（universe 沒有 ETF 分數；廣基型 ETF≈大盤，用每日大盤分數判斷定額時機。
+# 高股息/主題型成分與大盤不同，大盤分數僅供「市場環境」參考）。
+# (代碼, 名稱, 類型 broad/dividend, 追蹤/成分說明)
+ETF_LIST = [
+    ("0050", "元大台灣50", "broad", "臺灣50指數（市值前 50 大，約等於台股大盤）"),
+    ("006208", "富邦台50", "broad", "臺灣50指數（與 0050 同指數）"),
+    ("00692", "富邦公司治理", "broad", "公司治理 100 指數（廣基大型股）"),
+    ("0056", "元大高股息", "dividend", "高股息精選成分股"),
+    ("00878", "國泰永續高股息", "dividend", "MSCI 臺灣 ESG 永續高股息"),
+    ("00919", "群益台灣精選高息", "dividend", "台灣精選高息指數"),
+    ("00929", "復華台灣科技優息", "dividend", "科技類高股息"),
+    ("00940", "元大台灣價值高息", "dividend", "價值高息成分"),
+    ("00713", "元大台灣高息低波", "dividend", "高息低波動成分"),
 ]
 
 # 熱門個股（知名大型權值股；非個股的 ETF 不在 universe，會自動略過）
@@ -176,13 +194,152 @@ li a{{text-decoration:none;font-weight:600}}.s{{font-weight:800;color:#aab4c6}}
 </div></body></html>"""
 
 
-def write_sitemap(codes):
+# --- ETF（用每日大盤分數判斷定期定額時機）---------------------------------
+def market_score():
+    """從 index.html 讀大盤綜合進場分數（引擎每天更新）。"""
+    try:
+        s = open(os.path.join(ROOT, "index.html"), encoding="utf-8").read()
+        m = re.search(r'"composite":\s*([0-9.]+)', s)
+        return round(float(m.group(1))) if m else None
+    except Exception:
+        return None
+
+
+def mult_of(sc):
+    return 1.5 if sc >= 70 else 1.25 if sc >= 58 else 1.0 if sc >= 43 else 0.75 if sc >= 35 else 0.5
+
+
+def etf_page(meta, sc):
+    code, name, kind, basis = meta
+    code, name, basis = e(code), e(name), e(basis)
+    broad = kind == "broad"
+    zlabel = ZONES[zone(sc)] if sc is not None else "—"
+    mult = mult_of(sc) if sc is not None else 1.0
+    if broad:
+        frame = (f"{name}（{code}）追蹤的指數幾乎等於台股大盤，所以<b>今天的大盤進場分數"
+                 f" {sc}（{zlabel}）可直接用來判斷這檔的定期定額時機</b>。")
+    else:
+        frame = (f"{name}（{code}）是高股息／主題型 ETF，成分與大盤不同，"
+                 f"以下大盤分數 {sc}（{zlabel}）<b>僅供「市場環境」參考</b>，不代表這檔本身。")
+    desc = (f"{name}（{code}）定期定額進場時機：今天台股大盤進場分數 {sc}（{zlabel}）。"
+            f"分數高＝環境偏多可多扣、低＝保守。每日更新・非投資建議。")
+    title = f"{name}（{code}）定期定額進場時機 — Stock Tracker"
+    canon = f"{BASE}/etf/{code}.html"
+    return f"""<!DOCTYPE html>
+<html lang="zh-Hant"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{e(title)}</title>
+<link rel="canonical" href="{canon}">
+<meta name="description" content="{e(desc)}">
+<meta name="robots" content="index,follow">
+<link rel="icon" href="../favicon.ico?v=1">
+<link rel="apple-touch-icon" href="../apple-icon-v9.png">
+<meta property="og:type" content="article">
+<meta property="og:title" content="{e(title)}">
+<meta property="og:description" content="{e(desc)}">
+<meta property="og:url" content="{canon}">
+<meta property="og:image" content="{BASE}/cover.png">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">{{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{{"@type":"Question","name":"{name}（{code}）現在適合定期定額嗎？","acceptedAnswer":{{"@type":"Answer","text":"{e(desc)}"}}}}]}}</script>
+<style>
+:root{{color-scheme:dark}}*{{box-sizing:border-box}}
+body{{margin:0;background:#0a1430;color:#f2f5fa;font-family:"Segoe UI","Microsoft JhengHei",system-ui,sans-serif;line-height:1.6}}
+.wrap{{max-width:760px;margin:0 auto;padding:22px 18px 60px}}a{{color:#5b9cff}}
+.bc{{font-size:13px;color:#aab4c6;margin-bottom:10px}}
+h1{{font-size:23px;margin:0 0 2px}}.meta{{color:#aab4c6;font-size:13px;margin-bottom:18px}}
+.hero{{background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.025));border:1px solid rgba(255,255,255,.1);border-radius:18px;padding:18px 20px;margin-bottom:16px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}}
+.score{{font-size:52px;font-weight:800;line-height:1}}
+.badge{{display:inline-block;padding:4px 12px;border-radius:999px;font-weight:700;font-size:14px;background:#1e2a44}}
+.card{{background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:14px 16px;margin-bottom:14px}}
+.card .h{{font-weight:700;font-size:14px;margin-bottom:8px}}.card .t{{font-size:13.5px;color:#cdd6e6}}
+input{{width:120px;padding:7px 10px;font-size:14px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:10px;color:#f2f5fa}}
+.cta{{display:inline-block;margin-top:4px;padding:10px 16px;background:#1f6feb;color:#fff;text-decoration:none;border-radius:10px;font-weight:600}}
+.warn{{background:rgba(234,84,85,.12);border:1px solid rgba(234,84,85,.4);color:#ffb3b3;padding:8px 12px;border-radius:8px;font-size:12.5px;margin:16px 0}}
+.foot{{margin-top:24px;padding-top:14px;border-top:1px solid #222936;color:#aab4c6;font-size:12px}}
+b{{color:#cfe0ff}}
+</style></head><body><div class="wrap">
+<div class="bc"><a href="../">Stock Tracker</a> ／ <a href="./">ETF 定期定額</a> ／ {name}</div>
+<h1>{name}（{code}）定期定額進場時機</h1>
+<div class="meta">追蹤：{basis}　｜　更新 {TODAY}</div>
+
+<div class="hero"><div class="score">{sc if sc is not None else "—"}</div><div>
+<span class="badge">大盤環境：{e(zlabel)}</span>
+<div style="font-size:13px;color:#cdd6e6;margin-top:8px;max-width:420px">{frame}</div>
+</div></div>
+
+<div class="card"><div class="h">💡 這個月該扣多少？</div>
+<div>平常每月定額 <input id="b" type="number" inputmode="numeric" placeholder="例 5000"> 元　→　今天建議 <b id="o" style="font-size:16px">—</b></div>
+<div style="margin-top:6px;color:#aab4c6;font-size:11.5px">今日倍數 {mult:g}x（分數高多扣、低少扣）。{'' if broad else '高股息 ETF 僅供環境參考。'}</div>
+<script>(function(){{var b=document.getElementById("b"),o=document.getElementById("o"),M={mult:g};
+try{{var s=localStorage.getItem("etfBase");if(s)b.value=s;}}catch(e){{}}
+function f(){{var v=parseFloat(b.value)||0;o.textContent=v?Math.round(v*M).toLocaleString()+" 元":"—";try{{localStorage.setItem("etfBase",b.value);}}catch(e){{}}}}
+b.addEventListener("input",f);f();}})();</script></div>
+
+<a class="cta" href="../">看完整大盤分數與指標 →</a>
+
+<div class="warn">⚠️ 進場分數反映台股大盤環境，僅供參考，<b>不構成投資建議、不預測漲跌</b>，投資前請自行評估風險。</div>
+
+<div class="card"><div class="h">怎麼用？</div><div class="t">
+定期定額最大的好處是「不用猜時機」。但如果你願意<b>在大盤分數低時多扣一點、高時少扣一點</b>，
+長期有機會降低成本、減少在高點重押。這不是叫你停扣或預測漲跌，而是把市場環境量化成一個溫度計。
+完整分數與指標見 <a href="../">Stock Tracker 首頁</a>，其他 ETF 見 <a href="./">ETF 一覽</a>。</div></div>
+
+<div class="foot">資料每日更新・非投資建議　｜　<a href="../">Stock Tracker</a></div>
+</div></body></html>"""
+
+
+def etf_hub(sc):
+    zlabel = ZONES[zone(sc)] if sc is not None else "—"
+    items = "".join(
+        f'<li><a href="{e(c)}.html">{e(n)}（{e(c)}）</a>'
+        f'<span class="k">{"廣基≈大盤" if k=="broad" else "高股息"}</span></li>'
+        for c, n, k, _ in ETF_LIST)
+    desc = ("熱門 ETF 定期定額進場時機：用每日台股大盤進場分數判斷 0050、006208、0056、"
+            "00878 等該不該多扣或少扣。廣基型 ETF 直接適用，高股息型供環境參考。非投資建議。")
+    return f"""<!DOCTYPE html>
+<html lang="zh-Hant"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ETF 定期定額進場時機（0050、0056…）— Stock Tracker</title>
+<link rel="canonical" href="{BASE}/etf/">
+<meta name="description" content="{e(desc)}">
+<link rel="icon" href="../favicon.ico?v=1">
+<link rel="apple-touch-icon" href="../apple-icon-v9.png">
+<meta property="og:title" content="ETF 定期定額進場時機 — Stock Tracker">
+<meta property="og:description" content="{e(desc)}">
+<meta property="og:url" content="{BASE}/etf/">
+<meta property="og:image" content="{BASE}/cover.png">
+<style>
+:root{{color-scheme:dark}}body{{margin:0;background:#0a1430;color:#f2f5fa;font-family:"Segoe UI","Microsoft JhengHei",system-ui,sans-serif;line-height:1.6}}
+.wrap{{max-width:760px;margin:0 auto;padding:22px 18px 60px}}a{{color:#5b9cff}}
+h1{{font-size:23px}}.meta{{color:#aab4c6;font-size:13px;margin-bottom:14px}}
+.now{{background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.025));border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:14px 16px;margin-bottom:16px;font-size:14px}}
+ul{{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(2,1fr);gap:8px}}
+@media(max-width:560px){{ul{{grid-template-columns:1fr}}}}
+li{{display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);border-radius:10px;padding:9px 13px}}
+li a{{text-decoration:none;font-weight:600}}.k{{font-size:11px;color:#aab4c6}}
+.foot{{margin-top:22px;padding-top:14px;border-top:1px solid #222936;color:#aab4c6;font-size:12px}}
+</style></head><body><div class="wrap">
+<div style="font-size:13px;color:#aab4c6"><a href="../">Stock Tracker</a> ／ ETF 定期定額</div>
+<h1>ETF 定期定額進場時機</h1>
+<div class="meta">用每日台股大盤進場分數，判斷熱門 ETF 該多扣還是少扣・更新 {TODAY}</div>
+<div class="now">📊 今天台股大盤進場分數 <b style="font-size:18px">{sc if sc is not None else "—"}</b>（{e(zlabel)}）
+　—　廣基型 ETF（0050、006208）直接適用；高股息型供市場環境參考。</div>
+<ul>{items}</ul>
+<div class="foot">⚠️ 非投資建議，不預測漲跌。完整大盤分數見 <a href="../">首頁</a>。</div>
+</div></body></html>"""
+
+
+def write_sitemap(stock_codes, etf_codes):
     urls = []
     for path, freq, pri in MAIN_PAGES:
         urls.append(f"  <url><loc>{BASE}{path}</loc>"
                     f"<changefreq>{freq}</changefreq><priority>{pri}</priority></url>")
-    for c in codes:
+    for c in stock_codes:
         urls.append(f"  <url><loc>{BASE}/stock/{c}.html</loc>"
+                    f"<lastmod>{TODAY}</lastmod><changefreq>daily</changefreq>"
+                    f"<priority>0.6</priority></url>")
+    for c in etf_codes:
+        urls.append(f"  <url><loc>{BASE}/etf/{c}.html</loc>"
                     f"<lastmod>{TODAY}</lastmod><changefreq>daily</changefreq>"
                     f"<priority>0.6</priority></url>")
     xml = ('<?xml version="1.0" encoding="UTF-8"?>\n'
@@ -202,8 +359,18 @@ def main():
             f.write(page(x))
     with open(os.path.join(OUTDIR, "index.html"), "w", encoding="utf-8") as f:
         f.write(hub(rows))
-    write_sitemap([x["c"] for x in rows])
-    print(f"已產生 {len(rows)} 檔個股頁 + 索引頁，並更新 sitemap.xml")
+
+    sc = market_score()
+    os.makedirs(ETFDIR, exist_ok=True)
+    for meta in ETF_LIST:
+        with open(os.path.join(ETFDIR, f"{meta[0]}.html"), "w", encoding="utf-8") as f:
+            f.write(etf_page(meta, sc))
+    with open(os.path.join(ETFDIR, "index.html"), "w", encoding="utf-8") as f:
+        f.write(etf_hub(sc))
+
+    write_sitemap([x["c"] for x in rows], [m[0] for m in ETF_LIST])
+    print(f"已產生 {len(rows)} 檔個股頁 + {len(ETF_LIST)} 檔 ETF 頁（大盤分數 {sc}），"
+          "並更新 sitemap.xml")
 
 
 if __name__ == "__main__":

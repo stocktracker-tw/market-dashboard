@@ -13,6 +13,7 @@ on:
     branches: [main]
     paths:
       - "**.html"
+      - "scripts/patch_site.py"   # 補丁邏輯一改也自動套到現有 HTML
   workflow_dispatch:
 
 permissions:

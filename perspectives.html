@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="refresh" content="1800">
 <title>Stock Tracker — 市場進場儀表板</title>
-<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin><link rel="dns-prefetch" href="https://cdn.jsdelivr.net"><link rel="preconnect" href="https://unpkg.com" crossorigin><script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script><script>/*lazy-echarts*/(function(g){if(!g.IntersectionObserver||!g.echarts||g.echarts.__lazy)return;var R=g.echarts.init;g.echarts.__lazy=1;g.echarts.init=function(el){var a=arguments;if(!el||el.__forceEager)return R.apply(g.echarts,a);var p={_q:[],setOption:function(o){this._q.push(o);return this},resize:function(){return this}};var io=new g.IntersectionObserver(function(es){for(var i=0;i<es.length;i++){if(es[i].isIntersecting){io.disconnect();var inst=R.apply(g.echarts,a);for(var j=0;j<p._q.length;j++)inst.setOption(p._q[j]);p.setOption=function(o){return inst.setOption(o)};p.resize=function(){return inst.resize()};break}}},{rootMargin:"200px"});io.observe(el);return p}})(window);</script>
 <script>window.echarts||document.write('<script src="https://unpkg.com/echarts@5.5.0/dist/echarts.min.js"><\/script>');</script>
 <style>
 :root{

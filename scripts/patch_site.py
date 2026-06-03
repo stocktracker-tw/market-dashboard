@@ -9,6 +9,7 @@
 所以這支腳本只有在 Bot 把修改洗掉時才會真的產生 diff。
 """
 import glob
+import json
 import re
 
 # 分頁圖示（帶 ?v= 以繞過頑固的 favicon 快取）
@@ -385,6 +386,99 @@ def patch_barglass(html):
     return html, (html != orig)
 
 
+# --- 觀點頁：移除三方辯論，保留三方立場，改成「選一派問問題」 ---------------
+ASK_Q = [
+    "現在能進場嗎？", "0050 還是自己挑個股？", "崩盤了怎麼辦？", "該停損嗎？",
+    "新手第一步該做什麼？", "大家都在賺、FOMO 怎麼辦？", "定期定額還是單筆 All in？",
+    "該借錢／融資加大部位嗎？", "怎麼看「進場分數」這個工具？", "你最反對哪種做法？",
+]
+ASK_NAME = {"passive": "清流君・被動指數派", "macro": "財經X角・總經循環派",
+            "trend": "股X・順勢紀律派"}
+ASK_A = {
+    "passive": [
+        "別問時機。你問『現在能不能進場』的當下，就已經掉進擇時陷阱了。照原定定期定額扣下去、別停，就這麼簡單。",
+        "0050 或全球 VT。挑個股長期勝率輸大盤又耗時，把力氣省下來做資產配置跟再平衡。",
+        "崩盤是定期定額的好朋友——同樣的錢買到更多單位。繼續扣、別看帳戶、別亂動。",
+        "不停損。指數不會歸零，停損只會讓你賣在最低點、賣掉未來的複利。",
+        "先把緊急備用金存好，再開低成本指數 ETF 定期定額，然後……什麼都別做。",
+        "別人賺的是別人的，你追進去通常買在高點。FOMO 是擇時的另一個名字，紀律定額就不會 FOMO。",
+        "有閒錢其實單筆＋長期持有期望值最高；但人性受不了，所以定期定額讓你睡得著、比較實際。",
+        "絕對不要。槓桿會在你最撐不住時斷頭，被動投資的核心就是『活得夠久』。",
+        "有趣，但別當買賣訊號。長期而言擇時贏不過低成本紀律定額，這分數頂多當市場溫度看看。",
+        "擇時。再準的訊號，長期都贏不過『低成本＋紀律定額＋不亂動』。",
+    ],
+    "macro": [
+        "先看景氣位置。現在偏『過熱』、融資槓桿暴增、Fed 全年沒幾碼——這種時候我偏防禦、重現金流，不追估值。",
+        "都行，但重點是『質』。景氣轉折期挑有現金流、低負債的公司，比追題材安全。",
+        "崩盤前通常信用利差和流動性會先壞。真的來了，手上要有現金跟防禦部位能接，而不是被迫殺低。",
+        "我看的是景氣／基本面訊號轉壞才減碼，不是盯著價格停損——價格會騙人，循環不會。",
+        "先學會看幾個總經溫度計：景氣對策信號、利率、殖利率曲線。知道現在是循環哪一段，比挑股票重要。",
+        "市場最樂觀、人人都賺的時候，常常就是循環頂部。FOMO 最強時，我反而開始降風險。",
+        "看循環。過熱、估值貴時我傾向分批、留現金；循環落底才是單筆布局的好時機。",
+        "景氣過熱＋槓桿暴增的環境，加槓桿最危險。流動性一收，高槓桿的先出局。",
+        "當環境溫度計不錯，但我更在意背後的景氣位置、利率和信用——分數高低要搭循環一起看。",
+        "在景氣過熱、槓桿暴增時還追高估值和題材，完全不看流動性與信用轉折。",
+    ],
+    "trend": [
+        "趨勢還偏多、動能在，可以參與。但散戶融資在追、噴發脆弱度高，所以控部位、別 All in、留銀彈。",
+        "看你功力。要挑個股就嚴設停損、順勢做；沒把握就定期定額 0050，別兩邊都半吊子。",
+        "跌破 50 日線我就減碼，留的銀彈這時候才有用。別凹單、別往下攤平。",
+        "一定要。停損是活下來的關鍵，別當那隻追高被套、捨不得停損的韭菜。",
+        "先學會『控制部位』跟『設停損』，這兩個比選股重要十倍。先想怎麼不被抬出場，再想賺大錢。",
+        "FOMO 進場的單，十之八九買在波段高點。手癢時問自己：停損點設在哪？設不出來就別進。",
+        "順勢分批進、別一次梭哈。留銀彈不是膽小，是讓你回檔時還有子彈、還睡得著。",
+        "散戶融資追高是賠大錢頭號死因。要用槓桿也是高手在低風險區小量用，不是追高 All in。",
+        "拿來當『該積極還是收手』的提醒不錯——分數低我多留銀彈，分數高也不無腦重壓。",
+        "重壓 All in、追高、不設停損——散戶賠大錢三件套，中一個就夠你受的。",
+    ],
+}
+_ASK_DATA = "var Q=%s,A=%s,NAME=%s;" % (
+    json.dumps(ASK_Q, ensure_ascii=False),
+    json.dumps(ASK_A, ensure_ascii=False),
+    json.dumps(ASK_NAME, ensure_ascii=False),
+)
+_ASK_JS = r'''
+var W=document.getElementById("askwho"),QC=document.getElementById("askqs"),AN=document.getElementById("askans"),cur="passive";
+function rq(){QC.innerHTML=Q.map(function(q,i){return '<button type="button" class="qchip" data-i="'+i+'">'+q+'</button>';}).join("");}
+function pick(p){cur=p;[].forEach.call(W.children,function(b){b.className="askbtn"+(b.getAttribute("data-p")===p?" on":"");});rq();AN.innerHTML='<span style="color:#8b96a8">點一個問題 👆</span>';}
+W.addEventListener("click",function(e){var b=e.target.closest("button");if(b)pick(b.getAttribute("data-p"));});
+QC.addEventListener("click",function(e){var b=e.target.closest("button");if(!b)return;var i=+b.getAttribute("data-i");AN.innerHTML='<div style="font-weight:700;margin-bottom:3px;color:#9fc0ff">'+NAME[cur]+'</div><div>'+A[cur][i]+'</div>';});
+pick("passive");
+'''
+ASK_PANEL = (
+    '<div class="section-title">🎤 換你問：選一派，問問題</div>'
+    '<div id="askpanel" style="background:linear-gradient(180deg,rgba(255,255,255,.06),'
+    'rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.1);border-radius:16px;'
+    'padding:14px 16px;margin-bottom:14px">'
+    '<div id="askwho" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">'
+    '<button type="button" class="askbtn" data-p="passive">🟢 清流君・被動</button>'
+    '<button type="button" class="askbtn" data-p="macro">🔵 財經X角・總經</button>'
+    '<button type="button" class="askbtn" data-p="trend">🟠 股X・順勢</button></div>'
+    '<div id="askqs" style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px"></div>'
+    '<div id="askans" style="font-size:13.5px;line-height:1.75;min-height:44px"></div>'
+    '<div style="font-size:11px;color:#8b96a8;margin-top:10px">'
+    '以投資流派為框架推演・非本人發言・非投資建議</div></div>'
+    '<style>#askpanel .askbtn{background:rgba(255,255,255,.06);border:1px solid '
+    'rgba(255,255,255,.14);color:#cfd8e6;border-radius:999px;padding:7px 13px;'
+    'font-size:13px;cursor:pointer;font-family:inherit}'
+    '#askpanel .askbtn.on{background:#1f6feb;color:#fff;border-color:#1f6feb}'
+    '#askpanel .qchip{background:rgba(255,255,255,.05);border:1px solid '
+    'rgba(255,255,255,.12);color:#d8e0ee;border-radius:10px;padding:6px 11px;'
+    'font-size:12.5px;cursor:pointer;font-family:inherit}'
+    '#askpanel .qchip:hover{background:rgba(255,255,255,.1)}</style>'
+    '<script>(function(){' + _ASK_DATA + _ASK_JS + '})();</script>'
+)
+ASK_RE = re.compile(r'<div class="section-title">🔥 三方互嗆.*?</div>\s*</body>', re.S)
+
+
+def patch_ask(html):
+    """觀點頁：移除三方辯論（互嗆＋結論），保留三方立場，換成『選一派問問題』。"""
+    if 'id="askpanel"' in html or '🔥 三方互嗆' not in html:
+        return html, False
+    new = ASK_RE.sub(lambda m: ASK_PANEL + '</div></body>', html, count=1)
+    return (new, True) if new != html else (html, False)
+
+
 def patch(html):
     changed = False
 
@@ -449,6 +543,10 @@ def patch(html):
     # 12) 導覽列液態玻璃風（只圖示、無字、更透明）
     html, bg = patch_barglass(html)
     changed = changed or bg
+
+    # 13) 觀點頁：移除辯論、保留三方立場、加「選一派問問題」
+    html, ak = patch_ask(html)
+    changed = changed or ak
 
     return html, changed
 

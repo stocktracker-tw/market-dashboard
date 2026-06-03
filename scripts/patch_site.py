@@ -386,6 +386,32 @@ def patch_barglass(html):
     return html, (html != orig)
 
 
+# --- 切換分頁的液態轉場（覆寫 View Transition keyframes，模糊+縮放+滑動）------
+# 注入在 keyframes 之後（nav 前），同名 @keyframes 後定義者勝出。
+# 前進(右→)用 vtin/vtout，後退(左→)用 vtin-back/vtout-back（引擎依 data-navdir 切換）。
+VT_LIQUID = (
+    '<style id="vtliquid">'
+    '::view-transition-old(root){animation:vtout .34s cubic-bezier(.4,0,.2,1) both}'
+    '::view-transition-new(root){animation:vtin .46s cubic-bezier(.2,.85,.25,1) both}'
+    '@keyframes vtin{from{opacity:0;transform:translateX(52px) scale(.93);filter:blur(12px)}'
+    'to{opacity:1;transform:translateX(0) scale(1);filter:blur(0)}}'
+    '@keyframes vtout{from{opacity:1;transform:translateX(0) scale(1);filter:blur(0)}'
+    'to{opacity:0;transform:translateX(-38px) scale(.93);filter:blur(12px)}}'
+    '@keyframes vtin-back{from{opacity:0;transform:translateX(-52px) scale(.93);filter:blur(12px)}'
+    'to{opacity:1;transform:translateX(0) scale(1);filter:blur(0)}}'
+    '@keyframes vtout-back{from{opacity:1;transform:translateX(0) scale(1);filter:blur(0)}'
+    'to{opacity:0;transform:translateX(38px) scale(.93);filter:blur(12px)}}'
+    '</style>'
+)
+
+
+def patch_vtliquid(html):
+    """把分頁切換的轉場改成液態感（模糊+縮放+滑動）。有 tabbar 的頁面。"""
+    if 'id="vtliquid"' in html or '<nav class="tabbar">' not in html:
+        return html, False
+    return html.replace('<nav class="tabbar">', VT_LIQUID + '<nav class="tabbar">', 1), True
+
+
 # --- 觀點頁：移除三方辯論，保留三方立場，改成「選一派問問題」 ---------------
 ASK_Q = [
     "現在能進場嗎？", "0050 還是自己挑個股？", "崩盤了怎麼辦？", "該停損嗎？",
@@ -573,6 +599,9 @@ def patch(html):
     changed = changed or el
 
     # 12) 導覽列液態玻璃風（只圖示、無字、更透明）
+    html, vt = patch_vtliquid(html)
+    changed = changed or vt
+
     html, bg = patch_barglass(html)
     changed = changed or bg
 

@@ -1,0 +1,49 @@
+name: 站台自動補丁（favicon + 分頁標題）
+
+# 外部 Bot（Stock Tracker Bot）每天重產 HTML 時，會把分頁圖示與品牌標題洗掉。
+# 這個 workflow 在每次 HTML 變動後自動把它們補回去，所以不需要改到外部引擎。
+#
+# 為什麼不會無限迴圈：
+#   1) 本 workflow 用內建 GITHUB_TOKEN 推送，GitHub 規定這種推送「不會」再觸發 workflow。
+#   2) commit 訊息帶 [skip ci] 再保險一層。
+#   3) patch_site.py 是冪等的，沒有變更就不會 commit。
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**.html"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: site-patch
+  cancel-in-progress: false
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 套用補丁
+        run: python scripts/patch_site.py
+
+      - name: 有變更才提交
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "自動補丁：favicon + 分頁標題 [skip ci]"
+            git push
+            echo "已補回 favicon／標題並推送。"
+          else
+            echo "無需變更，略過。"
+          fi

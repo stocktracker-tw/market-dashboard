@@ -437,62 +437,37 @@ _ASK_DATA = "var Q=%s,A=%s,NAME=%s;" % (
     json.dumps(ASK_A, ensure_ascii=False),
     json.dumps(ASK_NAME, ensure_ascii=False),
 )
-ASK_TAG = {"passive": "被動指數・照買別動", "macro": "總經循環・看景氣",
-           "trend": "順勢紀律・留銀彈"}
 ASK_EMO = {"passive": "🟢", "macro": "🔵", "trend": "🟠"}
 _ASK_JS = r'''
-var W=document.getElementById("askwho"),QC=document.getElementById("askqs"),AN=document.getElementById("askans"),LEAD=document.getElementById("asklead"),EMO={passive:"🟢",macro:"🔵",trend:"🟠"},cur=null;
-function sname(p){return NAME[p].split("・")[0];}
-function rq(){QC.innerHTML=Q.map(function(q,i){return '<button type="button" class="qchip" data-i="'+i+'">'+q+'</button>';}).join("");}
-function pick(p){cur=p;[].forEach.call(W.children,function(b){b.className="who"+(b.getAttribute("data-p")===p?" on":"");});LEAD.textContent="② 想問 "+sname(p)+" 什麼？";rq();AN.innerHTML="";}
-W.addEventListener("click",function(e){var b=e.target.closest("button");if(b)pick(b.getAttribute("data-p"));});
-QC.addEventListener("click",function(e){var b=e.target.closest("button");if(!b)return;var i=+b.getAttribute("data-i");[].forEach.call(QC.children,function(c){c.className="qchip"+(c===b?" on":"");});AN.innerHTML='<div class="bubble"><div class="av">'+EMO[cur]+'</div><div class="bub"><div class="bn">'+NAME[cur]+'</div>'+A[cur][i]+'</div></div>';});
-pick("passive");
+var SEL=document.getElementById("askq"),AN=document.getElementById("askans"),HINT=document.getElementById("askhint"),EMO={passive:"🟢",macro:"🔵",trend:"🟠"},cards={},cur=null;
+function sname(k){return NAME[k].split("・")[0];}
+function keyOf(t){return t.indexOf("清")>=0?"passive":t.indexOf("財經")>=0?"macro":t.indexOf("股")>=0?"trend":null;}
+SEL.innerHTML='<option value="">— 選一個問題 —</option>'+Q.map(function(q,i){return '<option value="'+i+'">'+q+'</option>';}).join("");
+[].forEach.call(document.querySelectorAll(".card .name"),function(n){var k=keyOf(n.textContent||"");if(!k)return;var c=n.closest(".card");if(!c)return;cards[k]=c;c.classList.add("askpick");c.addEventListener("click",function(){pick(k);});});
+function render(){if(cur===null||!SEL.value){AN.innerHTML="";return;}var i=+SEL.value;AN.innerHTML='<div class="bubble"><div class="av">'+EMO[cur]+'</div><div class="bub"><div class="bn">'+NAME[cur]+'</div>'+A[cur][i]+'</div></div>';}
+function pick(k){cur=k;for(var x in cards){cards[x].classList.toggle("askon",x===k);}HINT.innerHTML="已選 <b style='color:#9fc0ff'>"+sname(k)+"</b>　選個問題，或點別位比較 👇";SEL.disabled=false;render();}
+SEL.addEventListener("change",render);
 '''
 
 
-def _who_btn(p):
-    return ('<button type="button" class="who" data-p="%s">'
-            '<span class="emo">%s</span><span class="nm">%s</span>'
-            '<span class="tg">%s</span></button>'
-            % (p, ASK_EMO[p], ASK_NAME[p].split("・")[0], ASK_TAG[p]))
-
-
 ASK_PANEL = (
-    '<div class="section-title">🎤 換你問：選一派，問問題</div>'
-    '<div id="askpanel" data-v="ask2" style="background:linear-gradient(180deg,'
+    '<div class="section-title">🎤 換你問：點上面選一位，再選問題</div>'
+    '<div id="askpanel" data-v="ask3" style="background:linear-gradient(180deg,'
     'rgba(255,255,255,.06),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.1);'
     'border-radius:16px;padding:15px 16px;margin-bottom:14px">'
-    '<div class="lbl">① 先選一位（立場不同，答案就不同）</div>'
-    '<div id="askwho" class="who-grid">'
-    + _who_btn("passive") + _who_btn("macro") + _who_btn("trend") +
-    '</div><div class="ask-sep"></div>'
-    '<div id="asklead" class="lead">② 想問什麼？</div>'
-    '<div id="askqs" class="qs"></div>'
+    '<div id="askhint" class="lbl">👆 點上面任一張立場卡片，再從下拉選問題</div>'
+    '<select id="askq" class="asksel" disabled><option value="">先選一位…</option></select>'
     '<div id="askans"></div>'
     '<div style="font-size:11px;color:#8b96a8;margin-top:13px">'
     '以投資流派為框架推演・非本人發言・非投資建議</div></div>'
     '<style>'
-    '#askpanel .lbl{font-size:12px;color:#8b96a8;margin:0 0 8px}'
-    '#askpanel .who-grid{display:flex;gap:8px}'
-    '#askpanel .who{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;'
-    'gap:3px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);'
-    'border-radius:14px;padding:11px 5px;cursor:pointer;font-family:inherit;color:#cfd8e6;'
-    'transition:background .15s,border-color .15s}'
-    '#askpanel .who .emo{font-size:17px}'
-    '#askpanel .who .nm{font-weight:700;font-size:13px;color:#eaf0fa}'
-    '#askpanel .who .tg{font-size:10px;color:#8b96a8;text-align:center;line-height:1.3}'
-    '#askpanel .who.on{background:rgba(31,111,235,.2);border-color:#1f6feb}'
-    '#askpanel .who.on .nm{color:#fff}'
-    '#askpanel .ask-sep{height:1px;background:rgba(255,255,255,.09);margin:14px 0 12px}'
-    '#askpanel .lead{font-size:13.5px;font-weight:600;color:#eaf0fa;margin:0 0 10px}'
-    '#askpanel .qs{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px}'
-    '#askpanel .qchip{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);'
-    'color:#d8e0ee;border-radius:999px;padding:7px 12px;font-size:12.5px;cursor:pointer;'
-    'font-family:inherit}'
-    '#askpanel .qchip.on,#askpanel .qchip:hover{background:rgba(255,255,255,.13);'
-    'border-color:rgba(255,255,255,.28)}'
-    '#askpanel .bubble{display:flex;gap:10px;align-items:flex-start}'
+    '#askpanel .lbl{font-size:12.5px;color:#aab4c6;margin:0 0 10px}'
+    '#askpanel .asksel{width:100%;background:rgba(255,255,255,.07);color:#eaf0fa;'
+    'border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:11px 12px;'
+    'font-size:14px;font-family:inherit;cursor:pointer}'
+    '#askpanel .asksel:disabled{opacity:.5;cursor:not-allowed}'
+    '#askpanel .asksel option{background:#11203f;color:#eaf0fa}'
+    '#askpanel .bubble{display:flex;gap:10px;align-items:flex-start;margin-top:13px}'
     '#askpanel .av{flex:none;width:34px;height:34px;border-radius:50%;'
     'background:rgba(255,255,255,.08);display:flex;align-items:center;'
     'justify-content:center;font-size:17px}'
@@ -500,6 +475,9 @@ ASK_PANEL = (
     'border-radius:4px 14px 14px 14px;padding:10px 13px;font-size:13.5px;line-height:1.75;'
     'color:#eaf3ff}'
     '#askpanel .bn{font-weight:700;font-size:12px;color:#9fc0ff;margin-bottom:3px}'
+    '.card.askpick{cursor:pointer;transition:outline .12s}'
+    '.card.askpick:hover{outline:1px solid rgba(255,255,255,.25);outline-offset:1px}'
+    '.card.askon{outline:2px solid #1f6feb!important;outline-offset:1px}'
     '</style>'
     '<script>(function(){' + _ASK_DATA + _ASK_JS + '})();</script>'
 )
@@ -510,8 +488,8 @@ ASK_OLD_RE = re.compile(
 
 
 def patch_ask(html):
-    """觀點頁：保留三方立場，移除辯論，換成人性化『選一派問問題』面板。"""
-    if 'data-v="ask2"' in html:                 # 已是新版
+    """觀點頁：三方立場卡片直接點選，提問用下拉選單，移除辯論。"""
+    if 'data-v="ask3"' in html:                 # 已是最新版
         return html, False
     if '🔥 三方互嗆' in html:                    # 引擎原版：替換辯論段
         new = ASK_DEBATE_RE.sub(lambda m: ASK_PANEL + '</div></body>', html, count=1)

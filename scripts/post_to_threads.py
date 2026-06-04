@@ -75,14 +75,12 @@ def evening_post(d):
 
 
 def daily_post(d):
-    """一天一篇：進場分數 / 金句 / 互動，三種依日期輪流。"""
+    """一天一篇：進場分數 / 金句 兩種依日期輪流。
+    （互動投票題暫時拿掉——粉絲還少時沒人投反而尷尬，之後再加回 POLLS。）"""
     doy = day_of_year(d)
-    pick = doy % 3
-    if pick == 0:
+    if doy % 2 == 0:
         return score_post()
-    if pick == 1:
-        return QUOTES[doy % len(QUOTES)]
-    return POLLS[doy % len(POLLS)]
+    return QUOTES[doy % len(QUOTES)]
 
 
 def build_text(slot, d):

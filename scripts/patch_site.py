@@ -445,6 +445,41 @@ def patch_barglass(html):
     return html, (html != orig)
 
 
+# --- 台股配色：漲跌「紅漲綠跌」+ 進場分數改中性色盤 -------------------------
+# 站上兩套用色分開處理（用 class 權重區隔）：
+#   1) 漲跌/報酬（bare .green/.red，只用在 +x%／報酬）→ 台股慣例 紅漲綠跌
+#      （引擎沿用美股式：+ 標 green、− 標 red；這裡把顏色對調過來）。
+#   2) 進場分數（.score.green/.amber/.red）→ 改藍/琥珀/灰藍「中性品質色」，
+#      避免「綠=高分」跟「綠=下跌」在同一頁打架（分數與漲跌本來就常反向）。
+#   3) index 主儀表(echarts)漸層 → 改中性（灰藍→琥珀→藍）。
+# 註：四大支柱的等級條與徽章用的是 var(--green/red)，屬「品質」非「漲跌」，不動。
+TWCOLOR_STYLE = (
+    '<style id="twcolor">'
+    '.green{color:#ea5455!important}'         # 標 green 的是「漲/+」→ 紅
+    '.red{color:#34d07f!important}'           # 標 red 的是「跌/−」→ 綠
+    '.score.green{color:#5b9cff!important}'   # 高分 → 藍
+    '.score.amber{color:#e0a73a!important}'   # 中分 → 琥珀
+    '.score.red{color:#8b97a8!important}'     # 低分 → 灰藍
+    '</style>'
+)
+GAUGE_OLD = ("color:[[0.35,C.red],[0.45,'#f6862a'],[0.58,C.amber],"
+             "[0.70,'#7cc24a'],[1,C.green]]")
+GAUGE_NEW = ("color:[[0.40,'#8b97a8'],[0.58,C.amber],[0.78,'#7fb0e6'],"
+             "[1,'#5b9cff']]")
+
+
+def patch_twcolor(html):
+    """台股紅漲綠跌 + 進場分數中性色盤。各頁注入 CSS；index 另改儀表漸層。"""
+    if '</head>' not in html:
+        return html, False
+    orig = html
+    if 'id="twcolor"' not in html:
+        html = html.replace('</head>', TWCOLOR_STYLE + '</head>', 1)
+    if GAUGE_OLD in html:                      # 只有 index 有這段儀表設定
+        html = html.replace(GAUGE_OLD, GAUGE_NEW, 1)
+    return html, (html != orig)
+
+
 # --- 切換分頁的液態轉場（覆寫 View Transition keyframes，模糊+縮放+滑動）------
 # 注入在 keyframes 之後（nav 前），同名 @keyframes 後定義者勝出。
 # 前進(右→)用 vtin/vtout，後退(左→)用 vtin-back/vtout-back（引擎依 data-navdir 切換）。
@@ -671,6 +706,10 @@ def patch(html):
     # 13) 觀點頁：移除辯論、保留三方立場、加「選一派問問題」
     html, ak = patch_ask(html)
     changed = changed or ak
+
+    # 14) 台股配色：漲跌紅漲綠跌 + 進場分數中性色盤
+    html, tc = patch_twcolor(html)
+    changed = changed or tc
 
     return html, changed
 

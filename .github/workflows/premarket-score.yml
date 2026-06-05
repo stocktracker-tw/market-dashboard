@@ -1,0 +1,48 @@
+name: 盤前預估分數（美股隔夜 + 夜盤）
+
+# 每天台股開盤前，用美股隔夜（台積電 ADR / 費半 / 標普）算一個「盤前預估分數」，
+# 注入 index.html 的主分數區塊下方（標示「盤前預估・非正式」）。
+# 收盤後外部引擎重生頁面會自然蓋掉它，隔天早上本排程再算一次。詳見 PREMARKET_SCORE.md。
+#
+# 不會無限迴圈：用內建 GITHUB_TOKEN 推送（GitHub 規定不會再觸發 workflow），
+# commit 訊息再帶 [skip ci] 保險。抓不到行情時腳本不改檔，也就不會 commit。
+
+on:
+  schedule:
+    - cron: "30 0 * * 1-5"   # 台灣 08:30（UTC 00:30），週一至週五；引擎 08:00 跑完後
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: premarket-score
+  cancel-in-progress: false
+
+jobs:
+  premarket:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 算盤前分數並注入
+        run: python scripts/premarket_score.py
+
+      - name: 有變更才提交
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add index.html
+            git commit -m "盤前預估分數更新 [skip ci]"
+            git push
+            echo "已注入盤前分數並推送。"
+          else
+            echo "無變更（可能行情抓取失敗），略過。"
+          fi

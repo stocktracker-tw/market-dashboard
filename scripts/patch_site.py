@@ -551,6 +551,39 @@ def patch_scorecolor(html):
     return html, (html != orig)
 
 
+# --- 空的動態容器/卡片自動收合（避免出現空白框）---------------------------
+# 動態區（#wl 自選、#res 搜尋結果）在資料未載入/無內容時，或引擎當天產出空表格
+# 的 .card，都可能撐出一個空白圓角框。這支 JS 把「完全沒文字也沒圖表/輸入框」
+# 的容器隱藏；一旦之後被填入內容（childList 變動）就自動恢復顯示。observer 只看
+# childList、自身改 display 不會觸發回圈。
+EMPTYHIDE_JS = (
+    '<script id="emptyhide">(function(){'
+    'function blank(el){return !(el.textContent||"").trim()'
+    '&&!el.querySelector("img,svg,canvas,input,iframe,table");}'
+    'function tidy(){'
+    '["#wl","#res"].forEach(function(s){var el=document.querySelector(s);'
+    'if(el)el.style.display=blank(el)?"none":"";});'
+    'document.querySelectorAll(".card").forEach(function(el){'
+    'el.style.display=blank(el)?"none":"";});}'
+    'tidy();'
+    'if(window.MutationObserver){var r=null;new MutationObserver(function(){'
+    'if(r)return;r=requestAnimationFrame(function(){r=null;tidy();});})'
+    '.observe(document.body,{childList:true,subtree:true});}'
+    '})();</script>'
+)
+EMPTYHIDE_RE = re.compile(r'<script id="emptyhide">.*?</script>', re.S)
+
+
+def patch_emptyhide(html):
+    """把完全沒內容的動態容器（#wl/#res）與空 .card 自動隱藏，避免空白框。"""
+    if '</body>' not in html:
+        return html, False
+    orig = html
+    html = EMPTYHIDE_RE.sub('', html)          # 移除舊版再重注入（保持冪等）
+    html = html.replace('</body>', EMPTYHIDE_JS + '</body>', 1)
+    return html, (html != orig)
+
+
 # --- 切換分頁的液態轉場（覆寫 View Transition keyframes，模糊+縮放+滑動）------
 # 注入在 keyframes 之後（nav 前），同名 @keyframes 後定義者勝出。
 # 前進(右→)用 vtin/vtout，後退(左→)用 vtin-back/vtout-back（引擎依 data-navdir 切換）。
@@ -799,6 +832,10 @@ def patch(html):
     # 15) 其餘純文字分數（h2 主分數、.scoretxt 小字）也套極光色帶
     html, sc = patch_scorecolor(html)
     changed = changed or sc
+
+    # 16) 空的動態容器/卡片自動收合，避免空白框
+    html, eh = patch_emptyhide(html)
+    changed = changed or eh
 
     return html, changed
 

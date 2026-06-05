@@ -273,6 +273,40 @@ def patch_wlalert(html):
     return html.replace(WL_ALERT_ANCHOR, WL_ALERT_ANCHOR + WL_ALERT_JS, 1), True
 
 
+# --- 自選置頂＋版面重排（只動 stocks.html）---------------------------------
+# 引擎產出順序：搜尋 → 🔥最推薦 → 📊推薦回測 → 推薦個股模擬明細 → ⭐我的自選。
+# 想要的順序：搜尋(置頂) → ⭐我的自選 → 🔥最推薦 → 模擬明細 → 📊推薦回測。
+# 載入時用 JS 兩個搬移：
+#   1) 把「我的自選」整塊（h2＋加入框＋#wl 清單，含進站提醒）搬到「最推薦」之前；
+#   2) 把「模擬明細」整塊搬到「推薦回測」之前（模擬接在推薦後、回測殿後）。
+# 先收集兩塊的節點（趁 DOM 原序完整、邊界正確）再搬，重跑也冪等。
+WLPIN_JS = (
+    '<script>/*wlpin*/(function(){function run(){'
+    'var hs=document.querySelectorAll("h2"),rec=null,bt=null,sim=null,wl=null,i,x;'
+    'for(i=0;i<hs.length;i++){x=hs[i].textContent;'
+    'if(x.indexOf("最推薦")>=0)rec=hs[i];'
+    'else if(x.indexOf("模擬明細")>=0)sim=hs[i];'
+    'else if(x.indexOf("回測")>=0)bt=hs[i];'
+    'if(x.indexOf("我的自選")>=0)wl=hs[i];}'
+    'if(!rec||!wl||!rec.parentNode)return;'
+    'var E=[wl],n=wl.nextElementSibling;'
+    'while(n){E.push(n);if(n.id==="wl")break;n=n.nextElementSibling;}'
+    'var D=[];if(sim){D.push(sim);n=sim.nextElementSibling;'
+    'while(n&&n.tagName!=="H2"){D.push(n);n=n.nextElementSibling;}}'
+    'E.forEach(function(el){rec.parentNode.insertBefore(el,rec);});'
+    'if(sim&&bt&&bt.parentNode)D.forEach(function(el){bt.parentNode.insertBefore(el,bt);});}'
+    'if(document.readyState!=="loading")run();'
+    'else document.addEventListener("DOMContentLoaded",run);})();</script>'
+)
+
+
+def patch_wlpin(html):
+    """自選置頂＋版面重排（搜尋→自選→推薦→模擬→回測）。只動 stocks.html。"""
+    if '我的自選' not in html or '/*wlpin*/' in html or '</body>' not in html:
+        return html, False
+    return html.replace('</body>', WLPIN_JS + '</body>', 1), True
+
+
 # --- SEO 結構化資料 --------------------------------------------------------
 # 在首頁 <head> 注入 JSON-LD，幫 Google 理解這是什麼網站（只動 index.html）。
 SEO_ANCHOR = '<link rel="manifest" href="manifest.webmanifest">'
@@ -610,6 +644,10 @@ def patch(html):
     # 8) 自選股進站變化提醒（stocks.html）
     html, wa = patch_wlalert(html)
     changed = changed or wa
+
+    # 8b) 自選股置頂（stocks.html）
+    html, wp = patch_wlpin(html)
+    changed = changed or wp
 
     # 9) SEO 結構化資料（index.html）
     html, se = patch_seo(html)

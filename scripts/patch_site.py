@@ -556,6 +556,17 @@ SCORECOLOR_JS = (
     'if(hi)hi.style.setProperty("color","#2dc5de","important");'
     'if(lo)lo.style.setProperty("color","#8b5cf6","important");}}'
     'recolor();'
+    # 內文 emoji 記號 🟢🟡🔴（如新聞「是否反映」）→ 換成冷色圓點（一次性）
+    '(function(){var E={"🟢":"#2dc5de","🟡":"#4f87ff","🔴":"#8b5cf6"};'
+    'var w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,null),t,L=[];'
+    'while(t=w.nextNode()){if(/[🟢🟡🔴]/u.test(t.nodeValue))L.push(t);}'
+    'L.forEach(function(n){var f=document.createDocumentFragment();'
+    'n.nodeValue.split(/([🟢🟡🔴])/u).forEach(function(p){'
+    'if(E[p]){var d=document.createElement("span");'
+    'd.style.cssText="display:inline-block;width:.72em;height:.72em;border-radius:50%;'
+    'vertical-align:middle;background:"+E[p];f.appendChild(d);}'
+    'else if(p)f.appendChild(document.createTextNode(p));});'
+    'n.parentNode.replaceChild(f,n);});})();'
     # 動態清單/自選：搜尋後才渲染，用 observer 補上色
     'if(window.MutationObserver){var r=null;new MutationObserver(function(){'
     'if(r)return;r=requestAnimationFrame(function(){r=null;recolor();});})'

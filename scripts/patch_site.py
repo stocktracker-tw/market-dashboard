@@ -445,39 +445,46 @@ def patch_barglass(html):
     return html, (html != orig)
 
 
-# --- 台股配色：漲跌「紅漲綠跌」+ 進場分數改中性「藍紫灰」品質色盤 -----------
+# --- 台股配色：漲跌「紅漲綠跌」+ 進場分數用「極光冷色」漸進色帶 -------------
 #   1) 漲跌/報酬（bare .green/.red，只用在 +x%／報酬）→ 台股慣例 紅漲綠跌
 #      （引擎沿用美股式：+ 標 green、− 標 red；這裡把顏色對調過來）。
-#   2) 進場分數（.score.green/.amber/.red）→ 改 藍/紫/灰 中性品質色，
-#      避免「綠=高分」跟「綠=下跌」在同一頁打架（高=藍、中=紫、低=灰）。
-#   3) index 主儀表(echarts)漸層 → 同步改中性（灰→紫→藍）。
+#   2) 進場分數（.score.green/.amber/.red）→ 沿一條冷色漸進帶取點：
+#      低=靛紫 #8b7cf0 → 中=藍 #5b9cff → 高=青 #22d3ee（避開紅綠，不與漲跌打架）。
+#   3) index 主儀表(echarts)漸層 → 用同一條色帶（紫→藍→青）。
 # 註：四大支柱等級條/徽章用 var(--green/red)，屬「品質」非「漲跌」，不動。
 TWCOLOR_STYLE = (
     '<style id="twcolor">'
     '.green{color:#ea5455!important}'         # 標 green 的是「漲/+」→ 紅
     '.red{color:#28c76f!important}'           # 標 red 的是「跌/−」→ 綠
-    '.score.green{color:#5b9cff!important}'   # 高分 → 藍
-    '.score.amber{color:#9b87f5!important}'   # 中分 → 紫
-    '.score.red{color:#8b97a8!important}'     # 低分 → 灰
+    '.score.green{color:#22d3ee!important}'   # 高分 → 青（色帶亮端）
+    '.score.amber{color:#5b9cff!important}'   # 中分 → 藍（色帶中段）
+    '.score.red{color:#8b7cf0!important}'     # 低分 → 靛紫（色帶暗端）
     '</style>'
 )
 TWCOLOR_RE = re.compile(r'<style id="twcolor">.*?</style>', re.S)
-# 把引擎原本的儀表漸層（紅→綠）換成中性 灰→紫→藍（低分灰、高分藍）。
-GAUGE_ORIG = ("color:[[0.35,C.red],[0.45,'#f6862a'],[0.58,C.amber],"
-              "[0.70,'#7cc24a'],[1,C.green]]")
-GAUGE_NEUTRAL = ("color:[[0.35,'#8b97a8'],[0.55,'#9183e6'],"
-                 "[0.75,'#7d95f2'],[1,'#5b9cff']]")
+# 主儀表漸層改用同一條「紫→藍→青」色帶。沿途會碰到舊版（引擎原色 / #54 灰紫藍），
+# 一律換成新色帶，並保持冪等（已是新色帶時不再變動）。
+GAUGE_AURORA = ("color:[[0.35,'#8b7cf0'],[0.55,'#6a8efa'],"
+                "[0.78,'#3bb6e8'],[1,'#22d3ee']]")
+GAUGE_PREV = (
+    "color:[[0.35,C.red],[0.45,'#f6862a'],[0.58,C.amber],"      # 引擎原色 紅→綠
+    "[0.70,'#7cc24a'],[1,C.green]]",
+    "color:[[0.35,'#8b97a8'],[0.55,'#9183e6'],"                 # #54 灰→紫→藍
+    "[0.75,'#7d95f2'],[1,'#5b9cff']]",
+)
 
 
 def patch_twcolor(html):
-    """漲跌紅漲綠跌；進場分數改藍紫灰中性盤。各頁注入 CSS；index 另改儀表漸層。"""
+    """漲跌紅漲綠跌；進場分數用極光冷色漸進帶。各頁注入 CSS；index 另改儀表漸層。"""
     if '</head>' not in html:
         return html, False
     orig = html
     html = TWCOLOR_RE.sub('', html)            # 移除舊版樣式再重注入（保持冪等）
     html = html.replace('</head>', TWCOLOR_STYLE + '</head>', 1)
-    if GAUGE_ORIG in html:                      # 只有 index 有這段儀表設定
-        html = html.replace(GAUGE_ORIG, GAUGE_NEUTRAL, 1)
+    for prev in GAUGE_PREV:                     # 只有 index 有這段儀表設定
+        if prev in html:
+            html = html.replace(prev, GAUGE_AURORA, 1)
+            break
     return html, (html != orig)
 
 

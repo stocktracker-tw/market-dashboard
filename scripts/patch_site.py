@@ -488,14 +488,18 @@ def patch_twcolor(html):
     return html, (html != orig)
 
 
-# --- 其餘「分數」文字也套極光色帶（純文字、無分級 class，須用 JS 依數值上色）---
-# twcolor 只能處理有 .score.green/.amber/.red 的大數字；但站上還有兩類分數是
-# 純文字、跟著 var(--muted) 灰掉，沒被改到：
-#   1) <h2>進場分數 44</h2>          → index 主標題大分數
-#   2) .scoretxt「進場機會分數 48 / 100」「脆弱度 84 / 100」→ 指標卡小字
-# 這裡注入 JS，把分數沿同一條極光色帶「連續」取色（真漸進，不只 3 檔）：
-#   低→高 = 靛紫 #8b7cf0 → 藍 #5b9cff → 青 #22d3ee。
-# 「脆弱度」越高越糟，方向相反，取色時反轉（高脆弱→靛紫暗端）。
+# --- 全站「分數」統一上色：JS 當唯一來源，把每個 0–100 分數沿極光色帶連續取色 ---
+# 站上分數散落在多套重疊機制，而且部分跟漲跌「共用」.green/.red（會被 twcolor 翻錯）：
+#   • 分類卡 .ps（index）            ：inline style="color:var(--red/amber/green)"
+#   • 推薦大數字 .score.green/...     ：分級 class
+#   • 支柱小分 .green/.amber/.red     ：bare class（與漲跌共用！高分被 twcolor 翻成紅）
+#   • 清單列 .sc.green/...（動態 JS）  ：搜尋後才產生，靜態補丁抓不到
+#   • .scoretxt / <h2> 主分數         ：純文字
+# 解法：注入 JS 用 setProperty(...,"important") 蓋過一切，挑「純數字 0–100」依值上色
+#   低→高 = 靛紫 #8b7cf0 → 藍 #5b9cff → 青 #22d3ee（真漸進、連續）。
+# 漲跌/報酬都帶 %、+/−，不是純數字 → 自動跳過，仍由 twcolor 管「紅漲綠跌」。
+# 「脆弱度」越高越糟 → 反向取色。動態清單用 MutationObserver 補（只看 childList，
+# 不看 attributes，故自身改色不會觸發回圈）。
 SCORECOLOR_JS = (
     '<script id="scorecolor">(function(){'
     'var A=[[139,124,240],[91,156,255],[34,211,238]];'        # 靛紫→藍→青
@@ -503,19 +507,34 @@ SCORECOLOR_JS = (
     'function band(t){t=t<0?0:t>1?1:t;var s=t*2,i=s<1?0:1,f=s-i,a=A[i],b=A[i+1];'
     'return "#"+h(Math.round(a[0]+(b[0]-a[0])*f))+h(Math.round(a[1]+(b[1]-a[1])*f))'
     '+h(Math.round(a[2]+(b[2]-a[2])*f));}'
-    'function paint(el,v,inv){var t=v/100;if(inv)t=1-t;'
-    'el.style.color=band(t);el.style.fontWeight="600";}'
+    'function paint(el,v,inv,bold){var t=v/100;if(inv)t=1-t;'
+    'el.style.setProperty("color",band(t),"important");'
+    'if(bold)el.style.setProperty("font-weight","600");}'
+    'function num(t){var m=(t||"").trim().match(/^(\\d{1,3}(?:\\.\\d+)?)$/);'
+    'if(!m)return null;var v=+m[1];return v>=0&&v<=100?v:null;}'
+    'function recolor(){'
+    # 純數字分數：分類卡/推薦大數字/清單列/支柱（漲跌帶 %+− 會被 num() 擋掉）
+    'document.querySelectorAll(".ps,.score,.sc,.green,.amber,.red").forEach(function(el){'
+    'var v=num(el.textContent);if(v!==null)paint(el,v,false,false);});'
+    # 帶標籤小字：進場機會分數 / 脆弱度（脆弱度反向）
     'document.querySelectorAll(".scoretxt").forEach(function(el){'
-    'var m=el.textContent.match(/(\\d+)\\s*\\/\\s*100/);if(m)paint(el,+m[1],/脆弱度/.test(el.textContent));});'
+    'var m=el.textContent.match(/(\\d+)\\s*\\/\\s*100/);'
+    'if(m)paint(el,+m[1],/脆弱度/.test(el.textContent),true);});'
+    # 主標題大分數
     'document.querySelectorAll("h2").forEach(function(el){'
-    'var m=el.textContent.match(/^進場分數\\s*(\\d+)/);if(m)paint(el,+m[1],false);});'
+    'var m=el.textContent.match(/^進場分數\\s*(\\d+)/);if(m)paint(el,+m[1],false,false);});}'
+    'recolor();'
+    # 動態清單/自選：搜尋後才渲染，用 observer 補上色
+    'if(window.MutationObserver){var r=null;new MutationObserver(function(){'
+    'if(r)return;r=requestAnimationFrame(function(){r=null;recolor();});})'
+    '.observe(document.body,{childList:true,subtree:true});}'
     '})();</script>'
 )
 SCORECOLOR_RE = re.compile(r'<script id="scorecolor">.*?</script>', re.S)
 
 
 def patch_scorecolor(html):
-    """把純文字分數（h2 主分數、.scoretxt 小字）沿極光色帶連續上色。"""
+    """全站 0–100 分數統一沿極光色帶連續上色（含分類卡/支柱/動態清單），漲跌不動。"""
     if '</body>' not in html:
         return html, False
     orig = html

@@ -520,6 +520,12 @@ SCORECOLOR_JS = (
     'document.querySelectorAll(".scoretxt").forEach(function(el){'
     'var m=el.textContent.match(/(\\d+)\\s*\\/\\s*100/);'
     'if(m)paint(el,+m[1],/脆弱度/.test(el.textContent),true);});'
+    # 指標卡進度條：填色改用同卡分數在極光帶上的顏色（取代原本的暖色 var(--red/amber)）
+    'document.querySelectorAll(".barwrap").forEach(function(w){'
+    'var st=w.querySelector(".scoretxt"),bar=w.querySelector(".bar i");'
+    'if(!st||!bar)return;var m=st.textContent.match(/(\\d+)\\s*\\/\\s*100/);if(!m)return;'
+    'var t=(+m[1])/100;if(/脆弱度/.test(st.textContent))t=1-t;'
+    'bar.style.setProperty("background",band(t),"important");});'
     # 主標題大分數
     'document.querySelectorAll("h2").forEach(function(el){'
     'var m=el.textContent.match(/^進場分數\\s*(\\d+)/);if(m)paint(el,+m[1],false,false);});}'
@@ -624,7 +630,7 @@ _ASK_DATA = "var Q=%s,A=%s,NAME=%s,ABBR=%s;" % (
 )
 _ASK_JS = r'''
 var SEL=document.getElementById("askq"),AN=document.getElementById("askans"),HINT=document.getElementById("askhint"),cards={},DNAME={},cur=null;
-var PCOL={passive:"#38c5e0",macro:"#f5c531",trend:"#3b82f6"};
+var PCOL={passive:"#22d3ee",macro:"#8b7cf0",trend:"#5b9cff"};
 function keyOf(t){return t.indexOf("清")>=0?"passive":t.indexOf("財經")>=0?"macro":t.indexOf("股")>=0?"trend":null;}
 function rgba(h,a){var r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),b=parseInt(h.slice(5,7),16);return "rgba("+r+","+g+","+b+","+a+")";}
 function glass(h){return "linear-gradient(180deg,"+rgba(h,0.22)+","+rgba(h,0.06)+")";}
@@ -675,12 +681,21 @@ ASK_OLD_RE = re.compile(
     r'<div class="section-title">🎤 換你問.*?</script>\s*</div>\s*</body>', re.S)
 
 
+# 三方派系配色 → 套同一條極光冷色帶（passive 青 / trend 藍 / macro 原金黃→靛紫）。
+# 獨立遷移：不受下方版本守門影響，已注入舊色的頁也會被換成新色（保持冪等）。
+PCOL_OLD = 'var PCOL={passive:"#38c5e0",macro:"#f5c531",trend:"#3b82f6"};'
+PCOL_NEW = 'var PCOL={passive:"#22d3ee",macro:"#8b7cf0",trend:"#5b9cff"};'
+
+
 def patch_ask(html):
     """觀點頁：三方立場卡片直接點選，提問用下拉選單，移除辯論。"""
     changed = False
     # 內容已不是辯論 → 標題改字（無論面板是否已注入都套用）
     if "市場觀點・三方辯論" in html:
         html = html.replace("市場觀點・三方辯論", "市場觀點・問三方")
+        changed = True
+    if PCOL_OLD in html:                         # 既有面板的三方色 → 遷移成極光冷色
+        html = html.replace(PCOL_OLD, PCOL_NEW, 1)
         changed = True
 
     if 'data-v="ask13"' in html:                 # 面板已是最新版

@@ -216,6 +216,17 @@ def patch_stocks(html):
     return html, changed
 
 
+# 預設自選清單裡的 0050 是 ETF、不在個股資料庫(universe)中，會變成查無的死列；
+# 換成資料庫內的 2412 中華電（電信龍頭，替清一色科技股的預設清單加產業分散）。
+DEFAULTWL_RE = re.compile(r'(DEFAULT_WL\s*=\s*\[[^\]]*?)"0050"([^\]]*\])')
+
+
+def patch_defaultwl(html):
+    """預設自選把 0050（ETF，資料庫沒有）換成 2412 中華電。只動 stocks.html。"""
+    new = DEFAULTWL_RE.sub(r'\g<1>"2412"\g<2>', html, count=1)
+    return new, (new != html)
+
+
 # --- 「我該扣多少」計算機 --------------------------------------------------
 # 把抽象的「建議定額倍數」變成具體金額：輸入平常月扣 → 今天該投多少。
 # 倍數直接讀頁面已渲染的 .mult b，永遠跟引擎顯示一致。
@@ -824,6 +835,10 @@ def patch(html):
     # 6) 個股搜尋優化（stocks.html）
     html, st = patch_stocks(html)
     changed = changed or st
+
+    # 6b) 預設自選把 0050（ETF，資料庫沒有）換成 2412 中華電
+    html, dw = patch_defaultwl(html)
+    changed = changed or dw
 
     # 7) 「我該扣多少」計算機（index.html）
     html, ca = patch_calc(html)

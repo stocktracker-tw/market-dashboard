@@ -445,38 +445,39 @@ def patch_barglass(html):
     return html, (html != orig)
 
 
-# --- 台股配色：只把「漲跌/報酬」翻成紅漲綠跌；進場分數維持綠=高 -------------
+# --- 台股配色：漲跌「紅漲綠跌」+ 進場分數改中性「藍紫灰」品質色盤 -----------
 #   1) 漲跌/報酬（bare .green/.red，只用在 +x%／報酬）→ 台股慣例 紅漲綠跌
 #      （引擎沿用美股式：+ 標 green、− 標 red；這裡把顏色對調過來）。
-#   2) 進場分數（.score.green/.amber/.red）→ 維持「綠=高分、紅=低分」品質燈號。
-#      因為上面把 .green/.red 翻色了，這裡用更高權重的 .score.* 把分數「釘」回
-#      原色（綠 #28c76f / 紅 #ea5455），不被漲跌翻色波及。amber 沿用引擎原色。
+#   2) 進場分數（.score.green/.amber/.red）→ 改 藍/紫/灰 中性品質色，
+#      避免「綠=高分」跟「綠=下跌」在同一頁打架（高=藍、中=紫、低=灰）。
+#   3) index 主儀表(echarts)漸層 → 同步改中性（灰→紫→藍）。
 # 註：四大支柱等級條/徽章用 var(--green/red)，屬「品質」非「漲跌」，不動。
 TWCOLOR_STYLE = (
     '<style id="twcolor">'
     '.green{color:#ea5455!important}'         # 標 green 的是「漲/+」→ 紅
     '.red{color:#28c76f!important}'           # 標 red 的是「跌/−」→ 綠
-    '.score.green{color:#28c76f!important}'   # 高分維持綠（不被上面翻動）
-    '.score.red{color:#ea5455!important}'     # 低分維持紅（不被上面翻動）
+    '.score.green{color:#5b9cff!important}'   # 高分 → 藍
+    '.score.amber{color:#9b87f5!important}'   # 中分 → 紫
+    '.score.red{color:#8b97a8!important}'     # 低分 → 灰
     '</style>'
 )
 TWCOLOR_RE = re.compile(r'<style id="twcolor">.*?</style>', re.S)
-# 還原 PR #52 曾注入的中性儀表漸層，恢復引擎原本的 紅→綠（高分綠）。
-GAUGE_NEUTRAL = ("color:[[0.40,'#8b97a8'],[0.58,C.amber],[0.78,'#7fb0e6'],"
-                 "[1,'#5b9cff']]")
+# 把引擎原本的儀表漸層（紅→綠）換成中性 灰→紫→藍（低分灰、高分藍）。
 GAUGE_ORIG = ("color:[[0.35,C.red],[0.45,'#f6862a'],[0.58,C.amber],"
               "[0.70,'#7cc24a'],[1,C.green]]")
+GAUGE_NEUTRAL = ("color:[[0.35,'#8b97a8'],[0.55,'#9183e6'],"
+                 "[0.75,'#7d95f2'],[1,'#5b9cff']]")
 
 
 def patch_twcolor(html):
-    """漲跌紅漲綠跌；進場分數維持綠=高。各頁注入 CSS；還原 #52 的中性儀表。"""
+    """漲跌紅漲綠跌；進場分數改藍紫灰中性盤。各頁注入 CSS；index 另改儀表漸層。"""
     if '</head>' not in html:
         return html, False
     orig = html
-    html = TWCOLOR_RE.sub('', html)            # 移除舊版（含 #52 的中性版）再重注入
+    html = TWCOLOR_RE.sub('', html)            # 移除舊版樣式再重注入（保持冪等）
     html = html.replace('</head>', TWCOLOR_STYLE + '</head>', 1)
-    if GAUGE_NEUTRAL in html:                  # 若引擎尚未重生，把中性儀表還原
-        html = html.replace(GAUGE_NEUTRAL, GAUGE_ORIG, 1)
+    if GAUGE_ORIG in html:                      # 只有 index 有這段儀表設定
+        html = html.replace(GAUGE_ORIG, GAUGE_NEUTRAL, 1)
     return html, (html != orig)
 
 

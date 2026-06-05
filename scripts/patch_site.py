@@ -488,6 +488,42 @@ def patch_twcolor(html):
     return html, (html != orig)
 
 
+# --- 其餘「分數」文字也套極光色帶（純文字、無分級 class，須用 JS 依數值上色）---
+# twcolor 只能處理有 .score.green/.amber/.red 的大數字；但站上還有兩類分數是
+# 純文字、跟著 var(--muted) 灰掉，沒被改到：
+#   1) <h2>進場分數 44</h2>          → index 主標題大分數
+#   2) .scoretxt「進場機會分數 48 / 100」「脆弱度 84 / 100」→ 指標卡小字
+# 這裡注入 JS，把分數沿同一條極光色帶「連續」取色（真漸進，不只 3 檔）：
+#   低→高 = 靛紫 #8b7cf0 → 藍 #5b9cff → 青 #22d3ee。
+# 「脆弱度」越高越糟，方向相反，取色時反轉（高脆弱→靛紫暗端）。
+SCORECOLOR_JS = (
+    '<script id="scorecolor">(function(){'
+    'var A=[[139,124,240],[91,156,255],[34,211,238]];'        # 靛紫→藍→青
+    'function h(n){return n.toString(16).padStart(2,"0");}'
+    'function band(t){t=t<0?0:t>1?1:t;var s=t*2,i=s<1?0:1,f=s-i,a=A[i],b=A[i+1];'
+    'return "#"+h(Math.round(a[0]+(b[0]-a[0])*f))+h(Math.round(a[1]+(b[1]-a[1])*f))'
+    '+h(Math.round(a[2]+(b[2]-a[2])*f));}'
+    'function paint(el,v,inv){var t=v/100;if(inv)t=1-t;'
+    'el.style.color=band(t);el.style.fontWeight="600";}'
+    'document.querySelectorAll(".scoretxt").forEach(function(el){'
+    'var m=el.textContent.match(/(\\d+)\\s*\\/\\s*100/);if(m)paint(el,+m[1],/脆弱度/.test(el.textContent));});'
+    'document.querySelectorAll("h2").forEach(function(el){'
+    'var m=el.textContent.match(/^進場分數\\s*(\\d+)/);if(m)paint(el,+m[1],false);});'
+    '})();</script>'
+)
+SCORECOLOR_RE = re.compile(r'<script id="scorecolor">.*?</script>', re.S)
+
+
+def patch_scorecolor(html):
+    """把純文字分數（h2 主分數、.scoretxt 小字）沿極光色帶連續上色。"""
+    if '</body>' not in html:
+        return html, False
+    orig = html
+    html = SCORECOLOR_RE.sub('', html)         # 移除舊版再重注入（保持冪等）
+    html = html.replace('</body>', SCORECOLOR_JS + '</body>', 1)
+    return html, (html != orig)
+
+
 # --- 切換分頁的液態轉場（覆寫 View Transition keyframes，模糊+縮放+滑動）------
 # 注入在 keyframes 之後（nav 前），同名 @keyframes 後定義者勝出。
 # 前進(右→)用 vtin/vtout，後退(左→)用 vtin-back/vtout-back（引擎依 data-navdir 切換）。
@@ -718,6 +754,10 @@ def patch(html):
     # 14) 台股配色：漲跌紅漲綠跌 + 進場分數中性色盤
     html, tc = patch_twcolor(html)
     changed = changed or tc
+
+    # 15) 其餘純文字分數（h2 主分數、.scoretxt 小字）也套極光色帶
+    html, sc = patch_scorecolor(html)
+    changed = changed or sc
 
     return html, changed
 

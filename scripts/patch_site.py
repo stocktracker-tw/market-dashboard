@@ -456,21 +456,23 @@ TWCOLOR_STYLE = (
     '<style id="twcolor">'
     '.green{color:#ea5455!important}'         # 標 green 的是「漲/+」→ 紅
     '.red{color:#28c76f!important}'           # 標 red 的是「跌/−」→ 綠
-    '.score.green{color:#22d3ee!important}'   # 高分 → 青（色帶亮端）
-    '.score.amber{color:#5b9cff!important}'   # 中分 → 藍（色帶中段）
-    '.score.red{color:#8b7cf0!important}'     # 低分 → 靛紫（色帶暗端）
+    '.score.green{color:#1fe0d0!important}'   # 高分 → 青（新色帶亮端）
+    '.score.amber{color:#4f86ff!important}'   # 中分 → 藍（新色帶中段）
+    '.score.red{color:#8b5cf6!important}'     # 低分 → 紫（新色帶暗端）
     '</style>'
 )
 TWCOLOR_RE = re.compile(r'<style id="twcolor">.*?</style>', re.S)
 # 主儀表漸層改用同一條「紫→藍→青」色帶。沿途會碰到舊版（引擎原色 / #54 灰紫藍），
 # 一律換成新色帶，並保持冪等（已是新色帶時不再變動）。
-GAUGE_AURORA = ("color:[[0.35,'#8b7cf0'],[0.55,'#6a8efa'],"
-                "[0.78,'#3bb6e8'],[1,'#22d3ee']]")
+GAUGE_AURORA = ("color:[[0.35,'#8b5cf6'],[0.6,'#4f86ff'],"
+                "[0.8,'#34b8e5'],[1,'#1fe0d0']]")
 GAUGE_PREV = (
     "color:[[0.35,C.red],[0.45,'#f6862a'],[0.58,C.amber],"      # 引擎原色 紅→綠
     "[0.70,'#7cc24a'],[1,C.green]]",
     "color:[[0.35,'#8b97a8'],[0.55,'#9183e6'],"                 # #54 灰→紫→藍
     "[0.75,'#7d95f2'],[1,'#5b9cff']]",
+    "color:[[0.35,'#8b7cf0'],[0.55,'#6a8efa'],"                 # 舊極光（#55，對比較小）
+    "[0.78,'#3bb6e8'],[1,'#22d3ee']]",
 )
 
 
@@ -502,7 +504,7 @@ def patch_twcolor(html):
 # 不看 attributes，故自身改色不會觸發回圈）。
 SCORECOLOR_JS = (
     '<script id="scorecolor">(function(){'
-    'var A=[[139,124,240],[91,156,255],[34,211,238]];'        # 靛紫→藍→青
+    'var A=[[139,92,246],[79,134,255],[31,224,208]];'         # 紫→藍→青（加大對比）
     'function h(n){return n.toString(16).padStart(2,"0");}'
     'function band(t){t=t<0?0:t>1?1:t;var s=t*2,i=s<1?0:1,f=s-i,a=A[i],b=A[i+1];'
     'return "#"+h(Math.round(a[0]+(b[0]-a[0])*f))+h(Math.round(a[1]+(b[1]-a[1])*f))'
@@ -630,7 +632,7 @@ _ASK_DATA = "var Q=%s,A=%s,NAME=%s,ABBR=%s;" % (
 )
 _ASK_JS = r'''
 var SEL=document.getElementById("askq"),AN=document.getElementById("askans"),HINT=document.getElementById("askhint"),cards={},DNAME={},cur=null;
-var PCOL={passive:"#22d3ee",macro:"#8b7cf0",trend:"#5b9cff"};
+var PCOL={passive:"#06d6e0",macro:"#c462ff",trend:"#5b6cff"};
 function keyOf(t){return t.indexOf("清")>=0?"passive":t.indexOf("財經")>=0?"macro":t.indexOf("股")>=0?"trend":null;}
 function rgba(h,a){var r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),b=parseInt(h.slice(5,7),16);return "rgba("+r+","+g+","+b+","+a+")";}
 function glass(h){return "linear-gradient(180deg,"+rgba(h,0.22)+","+rgba(h,0.06)+")";}
@@ -681,10 +683,13 @@ ASK_OLD_RE = re.compile(
     r'<div class="section-title">🎤 換你問.*?</script>\s*</div>\s*</body>', re.S)
 
 
-# 三方派系配色 → 套同一條極光冷色帶（passive 青 / trend 藍 / macro 原金黃→靛紫）。
-# 獨立遷移：不受下方版本守門影響，已注入舊色的頁也會被換成新色（保持冪等）。
-PCOL_OLD = 'var PCOL={passive:"#38c5e0",macro:"#f5c531",trend:"#3b82f6"};'
-PCOL_NEW = 'var PCOL={passive:"#22d3ee",macro:"#8b7cf0",trend:"#5b9cff"};'
+# 三方派系配色 → 三個明顯分開的冷色寶石調（被動 亮青 / 順勢 靛藍 / 總經 洋紫）。
+# 獨立遷移：不受下方版本守門影響，把先前各版（金黃版、第一版極光）都換成新色，冪等。
+PCOL_NEW = 'var PCOL={passive:"#06d6e0",macro:"#c462ff",trend:"#5b6cff"};'
+PCOL_PREV = (
+    'var PCOL={passive:"#38c5e0",macro:"#f5c531",trend:"#3b82f6"};',   # 最初金黃版
+    'var PCOL={passive:"#22d3ee",macro:"#8b7cf0",trend:"#5b9cff"};',   # 第一版極光
+)
 
 
 def patch_ask(html):
@@ -694,9 +699,11 @@ def patch_ask(html):
     if "市場觀點・三方辯論" in html:
         html = html.replace("市場觀點・三方辯論", "市場觀點・問三方")
         changed = True
-    if PCOL_OLD in html:                         # 既有面板的三方色 → 遷移成極光冷色
-        html = html.replace(PCOL_OLD, PCOL_NEW, 1)
-        changed = True
+    for prev in PCOL_PREV:                        # 既有面板的三方色 → 遷移成新冷色寶石調
+        if prev in html:
+            html = html.replace(prev, PCOL_NEW, 1)
+            changed = True
+            break
 
     if 'data-v="ask13"' in html:                 # 面板已是最新版
         return html, changed

@@ -498,11 +498,6 @@ BAR_STYLE = (
     '.tabbar a.tab .ic{color:#fff!important;opacity:.7;transition:opacity .18s,transform .18s}'
     '.tabbar a.tab .ic svg{width:26px;height:26px;display:block}'
     '.tabbar a.tab.on .ic,.tabbar a.tab.hl .ic{opacity:1;transform:translateY(-1px)}'
-    # 引擎內建的滑動 thumb（隨 hover/目前頁移動）：粉紅 → 紫；圖示在其上維持白色(反白)
-    '.tabbar .thumb{background:rgba(139,92,246,.85)!important}'
-    '.tabbar a.tab.on{background:transparent!important}'  # 不疊靜態粉紅 tint，純靠 thumb
-    '.tabbar a.tab.on .ic,.tabbar a.tab.hl .ic'
-    '{filter:drop-shadow(0 2px 10px rgba(139,92,246,.55))!important}'
     '.tabbar{width:min(324px,calc(100vw - 52px))!important;'
     'background:linear-gradient(180deg,rgba(255,255,255,.085),rgba(255,255,255,.02))!important;'
     'border:1px solid rgba(255,255,255,.16)!important}'

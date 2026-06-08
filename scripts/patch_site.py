@@ -493,17 +493,26 @@ OLD_BAR_SVGS = {
 BAR_STYLE = (
     '<style id="barglass">'
     '.tabbar a.tab span:not(.ic){display:none!important}'
-    '.tabbar a.tab{flex-direction:row!important;justify-content:center!important;'
+    '.tabbar a.tab{position:relative;z-index:1;'
+    'flex-direction:row!important;justify-content:center!important;'
     'padding:11px 4px!important;gap:0!important;margin:4px 3px!important;'
     'border-radius:14px!important;transition:background .18s}'
     '.tabbar a.tab .ic{color:#fff!important;opacity:.7;transition:color .18s,opacity .18s}'
     '.tabbar a.tab .ic svg{width:26px;height:26px;display:block}'
-    # 滑到/目前頁：填滿實心白底圓角（Threads 風）、圖示反深色、移除引擎原本的粉紅光暈
-    '.tabbar a.tab:hover,.tabbar a.tab.on,.tabbar a.tab.hl'
-    '{background:rgba(255,255,255,.95)!important}'
-    '.tabbar a.tab:hover .ic,.tabbar a.tab.on .ic,.tabbar a.tab.hl .ic'
+    # 無 JS fallback：目前頁靜態填滿實心白底、圖示反深、移除引擎粉紅光暈
+    '.tabbar a.tab.on,.tabbar a.tab.hl{background:rgba(255,255,255,.95)!important}'
+    '.tabbar a.tab.on .ic,.tabbar a.tab.hl .ic'
     '{color:#0e1116!important;opacity:1;filter:none!important;transform:none}'
-    '.tabbar{width:min(324px,calc(100vw - 52px))!important;'
+    # 啟用滑動膠囊後（.jspill）：關掉各別靜態填色，改由滑動的 .tabpill 填滿、.filled 反白圖示
+    '.tabbar.jspill a.tab,.tabbar.jspill a.tab.on,.tabbar.jspill a.tab.hl'
+    '{background:transparent!important}'
+    '.tabbar.jspill a.tab .ic{color:#fff!important;filter:none!important}'
+    '.tabbar.jspill a.tab.filled .ic{color:#0e1116!important;opacity:1}'
+    '.tabpill{position:absolute;z-index:0;top:0;left:0;width:0;height:0;'
+    'background:rgba(255,255,255,.95);border-radius:14px;opacity:0;pointer-events:none;'
+    'transition:left .26s cubic-bezier(.34,1.1,.4,1),width .26s cubic-bezier(.34,1.1,.4,1),'
+    'top .2s,height .2s,opacity .2s}'
+    '.tabbar{position:relative!important;width:min(324px,calc(100vw - 52px))!important;'
     'background:linear-gradient(180deg,rgba(255,255,255,.085),rgba(255,255,255,.02))!important;'
     'border:1px solid rgba(255,255,255,.16)!important}'
     '</style>'
@@ -522,6 +531,46 @@ def patch_barglass(html):
         html = html.replace(emoji, newsvg)
     html = BAR_STYLE_RE.sub('', html)             # 2) 移除舊樣式（含上一版）
     html = html.replace('<nav class="tabbar">', BAR_STYLE + '<nav class="tabbar">', 1)
+    return html, (html != orig)
+
+
+# --- 導覽列滑動膠囊：白色填滿膠囊隨 hover 滑到該鈕，沒 hover 時回到目前頁 ----
+# 在 .tabbar 內加一個 .tabpill，mouseenter 滑過去（並把該鈕加 .filled 反白圖示），
+# mouseleave 回到目前頁(.on/.hl)。加 .jspill 讓 CSS 關掉各別靜態填色改用此膠囊。
+# 首次定位不帶動畫（避免從角落飛入）。
+TABPILL_JS = (
+    '<script id="tabpill">(function(){'
+    'function init(){var bar=document.querySelector(".tabbar");if(!bar)return;'
+    'var tabs=[].slice.call(bar.querySelectorAll("a.tab"));if(!tabs.length)return;'
+    'var pill=bar.querySelector(".tabpill");'
+    'if(!pill){pill=document.createElement("i");pill.className="tabpill";'
+    'bar.insertBefore(pill,bar.firstChild);}'
+    'bar.classList.add("jspill");'
+    'function act(){return bar.querySelector("a.tab.on,a.tab.hl")||tabs[0];}'
+    'function move(t){if(!t){pill.style.opacity="0";'
+    'tabs.forEach(function(x){x.classList.remove("filled");});return;}'
+    'pill.style.opacity="1";pill.style.left=t.offsetLeft+"px";pill.style.top=t.offsetTop+"px";'
+    'pill.style.width=t.offsetWidth+"px";pill.style.height=t.offsetHeight+"px";'
+    'tabs.forEach(function(x){x.classList.toggle("filled",x===t);});}'
+    'tabs.forEach(function(t){t.addEventListener("mouseenter",function(){move(t);});});'
+    'bar.addEventListener("mouseleave",function(){move(act());});'
+    'pill.style.transition="none";move(act());'
+    'requestAnimationFrame(function(){pill.style.transition="";});'
+    'window.addEventListener("resize",function(){move(act());});}'
+    'if(document.readyState!=="loading")init();'
+    'else document.addEventListener("DOMContentLoaded",init);'
+    '})();</script>'
+)
+TABPILL_RE = re.compile(r'<script id="tabpill">.*?</script>', re.S)
+
+
+def patch_tabpill(html):
+    """導覽列滑動填滿膠囊（隨 hover 滑動，回到目前頁）。有 tabbar 的頁面。"""
+    if '<nav class="tabbar">' not in html or '</body>' not in html:
+        return html, False
+    orig = html
+    html = TABPILL_RE.sub('', html)               # 移除舊版再注入（冪等）
+    html = html.replace('</body>', TABPILL_JS + '</body>', 1)
     return html, (html != orig)
 
 
@@ -943,6 +992,10 @@ def patch(html):
 
     html, bg = patch_barglass(html)
     changed = changed or bg
+
+    # 12b) 導覽列滑動填滿膠囊（隨 hover 滑動）
+    html, tp = patch_tabpill(html)
+    changed = changed or tp
 
     # 13) 觀點頁：移除辯論、保留三方立場、加「選一派問問題」
     html, ak = patch_ask(html)

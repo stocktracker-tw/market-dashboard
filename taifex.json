@@ -5,10 +5,10 @@
     "pcr_oi": 1.9,
     "pcr_vol": 0.9
   },
-  "updated": "2026-06-08 10:56",
+  "updated": "2026-06-08 11:00",
   "inst": {
     "date": "20260605",
     "inst_net_oi": -12179,
-    "foreign_net_oi": null
+    "foreign_net_oi": -69146
   }
 }

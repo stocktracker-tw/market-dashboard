@@ -1,0 +1,47 @@
+name: 台指期籌碼（TAIFEX）
+
+# 抓台灣期交所每日台指期籌碼（三大法人/外資淨未平倉、選擇權 P/C 比），
+# 寫進 taifex.json，再跑 patch_site 把「台指期籌碼」卡注入 index.html。
+# 自包含：在同一個 job 內完成抓取＋注入＋提交（GITHUB_TOKEN 推送不會再觸發
+# 其他 workflow，所以不依賴 site-patch 串接）。
+
+on:
+  schedule:
+    - cron: "0 8 * * 1-5"      # 約 16:00 台北（盤後結算資料出齊後），週一至五
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: taifex
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 抓 TAIFEX 台指期籌碼
+        run: python scripts/fetch_taifex.py
+
+      - name: 注入台指期籌碼卡
+        run: python scripts/patch_site.py
+
+      - name: 有變更才提交
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "更新台指期籌碼（TAIFEX）[skip ci]"
+            git push
+            echo "已更新 taifex.json 與台指期卡並推送。"
+          else
+            echo "無變更（可能今日資料未出或抓取失敗），略過。"
+          fi

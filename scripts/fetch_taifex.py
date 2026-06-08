@@ -123,7 +123,8 @@ def fetch_inst():
     ckey = (find_key(sample, "contract") or find_key(sample, "商品")
             or find_key(sample, "name"))
     ikey = (find_key(sample, "institution") or find_key(sample, "身份")
-            or find_key(sample, "identity") or find_key(sample, "investor"))
+            or find_key(sample, "identity") or find_key(sample, "investor")
+            or find_key(sample, "item"))   # 此端點身份別欄位叫 Item（自營商/投信/外資）
     dkey = find_key(sample, "date") or "Date"
     net_key = (find_key(sample, "net", "openinterest")
                or find_key(sample, "openinterest", "net")

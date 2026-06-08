@@ -28,11 +28,10 @@ UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
 OPENAPI = "https://openapi.taifex.com.tw/v1/"
 
-# 三大法人期貨端點：名稱不完全確定，依序嘗試，哪個回得出「臺股期貨」就用哪個。
+# 三大法人期貨端點（由 swagger 目錄確認）：Details=區分各期貨契約、Divided=期貨選擇權彙總。
 INST_ENDPOINTS = [
-    "MarketDataOfMajorInstitutionsByFuturesContractsDate",
-    "MarketDataOfMajorInstitutionsTradersFutures",
-    "MarketDataOfMajorInstitutionsByGeneralFuturesContracts",
+    "MarketDataOfMajorInstitutionalTradersDetailsOfFuturesContractsBytheDate",
+    "MarketDataOfMajorInstitutionalTradersDividedByFuturesAndOptionsBytheDate",
 ]
 PCR_ENDPOINT = "PutCallRatio"
 
@@ -119,42 +118,65 @@ def fetch_inst():
     if not isinstance(data, list) or not data:
         return None
     sample = data[0]
+    print(f"    欄位：{list(sample.keys())}")
+    print(f"    樣本：{json.dumps(sample, ensure_ascii=False)[:320]}")
     ckey = (find_key(sample, "contract") or find_key(sample, "商品")
             or find_key(sample, "name"))
     ikey = (find_key(sample, "institution") or find_key(sample, "身份")
-            or find_key(sample, "identity") or find_key(sample, "investors"))
+            or find_key(sample, "identity") or find_key(sample, "investor"))
     dkey = find_key(sample, "date") or "Date"
-    net_key = (find_key(sample, "net", "oi") or find_key(sample, "淨", "未平倉")
-               or find_key(sample, "openinterest", "net"))
-    if not (ckey and net_key):
-        print(f"    [警告] 找不到 商品/淨未平倉 欄位；keys={list(sample.keys())}")
+    net_key = (find_key(sample, "net", "openinterest")
+               or find_key(sample, "openinterest", "net")
+               or find_key(sample, "net", "oi") or find_key(sample, "淨", "未平倉"))
+    long_key = (find_key(sample, "long", "openinterest")
+                or find_key(sample, "多方", "未平倉") or find_key(sample, "多", "口數"))
+    short_key = (find_key(sample, "short", "openinterest")
+                 or find_key(sample, "空方", "未平倉") or find_key(sample, "空", "口數"))
+    if not ckey:
+        print(f"    [警告] 找不到商品欄位；keys={list(sample.keys())}")
         return None
-    # 只留臺股期貨（TX，排除小型/微型臺指 MTX/TMF；用名稱含「臺股期貨」判斷）
+
+    def netval(r):
+        if net_key:
+            v = to_num(r.get(net_key))
+            if v is not None:
+                return v
+        if long_key and short_key:
+            lo, sh = to_num(r.get(long_key)), to_num(r.get(short_key))
+            if lo is not None and sh is not None:
+                return lo - sh
+        return None
+
+    # 只留臺股期貨（TX，排除小型/微型臺指）
     def is_tx(r):
         nm = str(r.get(ckey, ""))
         return ("臺股期貨" in nm) or nm.strip().upper() in ("TX", "TXF")
     tx = [r for r in data if is_tx(r)]
     if not tx:
-        # 後援：包含「臺指」但不含「小型/微型」
         tx = [r for r in data if "臺指" in str(r.get(ckey, ""))
               and "小型" not in str(r.get(ckey, ""))
               and "微型" not in str(r.get(ckey, ""))]
     if not tx:
-        print(f"    [警告] 找不到臺股期貨資料；商品樣本="
-              f"{sorted({str(r.get(ckey)) for r in data})[:8]}")
+        print(f"    [警告] 找不到臺股期貨；商品樣本="
+              f"{sorted({str(r.get(ckey)) for r in data})[:10]}")
         return None
     latest_date = max(str(r.get(dkey)) for r in tx if r.get(dkey))
     tx = [r for r in tx if str(r.get(dkey)) == latest_date]
-    total_net = 0.0
-    foreign_net = None
+    total_net, foreign_net = 0.0, None
+    got = False
     for r in tx:
-        n = to_num(r.get(net_key))
+        n = netval(r)
         if n is None:
             continue
+        got = True
         total_net += n
         ident = str(r.get(ikey, "")) if ikey else ""
         if ("外資" in ident) or ("foreign" in ident.lower()):
             foreign_net = n
+    if not got:
+        print(f"    [警告] 臺股期貨找不到淨未平倉數值；"
+              f"net_key={net_key} long_key={long_key} short_key={short_key}")
+        return None
     print(f"    date={latest_date} 三大法人淨未平倉={total_net:.0f} "
           f"外資淨未平倉={foreign_net}")
     return {"date": latest_date, "inst_net_oi": round(total_net),

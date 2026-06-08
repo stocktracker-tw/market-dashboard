@@ -10,6 +10,7 @@
 """
 import glob
 import json
+import os
 import re
 
 # 分頁圖示（帶 ?v= 以繞過頑固的 favicon 快取）
@@ -225,6 +226,69 @@ def patch_defaultwl(html):
     """預設自選把 0050（ETF，資料庫沒有）換成 2412 中華電。只動 stocks.html。"""
     new = DEFAULTWL_RE.sub(r'\g<1>"2412"\g<2>', html, count=1)
     return new, (new != html)
+
+
+# --- 台指期籌碼卡（資料由 scripts/fetch_taifex.py 寫進 taifex.json）----------
+# 只注入 index.html（用 id="gauge" 當守門；backtest 也有 .foot 故需排除）。
+# 卡片用 <!--taifex-->…<!--/taifex--> 包起來，方便移除後重注入（冪等）。
+# taifex.json 不存在或沒有有效資料時不注入（不會出現空卡）。
+TAIFEX_RE = re.compile(r'<!--taifex-->.*?<!--/taifex-->', re.S)
+TAIFEX_JSON = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                           "taifex.json")
+
+
+def _taifex_card(d):
+    inst = d.get("inst") or {}
+    pcr = d.get("pcr") or {}
+
+    def metric(label, val, unit, signed=True):
+        if val is None:
+            return ""
+        if signed:
+            c = "#2dc5de" if val > 0 else "#8b5cf6" if val < 0 else "#4f87ff"
+            txt = "{:+,.0f}".format(val)
+        else:
+            c = "#4f87ff"
+            txt = "{:,.2f}".format(val)
+        return ('<div style="min-width:130px">'
+                '<div style="font-size:12px;color:#94a0b4">' + label + '</div>'
+                '<div style="font-size:22px;font-weight:800;color:' + c + '">'
+                + txt + unit + '</div></div>')
+
+    body = "".join([
+        metric("三大法人淨未平倉", inst.get("inst_net_oi"), " 口"),
+        metric("外資淨未平倉", inst.get("foreign_net_oi"), " 口"),
+        metric("選擇權 P/C 未平倉比", pcr.get("pcr_oi"), "", signed=False),
+    ])
+    if not body:
+        return None
+    dt = inst.get("date") or pcr.get("date") or d.get("updated", "")
+    return ('<!--taifex--><div class="card" style="margin-bottom:14px">'
+            '<div style="font-size:13px;color:#94a0b4">台指期籌碼'
+            '（台灣期交所・每日結算）</div>'
+            '<div style="display:flex;gap:22px;flex-wrap:wrap;margin-top:8px">'
+            + body + '</div>'
+            '<div style="font-size:11.5px;color:#7c8aa0;margin-top:8px">'
+            '淨未平倉為正＝法人偏多、負＝偏空（青＝偏多／紫＝偏空）；'
+            'P/C 未平倉比＞1 偏避險。非投資建議。資料日 ' + str(dt)
+            + '</div></div><!--/taifex-->')
+
+
+def patch_taifex(html):
+    """把台指期籌碼卡注入 index.html（資料來自 taifex.json）。"""
+    if 'id="gauge"' not in html or '<div class="foot"' not in html:
+        return html, False           # 只處理 index 首頁
+    try:
+        with open(TAIFEX_JSON, encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:                 # noqa: BLE001 — 沒資料就不注入
+        data = None
+    orig = html
+    html = TAIFEX_RE.sub('', html)    # 先移除舊卡（保持冪等）
+    card = _taifex_card(data) if data else None
+    if card:
+        html = html.replace('<div class="foot"', card + '<div class="foot"', 1)
+    return html, (html != orig)
 
 
 # --- 「我該扣多少」計算機 --------------------------------------------------
@@ -839,6 +903,10 @@ def patch(html):
     # 6b) 預設自選把 0050（ETF，資料庫沒有）換成 2412 中華電
     html, dw = patch_defaultwl(html)
     changed = changed or dw
+
+    # 6c) 台指期籌碼卡（index.html，資料來自 taifex.json）
+    html, tx = patch_taifex(html)
+    changed = changed or tx
 
     # 7) 「我該扣多少」計算機（index.html）
     html, ca = patch_calc(html)

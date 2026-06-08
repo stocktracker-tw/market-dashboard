@@ -94,6 +94,11 @@ def fetch_pcr():
                or find_key(row, "putcallvolume"))
     pcr_oi = to_num(row.get(oi_key)) if oi_key else None
     pcr_vol = to_num(row.get(vol_key)) if vol_key else None
+    # TAIFEX 回的是「比率%」(例 189.66 = put/call 未平倉比 1.90)，>10 視為百分比轉成比值
+    if pcr_oi is not None and pcr_oi > 10:
+        pcr_oi = round(pcr_oi / 100, 2)
+    if pcr_vol is not None and pcr_vol > 10:
+        pcr_vol = round(pcr_vol / 100, 2)
     print(f"    date={row.get(dkey)} pcr_oi={pcr_oi} pcr_vol={pcr_vol} "
           f"(oi_key={oi_key})")
     if pcr_oi is None and pcr_vol is None:
@@ -157,6 +162,28 @@ def fetch_inst():
             else None}
 
 
+SWAGGER_URLS = [
+    "https://openapi.taifex.com.tw/swagger/v1/swagger.json",
+    "https://openapi.taifex.com.tw/swagger.json",
+    "https://openapi.taifex.com.tw/openapi.json",
+    "https://openapi.taifex.com.tw/v1/swagger.json",
+]
+
+
+def discover():
+    """抓 OpenAPI 的 swagger 目錄，印出所有端點路徑（找正確的三大法人端點用）。"""
+    print("· 探索 OpenAPI 端點清單（找三大法人正確端點）")
+    for u in SWAGGER_URLS:
+        d = get_json(u)
+        if isinstance(d, dict) and isinstance(d.get("paths"), dict):
+            paths = sorted(d["paths"].keys())
+            print(f"    共 {len(paths)} 個端點：")
+            for p in paths:
+                print("      ", p)
+            return
+    print("    （swagger 目錄抓不到）")
+
+
 def load_existing():
     try:
         with open(OUT, encoding="utf-8") as f:
@@ -176,6 +203,8 @@ def main():
     inst = fetch_inst()
     if inst:
         out["inst"] = inst
+    else:
+        discover()  # 三大法人抓不到 → 印出端點清單，方便校正
 
     out["updated"] = datetime.now(TZ).strftime("%Y-%m-%d %H:%M")
     got = [k for k in ("pcr", "inst") if out.get(k)]

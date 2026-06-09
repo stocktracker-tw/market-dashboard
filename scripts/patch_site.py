@@ -498,6 +498,10 @@ BAR_STYLE = (
     '.tabbar a.tab .ic{color:#fff!important;opacity:.7;transition:opacity .18s,transform .18s}'
     '.tabbar a.tab .ic svg{width:26px;height:26px;display:block}'
     '.tabbar a.tab.on .ic,.tabbar a.tab.hl .ic{opacity:1;transform:translateY(-1px)}'
+    # liquid glass 不變：只把引擎滑動 thumb 改成「選中＝實心紫」Teams 風圓角，圖示白
+    '.tabbar .thumb{background:#8b5cf6!important;border-radius:12px!important}'
+    '.tabbar a.tab.on{background:transparent!important}'   # 不疊引擎的靜態粉紅 tint
+    '.tabbar a.tab.on .ic,.tabbar a.tab.hl .ic{filter:none!important}'  # 移除粉紅光暈（扁平實心）
     '.tabbar{width:min(324px,calc(100vw - 52px))!important;'
     'background:linear-gradient(180deg,rgba(255,255,255,.085),rgba(255,255,255,.02))!important;'
     'border:1px solid rgba(255,255,255,.16)!important}'

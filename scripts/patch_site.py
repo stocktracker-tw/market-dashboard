@@ -444,24 +444,59 @@ def patch_etflink(html):
 # --- 導覽列 iOS 液態玻璃風（SF Symbols 風單色線條圖示、無字、更透明）--------
 # emoji → 單色線條 SVG（currentColor，未選取半透明、選取白色）+ 玻璃樣式。
 # 新版改成更精緻、更像 iOS SF Symbols 的線條：長條圖／放大鏡／訊息泡泡／報紙。
+def _bar_ic(line, fill):
+    """組出含線條版(.il)與實心版(.if)兩個 SVG 的圖示 span（選取時切到實心）。"""
+    return ('<span class="ic">'
+            '<svg class="il" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+            'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + line + '</svg>'
+            '<svg class="if" viewBox="0 0 24 24" fill="currentColor">' + fill + '</svg>'
+            '</span>')
+
+
 BAR_ICON_SVGS = {
-    # 進場（大盤分數）— chart.bar 長條圖
+    # 進場（大盤分數）— chart.bar 長條圖（線條／實心）
+    '<span class="ic">📊</span>': _bar_ic(
+        '<path d="M5 20V11"/><path d="M12 20V4"/><path d="M19 20v-6"/>',
+        '<rect x="3.6" y="10" width="4.2" height="10" rx="1.4"/>'
+        '<rect x="9.9" y="4" width="4.2" height="16" rx="1.4"/>'
+        '<rect x="16.2" y="13.5" width="4.2" height="6.5" rx="1.4"/>'),
+    # 個股 — magnifyingglass 放大鏡
+    '<span class="ic">📈</span>': _bar_ic(
+        '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
+        '<circle cx="10.5" cy="10.5" r="7"/>'
+        '<path d="M15.9 15.9 21 21" fill="none" stroke="currentColor" '
+        'stroke-width="3" stroke-linecap="round"/>'),
+    # 觀點 — message 訊息泡泡
+    '<span class="ic">🗣️</span>': _bar_ic(
+        '<path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v8a1.5 1.5 0 0 1-1.5 '
+        '1.5H9l-4 4v-4H5.5A1.5 1.5 0 0 1 4 13.5z"/>',
+        '<path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v8a1.5 1.5 0 0 1-1.5 '
+        '1.5H9l-4 4v-4H5.5A1.5 1.5 0 0 1 4 13.5z"/>'),
+    # 消息 — newspaper 報紙
+    '<span class="ic">📰</span>': _bar_ic(
+        '<path d="M4 5a1 1 0 0 1 1-1h11a1 1 0 0 1 1 1v13a2 2 0 0 0 2 2H6a2 2 0 0 1-2-2z"/>'
+        '<path d="M17 8h2a1 1 0 0 1 1 1v9a2 2 0 0 1-2 2"/>'
+        '<path d="M7 8h7M7 11.5h7M7 15h4"/>',
+        '<path d="M4 5a1 1 0 0 1 1-1h11a1 1 0 0 1 1 1v13a2 2 0 0 0 2 2H6a2 2 0 0 1-2-2z"/>'
+        '<path d="M17 8h2a1 1 0 0 1 1 1v9a2 2 0 0 1-2 2"/>'),
+}
+# 上一版（儀表/泡泡/文件）的 SVG → 還原回 emoji，讓已套用的頁面也能升級到新圖示。
+# 升級遷移：把各頁目前已注入的「線條版」SVG（#48 那版）還原回 emoji，
+# 再由上面的 BAR_ICON_SVGS 注入「線條＋實心」雙版本。
+OLD_BAR_SVGS = {
     '<span class="ic">📊</span>':
         '<span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
         'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
         '<path d="M5 20V11"/><path d="M12 20V4"/><path d="M19 20v-6"/></svg></span>',
-    # 個股 — magnifyingglass 放大鏡
     '<span class="ic">📈</span>':
         '<span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
         'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
         '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span>',
-    # 觀點 — message 訊息泡泡（帶小尾巴）
     '<span class="ic">🗣️</span>':
         '<span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
         'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
         '<path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v8a1.5 1.5 0 0 1-1.5 '
         '1.5H9l-4 4v-4H5.5A1.5 1.5 0 0 1 4 13.5z"/></svg></span>',
-    # 消息 — newspaper 報紙
     '<span class="ic">📰</span>':
         '<span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
         'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
@@ -469,39 +504,21 @@ BAR_ICON_SVGS = {
         '<path d="M17 8h2a1 1 0 0 1 1 1v9a2 2 0 0 1-2 2"/>'
         '<path d="M7 8h7M7 11.5h7M7 15h4"/></svg></span>',
 }
-# 上一版（儀表/泡泡/文件）的 SVG → 還原回 emoji，讓已套用的頁面也能升級到新圖示。
-OLD_BAR_SVGS = {
-    '<span class="ic">📊</span>':
-        '<span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-        'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
-        '<path d="M4 18a8 8 0 1 1 16 0"/><path d="M12 18l4.5-5.5"/></svg></span>',
-    '<span class="ic">📈</span>':
-        '<span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-        'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
-        '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span>',
-    '<span class="ic">🗣️</span>':
-        '<span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-        'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
-        '<path d="M20 11.5a7.5 7.5 0 0 1-10.8 6.7L4.5 19.5l1.3-4.4A7.5 7.5 0 1 1 20 '
-        '11.5z"/></svg></span>',
-    '<span class="ic">📰</span>':
-        '<span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-        'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
-        '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h8M8 17h5"/>'
-        '</svg></span>',
-}
 BAR_STYLE = (
     '<style id="barglass">'
     '.tabbar a.tab span:not(.ic){display:none!important}'
     '.tabbar a.tab{flex-direction:row!important;justify-content:center!important;'
     'padding:15px 4px!important;gap:0!important}'
-    '.tabbar a.tab .ic{color:#fff!important;opacity:.7;transition:opacity .18s,transform .18s}'
+    '.tabbar a.tab .ic{color:#fff!important;opacity:.65;transition:opacity .18s,transform .18s}'
     '.tabbar a.tab .ic svg{width:26px;height:26px;display:block}'
-    '.tabbar a.tab.on .ic,.tabbar a.tab.hl .ic{opacity:1;transform:translateY(-1px)}'
-    # liquid glass 不變：只把引擎滑動 thumb 改成「選中＝實心紫」Teams 風圓角，圖示白
-    '.tabbar .thumb{background:#8b5cf6!important;border-radius:12px!important}'
-    '.tabbar a.tab.on{background:transparent!important}'   # 不疊引擎的靜態粉紅 tint
-    '.tabbar a.tab.on .ic,.tabbar a.tab.hl .ic{filter:none!important}'  # 移除粉紅光暈（扁平實心）
+    '.tabbar a.tab .ic .if{display:none}'                  # 預設藏實心版圖示
+    # liquid glass 不變；選中＝logo 變實心紫（線條→實心），不做背景填色
+    '.tabbar a.tab.on .ic,.tabbar a.tab.hl .ic'
+    '{color:#8b5cf6!important;opacity:1;transform:translateY(-1px);filter:none!important}'
+    '.tabbar a.tab.on .ic .il,.tabbar a.tab.hl .ic .il{display:none}'    # 選中藏線條版
+    '.tabbar a.tab.on .ic .if,.tabbar a.tab.hl .ic .if{display:block}'  # 選中顯示實心版
+    '.tabbar a.tab.on{background:transparent!important}'   # 不要背景膠囊（引擎粉紅 tint 也關掉）
+    '.tabbar .thumb{background:transparent!important}'     # 不要滑動背景塊，改用實心 logo
     '.tabbar{width:min(324px,calc(100vw - 52px))!important;'
     'background:linear-gradient(180deg,rgba(255,255,255,.085),rgba(255,255,255,.02))!important;'
     'border:1px solid rgba(255,255,255,.16)!important}'

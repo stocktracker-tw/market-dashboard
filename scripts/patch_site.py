@@ -511,14 +511,12 @@ BAR_STYLE = (
     'padding:15px 4px!important;gap:0!important}'
     '.tabbar a.tab .ic{color:#fff!important;opacity:.65;transition:opacity .18s,transform .18s}'
     '.tabbar a.tab .ic svg{width:26px;height:26px;display:block}'
-    '.tabbar a.tab .ic .if{display:none}'                  # 預設藏實心版圖示
-    # liquid glass 不變；選中＝logo 變實心紫（線條→實心），不做背景填色
+    '.tabbar a.tab .ic .if{display:none!important}'        # 永遠藏實心版（維持線條）
+    # liquid glass 不變；選中＝線條圖示上紫色（不填實心、不做背景）
     '.tabbar a.tab.on .ic,.tabbar a.tab.hl .ic'
     '{color:#8b5cf6!important;opacity:1;transform:translateY(-1px);filter:none!important}'
-    '.tabbar a.tab.on .ic .il,.tabbar a.tab.hl .ic .il{display:none}'    # 選中藏線條版
-    '.tabbar a.tab.on .ic .if,.tabbar a.tab.hl .ic .if{display:block}'  # 選中顯示實心版
     '.tabbar a.tab.on{background:transparent!important}'   # 不要背景膠囊（引擎粉紅 tint 也關掉）
-    '.tabbar .thumb{background:transparent!important}'     # 不要滑動背景塊，改用實心 logo
+    '.tabbar .thumb{background:transparent!important}'     # 不要滑動背景塊
     '.tabbar{width:min(324px,calc(100vw - 52px))!important;'
     'background:linear-gradient(180deg,rgba(255,255,255,.085),rgba(255,255,255,.02))!important;'
     'border:1px solid rgba(255,255,255,.16)!important}'

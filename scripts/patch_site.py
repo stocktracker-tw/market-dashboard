@@ -160,13 +160,19 @@ def patch_tabbar(html):
 
 
 # --- 載入效能 --------------------------------------------------------------
-# echarts 從 CDN 載 ~1MB；頁面一載入又會 init 近 30 張圖，手機很卡。
-# 做法：preconnect 加速連線 + 包住 echarts.init 讓圖「滑到才畫」(IntersectionObserver)。
+# echarts 從 CDN 載 ~1MB 且原本「阻塞渲染」；頁面一載入又會 init 近 30 張圖。
+# 做法：① script 改 defer（首繪不等圖表庫），head 先放一個極小 stub 把 parse 期
+#   的 echarts.init 呼叫排進佇列，庫載完(__ecReady)再真正建圖並回放 setOption；
+# ② 建圖仍包 IntersectionObserver「滑到才畫」；③ jsdelivr 掛了用 onerror 落到
+#   unpkg（引擎原本的 document.write fallback 會因 stub 存在而自然不觸發）。
+# 引擎 inline 只用 echarts.init／實例 setOption/resize，proxy 介面以此為準
+#（on/dispose 防禦性支援）。
 ECHARTS_TAG = ('<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/'
                'dist/echarts.min.js"></script>')
 PRECONNECT = ('<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>'
               '<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">'
               '<link rel="preconnect" href="https://unpkg.com" crossorigin>')
+# 舊版「滑到才畫」shim（庫仍阻塞）。保留字串只為了把已注入的頁面升級時移除。
 LAZY_ECHARTS = (
     '<script>/*lazy-echarts*/(function(g){if(!g.IntersectionObserver||!g.echarts||'
     'g.echarts.__lazy)return;var R=g.echarts.init;g.echarts.__lazy=1;'
@@ -178,14 +184,48 @@ LAZY_ECHARTS = (
     'p.setOption=function(o){return inst.setOption(o)};p.resize=function(){'
     'return inst.resize()};break}}},{rootMargin:"200px"});io.observe(el);return p}})(window);</script>'
 )
+ECHARTS_STUB = (
+    '<script>/*echarts-stub*/(function(g){var Q=[];'
+    'function P(){var p={_q:[],setOption:function(){p._q.push(arguments);return p},'
+    'resize:function(){return p},on:function(){return p},off:function(){return p},'
+    'dispose:function(){p._x=1;return p}};return p}'
+    'function bind(p,inst){for(var j=0;j<p._q.length;j++)inst.setOption.apply(inst,p._q[j]);'
+    'p._q=[];p.setOption=function(){return inst.setOption.apply(inst,arguments)};'
+    'p.resize=function(){return inst.resize()};'
+    'p.on=function(){return inst.on.apply(inst,arguments)};'
+    'p.dispose=function(){return inst.dispose()};}'
+    'g.echarts={__stub:1,init:function(el){var p=P();Q.push([el,arguments,p]);return p}};'
+    'g.__ecReady=function(){var E=g.echarts;if(!E||E.__stub)return;'
+    'if(g.IntersectionObserver&&!E.__lazy){var R=E.init;E.__lazy=1;'
+    'E.init=function(el){var a=arguments;if(!el||el.__forceEager)return R.apply(E,a);'
+    'var p=P();var io=new g.IntersectionObserver(function(es){'
+    'for(var i=0;i<es.length;i++){if(es[i].isIntersecting){io.disconnect();'
+    'if(!p._x)bind(p,R.apply(E,a));break}}},{rootMargin:"200px"});io.observe(el);return p};}'
+    'for(var i=0;i<Q.length;i++){if(!Q[i][2]._x)bind(Q[i][2],E.init.apply(E,Q[i][1]));}'
+    'Q.length=0;};})(window);</script>'
+)
+ECHARTS_DEFER = (
+    '<script defer src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js" '
+    'onload="__ecReady()" '
+    'onerror="var s=document.createElement(\'script\');'
+    's.src=\'https://unpkg.com/echarts@5.5.0/dist/echarts.min.js\';'
+    's.onload=__ecReady;document.head.appendChild(s)"></script>'
+)
 
 
 def patch_perf(html):
-    """preconnect + 讓 echarts 圖滑到才畫。只動有 echarts 的頁面。"""
-    if ECHARTS_TAG not in html or '/*lazy-echarts*/' in html:
-        return html, False
-    html = html.replace(ECHARTS_TAG, PRECONNECT + ECHARTS_TAG + LAZY_ECHARTS, 1)
-    return html, True
+    """echarts 改 defer + 載入 stub（首繪不被圖表庫卡住），建圖仍滑到才畫。"""
+    changed = False
+    if LAZY_ECHARTS in html:               # 升級：移除舊 shim（邏輯已併入 stub）
+        html = html.replace(LAZY_ECHARTS, '')
+        changed = True
+    if ECHARTS_TAG in html:                # 阻塞版 script → stub + defer
+        repl = ECHARTS_STUB + ECHARTS_DEFER
+        if PRECONNECT not in html:
+            repl = PRECONNECT + repl
+        html = html.replace(ECHARTS_TAG, repl, 1)
+        changed = True
+    return html, changed
 
 
 # --- 個股搜尋 --------------------------------------------------------------
@@ -406,6 +446,43 @@ def patch_seo(html):
     return html.replace(SEO_ANCHOR, SEO_ANCHOR + SEO_JSONLD, 1), True
 
 
+# --- canonical + 缺漏的 meta description ------------------------------------
+# 各頁都沒有 rel=canonical（同內容可能以不同 URL 被收錄、分散權重）；
+# backtest / rec_backtest 連 meta description 都沒有 → 搜尋結果摘要隨機抓字。
+BASE_URL = 'https://stocktracker-tw.github.io/market-dashboard/'
+CANON_RE = re.compile(r'<link rel="canonical"[^>]*>')
+PAGE_DESC = {
+    'backtest.html':
+        '進場分數歷史回測：用 0–100 台股進場分數模擬定期定額加減碼策略，'
+        '與固定定額比較績效。非投資建議。',
+    'rec_backtest.html':
+        '推薦個股回測：每日推薦股的歷史模擬與即時追蹤績效（vs 0050），'
+        '含勝率與超額報酬。非投資建議。',
+}
+
+
+def patch_canonical(html, fname):
+    """每頁注入 rel=canonical（index 用根網址）；已存在則正規化成現行網址。"""
+    if '</head>' not in html:
+        return html, False
+    url = BASE_URL if fname == 'index.html' else BASE_URL + fname
+    tag = '<link rel="canonical" href="' + url + '">'
+    if tag in html:                            # 已是現行網址 → 不動（避免位置震盪）
+        return html, False
+    orig = html
+    html = CANON_RE.sub('', html)              # 移除舊網址版本再注入
+    html = html.replace('</head>', tag + '</head>', 1)
+    return html, (html != orig)
+
+
+def patch_desc(html, fname):
+    """補上缺 meta description 的頁面（搜尋摘要用）。"""
+    if fname not in PAGE_DESC or 'name="description"' in html or '</head>' not in html:
+        return html, False
+    tag = '<meta name="description" content="' + PAGE_DESC[fname] + '">'
+    return html.replace('</head>', tag + '</head>', 1), True
+
+
 # --- 個股頁內鏈到熱門 SEO 頁 ----------------------------------------------
 # 讓使用者逛得到 /stock/ 熱門個股頁，也幫 Google 爬蟲（內鏈有助 SEO）。
 STOCKLINK_ANCHOR = '<h1>個股進場分數 <span class="muted">推薦 + 自選 + 搜尋</span></h1>'
@@ -442,68 +519,57 @@ def patch_etflink(html):
 
 
 # --- 導覽列 iOS 液態玻璃風（SF Symbols 風單色線條圖示、無字、更透明）--------
-# emoji → 單色線條 SVG（currentColor，未選取半透明、選取白色）+ 玻璃樣式。
-# 新版改成更精緻、更像 iOS SF Symbols 的線條：長條圖／放大鏡／訊息泡泡／報紙。
-def _bar_ic(line, fill):
-    """組出含線條版(.il)與實心版(.if)兩個 SVG 的圖示 span（選取時切到實心）。"""
-    return ('<span class="ic">'
-            '<svg class="il" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-            'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + line + '</svg>'
-            '<svg class="if" viewBox="0 0 24 24" fill="currentColor">' + fill + '</svg>'
-            '</span>')
+# emoji → 單色線條 SVG（currentColor，未選取半透明白、選取紫線條）+ 玻璃樣式。
+# 分頁文字以 CSS 隱藏(display:none) → 連結會失去 accessible name，所以同時
+# 在 <a> 上補 aria-label、SVG 標 aria-hidden（裝飾用），螢幕閱讀器才唸得出來。
+_BAR_LINE = {                                     # 各分頁的線條 path
+    '📊': '<path d="M5 20V11"/><path d="M12 20V4"/><path d="M19 20v-6"/>',
+    '📈': '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
+    '🗣️': '<path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v8a1.5 1.5 0 0 1-1.5 '
+          '1.5H9l-4 4v-4H5.5A1.5 1.5 0 0 1 4 13.5z"/>',
+    '📰': '<path d="M4 5a1 1 0 0 1 1-1h11a1 1 0 0 1 1 1v13a2 2 0 0 0 2 2H6a2 2 0 0 1-2-2z"/>'
+          '<path d="M17 8h2a1 1 0 0 1 1 1v9a2 2 0 0 1-2 2"/>'
+          '<path d="M7 8h7M7 11.5h7M7 15h4"/>',
+}
+_BAR_FILL = {                                     # #75 實心版 path（只為重建遷移字串）
+    '📊': '<rect x="3.6" y="10" width="4.2" height="10" rx="1.4"/>'
+          '<rect x="9.9" y="4" width="4.2" height="16" rx="1.4"/>'
+          '<rect x="16.2" y="13.5" width="4.2" height="6.5" rx="1.4"/>',
+    '📈': '<circle cx="10.5" cy="10.5" r="7"/>'
+          '<path d="M15.9 15.9 21 21" fill="none" stroke="currentColor" '
+          'stroke-width="3" stroke-linecap="round"/>',
+    '🗣️': '<path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v8a1.5 1.5 0 0 1-1.5 '
+          '1.5H9l-4 4v-4H5.5A1.5 1.5 0 0 1 4 13.5z"/>',
+    '📰': '<path d="M4 5a1 1 0 0 1 1-1h11a1 1 0 0 1 1 1v13a2 2 0 0 0 2 2H6a2 2 0 0 1-2-2z"/>'
+          '<path d="M17 8h2a1 1 0 0 1 1 1v9a2 2 0 0 1-2 2"/>',
+}
+_SVG_LINE_OPEN = ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+                  'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"')
 
-
+# 新版：單一線條 SVG（裝飾用 → aria-hidden），不再帶永遠隱藏的實心副本（死重量）。
 BAR_ICON_SVGS = {
-    # 進場（大盤分數）— chart.bar 長條圖（線條／實心）
-    '<span class="ic">📊</span>': _bar_ic(
-        '<path d="M5 20V11"/><path d="M12 20V4"/><path d="M19 20v-6"/>',
-        '<rect x="3.6" y="10" width="4.2" height="10" rx="1.4"/>'
-        '<rect x="9.9" y="4" width="4.2" height="16" rx="1.4"/>'
-        '<rect x="16.2" y="13.5" width="4.2" height="6.5" rx="1.4"/>'),
-    # 個股 — magnifyingglass 放大鏡
-    '<span class="ic">📈</span>': _bar_ic(
-        '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
-        '<circle cx="10.5" cy="10.5" r="7"/>'
-        '<path d="M15.9 15.9 21 21" fill="none" stroke="currentColor" '
-        'stroke-width="3" stroke-linecap="round"/>'),
-    # 觀點 — message 訊息泡泡
-    '<span class="ic">🗣️</span>': _bar_ic(
-        '<path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v8a1.5 1.5 0 0 1-1.5 '
-        '1.5H9l-4 4v-4H5.5A1.5 1.5 0 0 1 4 13.5z"/>',
-        '<path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v8a1.5 1.5 0 0 1-1.5 '
-        '1.5H9l-4 4v-4H5.5A1.5 1.5 0 0 1 4 13.5z"/>'),
-    # 消息 — newspaper 報紙
-    '<span class="ic">📰</span>': _bar_ic(
-        '<path d="M4 5a1 1 0 0 1 1-1h11a1 1 0 0 1 1 1v13a2 2 0 0 0 2 2H6a2 2 0 0 1-2-2z"/>'
-        '<path d="M17 8h2a1 1 0 0 1 1 1v9a2 2 0 0 1-2 2"/>'
-        '<path d="M7 8h7M7 11.5h7M7 15h4"/>',
-        '<path d="M4 5a1 1 0 0 1 1-1h11a1 1 0 0 1 1 1v13a2 2 0 0 0 2 2H6a2 2 0 0 1-2-2z"/>'
-        '<path d="M17 8h2a1 1 0 0 1 1 1v9a2 2 0 0 1-2 2"/>'),
+    '<span class="ic">%s</span>' % e:
+        ('<span class="ic">' + _SVG_LINE_OPEN +
+         ' aria-hidden="true" focusable="false">' + p + '</svg></span>')
+    for e, p in _BAR_LINE.items()
 }
-# 上一版（儀表/泡泡/文件）的 SVG → 還原回 emoji，讓已套用的頁面也能升級到新圖示。
-# 升級遷移：把各頁目前已注入的「線條版」SVG（#48 那版）還原回 emoji，
-# 再由上面的 BAR_ICON_SVGS 注入「線條＋實心」雙版本。
+# 升級遷移：把各頁已注入的舊版圖示還原回 emoji，再由 BAR_ICON_SVGS 注入新版。
+# 兩種舊變體：(a) #48 純線條（無 aria）；(b) #75 線條(.il)+實心(.if) 雙 SVG。
 OLD_BAR_SVGS = {
-    '<span class="ic">📊</span>':
-        '<span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-        'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
-        '<path d="M5 20V11"/><path d="M12 20V4"/><path d="M19 20v-6"/></svg></span>',
-    '<span class="ic">📈</span>':
-        '<span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-        'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
-        '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span>',
-    '<span class="ic">🗣️</span>':
-        '<span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-        'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
-        '<path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v8a1.5 1.5 0 0 1-1.5 '
-        '1.5H9l-4 4v-4H5.5A1.5 1.5 0 0 1 4 13.5z"/></svg></span>',
-    '<span class="ic">📰</span>':
-        '<span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-        'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
-        '<path d="M4 5a1 1 0 0 1 1-1h11a1 1 0 0 1 1 1v13a2 2 0 0 0 2 2H6a2 2 0 0 1-2-2z"/>'
-        '<path d="M17 8h2a1 1 0 0 1 1 1v9a2 2 0 0 1-2 2"/>'
-        '<path d="M7 8h7M7 11.5h7M7 15h4"/></svg></span>',
+    '<span class="ic">%s</span>' % e: [
+        '<span class="ic">' + _SVG_LINE_OPEN + '>' + p + '</svg></span>',
+        ('<span class="ic"><svg class="il" viewBox="0 0 24 24" fill="none" '
+         'stroke="currentColor" stroke-width="1.8" stroke-linecap="round" '
+         'stroke-linejoin="round">' + p + '</svg>'
+         '<svg class="if" viewBox="0 0 24 24" fill="currentColor">'
+         + _BAR_FILL[e] + '</svg></span>'),
+    ]
+    for e, p in _BAR_LINE.items()
 }
+# 分頁文字被隱藏 → 在 <a> 補 aria-label（只在還沒有 aria-label 時加，冪等）。
+TAB_ARIA = {'index': '進場', 'stocks': '個股', 'perspectives': '觀點', 'news': '消息'}
+TAB_ARIA_RE = re.compile(
+    r'(<a class="tab[^"]*" href="(index|stocks|perspectives|news)\.html")(?=>)')
 BAR_STYLE = (
     '<style id="barglass">'
     '.tabbar a.tab span:not(.ic){display:none!important}'
@@ -511,7 +577,6 @@ BAR_STYLE = (
     'padding:15px 4px!important;gap:0!important}'
     '.tabbar a.tab .ic{color:#fff!important;opacity:.65;transition:opacity .18s,transform .18s}'
     '.tabbar a.tab .ic svg{width:26px;height:26px;display:block}'
-    '.tabbar a.tab .ic .if{display:none!important}'        # 永遠藏實心版（維持線條）
     # liquid glass 不變；選中＝線條圖示上紫色（不填實心、不做背景）
     '.tabbar a.tab.on .ic,.tabbar a.tab.hl .ic'
     '{color:#8b5cf6!important;opacity:1;transform:translateY(-1px);filter:none!important}'
@@ -526,15 +591,18 @@ BAR_STYLE_RE = re.compile(r'<style id="barglass">.*?</style>', re.S)
 
 
 def patch_barglass(html):
-    """導覽列：emoji 換 SF 風單色線條 SVG + 無字 + 更透明玻璃。所有有 tabbar 的頁面。"""
+    """導覽列：emoji 換 SF 風線條 SVG + 無字 + 玻璃；補 aria-label。有 tabbar 的頁面。"""
     if '<nav class="tabbar">' not in html:
         return html, False
     orig = html
-    for emoji, oldsvg in OLD_BAR_SVGS.items():    # 0) 舊版 SVG → 還原回 emoji（升級用）
-        html = html.replace(oldsvg, emoji)
-    for emoji, newsvg in BAR_ICON_SVGS.items():   # 1) emoji → SF 風線條 SVG
+    for emoji, variants in OLD_BAR_SVGS.items():  # 0) 舊版 SVG（兩種變體）→ 還原回 emoji
+        for oldsvg in variants:
+            html = html.replace(oldsvg, emoji)
+    for emoji, newsvg in BAR_ICON_SVGS.items():   # 1) emoji → 線條 SVG（aria-hidden）
         html = html.replace(emoji, newsvg)
-    html = BAR_STYLE_RE.sub('', html)             # 2) 移除舊樣式（含上一版）
+    html = TAB_ARIA_RE.sub(                       # 2) icon-only 連結補 accessible name
+        lambda m: m.group(1) + ' aria-label="' + TAB_ARIA[m.group(2)] + '"', html)
+    html = BAR_STYLE_RE.sub('', html)             # 3) 移除舊樣式（含上一版）
     html = html.replace('<nav class="tabbar">', BAR_STYLE + '<nav class="tabbar">', 1)
     return html, (html != orig)
 
@@ -888,7 +956,7 @@ def patch_ask(html):
     return (new, True) if new != html else (html, changed)
 
 
-def patch(html):
+def patch(html, fname):
     changed = False
 
     # 1) favicon：沒有就補在 apple-touch-icon 連結前面
@@ -897,6 +965,12 @@ def patch(html):
         if m:
             html = html[:m.start()] + FAVICON + html[m.start():]
             changed = True
+
+    # 1b) SEO：rel=canonical（每頁）+ 補缺漏的 meta description
+    html, cn = patch_canonical(html, fname)
+    changed = changed or cn
+    html, dc = patch_desc(html, fname)
+    changed = changed or dc
 
     # 2) 標題加品牌前綴（已加過則略過）
     def repl(m):
@@ -991,6 +1065,21 @@ def patch(html):
     return html, changed
 
 
+def minify_universe():
+    """universe.json 引擎輸出帶空白（~75KB 純空格）；最小化後每日由本腳本維持。"""
+    try:
+        raw = open("universe.json", encoding="utf-8").read()
+        mini = json.dumps(json.loads(raw), ensure_ascii=False,
+                          separators=(",", ":"))
+        if mini != raw:
+            with open("universe.json", "w", encoding="utf-8") as fh:
+                fh.write(mini)
+            return True
+    except Exception:                      # noqa: BLE001 — 缺檔/壞檔都跳過
+        pass
+    return False
+
+
 def main():
     touched = []
     for f in sorted(glob.glob("*.html")):
@@ -998,11 +1087,14 @@ def main():
         # 只處理使用者頁面（有 apple-touch-icon 的那幾頁）
         if APPLE_RE.search(s) is None:
             continue
-        new, changed = patch(s)
-        if changed:
+        new, changed = patch(s, f)
+        # 以「輸出真的不同」為準：部分補丁用移除→重插維持冪等，子旗標可能誤報
+        if changed and new != s:
             with open(f, "w", encoding="utf-8") as fh:
                 fh.write(new)
             touched.append(f)
+    if minify_universe():
+        touched.append("universe.json")
     print("已補丁：" + (", ".join(touched) if touched else "(無需變更)"))
 
 

@@ -446,6 +446,20 @@ def patch_seo(html):
     return html.replace(SEO_ANCHOR, SEO_ANCHOR + SEO_JSONLD, 1), True
 
 
+# --- 頂部狀態列底色與頁面一致 ----------------------------------------------
+# 頁面根底色 html{background:#0a1430}；但引擎的 theme-color 設成 #0f2148（另一種
+# 藍），瀏覽器頂部列就跟頁面「分成兩截不同色」。對齊成頁面根底色 → 連成一片。
+THEMECOLOR_OLD = '<meta name="theme-color" content="#0f2148">'
+THEMECOLOR_NEW = '<meta name="theme-color" content="#0a1430">'
+
+
+def patch_themecolor(html):
+    """theme-color 對齊頁面根底色 #0a1430（消除頂部狀態列與頁面的色差）。"""
+    if THEMECOLOR_OLD not in html:
+        return html, False
+    return html.replace(THEMECOLOR_OLD, THEMECOLOR_NEW), True
+
+
 # --- canonical + 缺漏的 meta description ------------------------------------
 # 各頁都沒有 rel=canonical（同內容可能以不同 URL 被收錄、分散權重）；
 # backtest / rec_backtest 連 meta description 都沒有 → 搜尋結果摘要隨機抓字。
@@ -971,6 +985,10 @@ def patch(html, fname):
     changed = changed or cn
     html, dc = patch_desc(html, fname)
     changed = changed or dc
+
+    # 1c) 頂部狀態列底色對齊頁面（消除色差「分開」）
+    html, tcm = patch_themecolor(html)
+    changed = changed or tcm
 
     # 2) 標題加品牌前綴（已加過則略過）
     def repl(m):

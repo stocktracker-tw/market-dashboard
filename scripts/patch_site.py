@@ -703,10 +703,10 @@ SCORECOLOR_JS = (
     # 主標題大分數
     'document.querySelectorAll("h2").forEach(function(el){'
     'var m=el.textContent.match(/^進場分數\\s*(\\d+)/);if(m)paint(el,+m[1],false,false);});'
-    # 分級圖例方塊（0–35 保守…70–100 積極）：依區間中點上色
+    # 分級圖例方塊（0–35 保守…70–100 積極）：統一單一色（不再每級不同色）
     'document.querySelectorAll(\'span[style*="width:9px"][style*="height:9px"]\').forEach(function(sq){'
     'var m=((sq.parentNode&&sq.parentNode.textContent)||"").match(/(\\d+)\\s*[\\u2013-]\\s*(\\d+)/);'
-    'if(m)sq.style.setProperty("background",band((+m[1]+ +m[2])/200),"important");});'
+    'if(m)sq.style.setProperty("background","#5b9cff","important");});'
     # 建議行動狀態膠囊（積極/中性/保守）：依主分數上色，深色字維持
     'document.querySelectorAll(".badge").forEach(function(b){'
     'var p=(b.closest&&b.closest(".verdict"))||b.parentNode;'

@@ -87,25 +87,46 @@ def read_composite(html):
 
 
 def band_phrase(score):
-    """分數 → 盤前一句話（與 SCORING_LABELS.md 區間一致）。"""
-    if score >= 80: return "積極加碼區，數據明顯偏多"
-    if score >= 65: return "加碼區，偏多逢回分批"
-    if score >= 55: return "中性偏多，維持定額略可加"
-    if score >= 45: return "中性區，維持原本節奏"
-    if score >= 35: return "中性偏空，維持定額別追高"
-    if score >= 20: return "減碼觀望區，偏謹慎留銀彈"
-    return "保守防禦區，風險偏高先保守"
+    """分數 → 盤前一句話。門檻與儀表板 5 級圖例一致（35/43/58/70），避免自打架。"""
+    if score >= 70: return "積極加碼區，數據明顯偏多"
+    if score >= 58: return "加碼區，偏多逢回分批"
+    if score >= 43: return "正常定額區，維持原本節奏"
+    if score >= 35: return "減碼區，偏謹慎、別追高"
+    return "保守區，少扣、留銀彈"
 
 
-def compute(composite, changes):
-    """changes: {canon_key: pct}。回傳 (premarket_score, delta, basis_str)。"""
+# 台指期籌碼面（外資淨未平倉）對盤前的最大影響與「滿格」口數。
+TAIFEX_CAP = 3.0
+TAIFEX_FULL = 30000   # 外資台指期淨未平倉達 ±3 萬口 ≈ 滿格 ±TAIFEX_CAP 分
+
+
+def taifex_adjust():
+    """讀 taifex.json 外資台指期淨未平倉 → 盤前籌碼修正分（偏多為正）+ 說明。
+    抓不到或資料缺就回 (0, '')。"""
+    try:
+        d = json.load(open(os.path.join(ROOT, "taifex.json"), encoding="utf-8"))
+        oi = (d.get("inst") or {}).get("foreign_net_oi")
+        if oi is None:
+            return 0.0, ""
+        adj = max(-TAIFEX_CAP, min(TAIFEX_CAP, oi / TAIFEX_FULL * TAIFEX_CAP))
+        if abs(adj) < 0.5:                       # 部位不大就不標註、不影響
+            return 0.0, ""
+        side = "偏多" if oi > 0 else "偏空"
+        return round(adj, 1), f"外資台指 {oi:+,} 口→籌碼{side} {adj:+.0f}"
+    except Exception:                            # noqa: BLE001 — 缺檔/壞檔都跳過
+        return 0.0, ""
+
+
+def compute(composite, changes, taifex_adj=0.0):
+    """changes: {canon_key: pct}。回傳 (premarket_score, delta, basis_str)。
+    score = 昨收 composite + 隔夜美股 delta + 台指籌碼修正(taifex_adj)。"""
     have = [k for k in INSTRUMENTS if k in changes]
     wsum = sum(INSTRUMENTS[k]["weight"] for k in have)
     ovn = sum(INSTRUMENTS[k]["weight"] * changes[k] for k in have)
     if wsum > 0:  # 缺指標時把權重正規化回總和，避免低估
         ovn = ovn / wsum * sum(i["weight"] for i in INSTRUMENTS.values())
     delta = max(-DELTA_CAP, min(DELTA_CAP, ovn * K))
-    score = int(round(max(0, min(100, composite + delta))))
+    score = int(round(max(0, min(100, composite + delta + taifex_adj))))
     basis = " / ".join(f"{INSTRUMENTS[k]['name']} {changes[k]:+.1f}%" for k in have)
     return score, round(delta, 1), basis
 
@@ -118,7 +139,7 @@ def badge_html(score, basis):
         'border:1px solid rgba(140,160,190,.28);font-size:12.5px;'
         'line-height:1.5;color:#c4d0e0">'
         f'📡 盤前預估 <b>{score}</b>・非正式 — {phrase}。<br>'
-        f'<span style="color:#9fb0c4">依昨晚美股估算（{basis}），'
+        f'<span style="color:#9fb0c4">依隔夜行情估算（{basis}），'
         '收盤後更新正式分數。</span></div>'
     )
 
@@ -137,7 +158,10 @@ def main():
         html = open(INDEX, encoding="utf-8").read()
         comp = read_composite(html)
         changes = {"ADR": -2.24, "SEMI": -2.0, "SPX": -0.6}  # 假資料：昨晚美股收黑
-        score, delta, basis = compute(comp, changes)
+        tx_adj, tx_note = taifex_adjust()
+        score, delta, basis = compute(comp, changes, tx_adj)
+        if tx_note:
+            basis += "・" + tx_note
         out = inject(html, badge_html(score, basis))
         assert out.count('id="premarket"') == 1, "注入應只有一個徽章"
         out2 = inject(out, badge_html(score, basis))   # 冪等
@@ -157,8 +181,12 @@ def main():
     if not changes:
         print("⚠️ 沒抓到任何隔夜行情，保持原樣不動 index.html。", file=sys.stderr)
         return
-    score, delta, basis = compute(composite, changes)
-    print(f"昨收 composite={composite} → 盤前預估 {score}（delta {delta:+}）｜{basis}")
+    tx_adj, tx_note = taifex_adjust()
+    score, delta, basis = compute(composite, changes, tx_adj)
+    if tx_note:
+        basis += "・" + tx_note
+    print(f"昨收 composite={composite} → 盤前預估 {score}"
+          f"（美股 delta {delta:+}, 台指籌碼 {tx_adj:+}）｜{basis}")
     if dry:
         print(badge_html(score, basis))
         print("\n[dry-run] 沒有改檔。")

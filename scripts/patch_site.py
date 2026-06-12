@@ -562,6 +562,31 @@ def patch_etflink(html):
     return html.replace(ETFLINK_ANCHOR, ETFLINK_ANCHOR + ETFLINK_HTML, 1), True
 
 
+# --- 把「建議定額倍數＋計算機」上移到 5 級圖例之前（行動先於說明）-----------
+# 引擎原順序：分數→盤前→圖例→倍數→計算機。最 actionable 的倍數/計算機在圖例
+# 下方，往下滑才看到。改成：分數→盤前→倍數＋計算機→圖例。
+# 用位置判斷冪等（mult 已在 legend 之前就不動）；任何錨點缺失就跳過（安全）。
+# 計算機是用 id 綁定事件，搬 DOM 不影響其 JS。連同其下方的 ETF 內鏈一起搬（mult
+# 到 etf 連結的 </a>，這段內唯一的 <a> 就是 etf，故 .*?</a> 剛好涵蓋整塊）。
+MULTCALC_RE = re.compile(r'<div class="mult">.*?</a>', re.S)
+
+
+def patch_calcup(html):
+    """index：把建議定額倍數＋計算機移到 5 級圖例之前。"""
+    if not all(s in html for s in ('<div class="mult">', 'id="calc"',
+                                   '<div class="legend"', 'href="etf/"')):
+        return html, False
+    if html.find('<div class="mult">') < html.find('<div class="legend"'):
+        return html, False                         # 已在圖例之前 → 冪等不動
+    m = MULTCALC_RE.search(html)
+    if not m:
+        return html, False
+    block = m.group(0)
+    html = html.replace(block, '', 1)              # 從原位（圖例後）移除
+    html = html.replace('<div class="legend"', block + '<div class="legend"', 1)
+    return html, True
+
+
 # --- 導覽列 iOS 液態玻璃風（SF Symbols 風單色線條圖示、無字、更透明）--------
 # emoji → 單色線條 SVG（currentColor，未選取半透明白、選取紫線條）+ 玻璃樣式。
 # 分頁文字以 CSS 隱藏(display:none) → 連結會失去 accessible name，所以同時
@@ -1086,6 +1111,10 @@ def patch(html, fname):
     # 11) 儀表板內鏈到 ETF 定期定額頁（index.html，計算機之後）
     html, el = patch_etflink(html)
     changed = changed or el
+
+    # 11b) 把建議定額倍數＋計算機上移到 5 級圖例之前（行動先於說明）
+    html, cu = patch_calcup(html)
+    changed = changed or cu
 
     # 12) 導覽列液態玻璃風（只圖示、無字、更透明）
     html, vt = patch_vtliquid(html)

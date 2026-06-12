@@ -460,6 +460,36 @@ def patch_themecolor(html):
     return html.replace(THEMECOLOR_OLD, THEMECOLOR_NEW), True
 
 
+# --- 頂部安全區 liquid glass 玻璃條 ----------------------------------------
+# iOS PWA 全螢幕時，瀏海/狀態列那塊安全區跟頁面常出現一條暗帶（治標的 theme-color
+# 對 PWA 無效）。改成根治：在最上方鋪一條固定的霧面玻璃，高度=安全區，與導覽列
+# 同風格（半透明亮底 + backdrop-filter 模糊），把那塊變成一致的 liquid glass。
+# height 用 safe-area-inset-top，桌機/無瀏海裝置為 0 → 不顯示、無副作用。
+TOPGLASS = (
+    '<style id="topglass">'
+    '.topglass{position:fixed;top:0;left:0;right:0;z-index:95;pointer-events:none;'
+    'height:env(safe-area-inset-top,0px);'
+    'background:linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,.015));'
+    'border-bottom:1px solid rgba(255,255,255,.08);'
+    '-webkit-backdrop-filter:blur(18px) saturate(1.6);'
+    'backdrop-filter:blur(18px) saturate(1.6)}'
+    '@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px)))'
+    '{.topglass{background:#0a1430}}'
+    '</style><div class="topglass" aria-hidden="true"></div>'
+)
+TOPGLASS_RE = re.compile(r'<style id="topglass">.*?</div>', re.S)
+
+
+def patch_topglass(html):
+    """最上方鋪一條安全區高度的 liquid glass，消除 PWA 頂部暗帶。"""
+    if '<body>' not in html:
+        return html, False
+    orig = html
+    html = TOPGLASS_RE.sub('', html)              # 移除舊版再注入（冪等）
+    html = html.replace('<body>', '<body>' + TOPGLASS, 1)
+    return html, (html != orig)
+
+
 # --- canonical + 缺漏的 meta description ------------------------------------
 # 各頁都沒有 rel=canonical（同內容可能以不同 URL 被收錄、分散權重）；
 # backtest / rec_backtest 連 meta description 都沒有 → 搜尋結果摘要隨機抓字。
@@ -989,6 +1019,10 @@ def patch(html, fname):
     # 1c) 頂部狀態列底色對齊頁面（消除色差「分開」）
     html, tcm = patch_themecolor(html)
     changed = changed or tcm
+
+    # 1d) 頂部安全區 liquid glass 玻璃條（根治 PWA 頂部暗帶）
+    html, tg = patch_topglass(html)
+    changed = changed or tg
 
     # 2) 標題加品牌前綴（已加過則略過）
     def repl(m):

@@ -10,7 +10,7 @@
   "dir": "ltr",
   "lang": "zh-Hant",
   "background_color": "#0a1430",
-  "theme_color": "#0f2148",
+  "theme_color": "#0a1430",
   "categories": ["finance"],
   "icons": [
     {"src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},

@@ -1132,6 +1132,21 @@ def minify_universe():
     return False
 
 
+def fix_manifest():
+    """manifest 的 theme_color 對齊頁面底色 #0a1430（iOS PWA 狀態列吃這個值）。
+    若引擎重產 manifest 把它改回 #0f2148，這裡自動修回。"""
+    try:
+        raw = open("manifest.webmanifest", encoding="utf-8").read()
+        new = raw.replace('"theme_color": "#0f2148"', '"theme_color": "#0a1430"')
+        if new != raw:
+            with open("manifest.webmanifest", "w", encoding="utf-8") as fh:
+                fh.write(new)
+            return True
+    except Exception:                      # noqa: BLE001 — 缺檔就跳過
+        pass
+    return False
+
+
 def main():
     touched = []
     for f in sorted(glob.glob("*.html")):
@@ -1147,6 +1162,8 @@ def main():
             touched.append(f)
     if minify_universe():
         touched.append("universe.json")
+    if fix_manifest():
+        touched.append("manifest.webmanifest")
     print("已補丁：" + (", ".join(touched) if touched else "(無需變更)"))
 
 

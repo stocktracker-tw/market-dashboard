@@ -9,8 +9,10 @@
 """
 from __future__ import annotations
 
+import sys
 from typing import Dict, List
 
+import config as _cfg
 from config import (ACTION_BANDS, LIGHT_GREEN_MIN, LIGHT_RED_MAX,
                     PILLAR_NAMES, PILLAR_WEIGHTS)
 
@@ -28,8 +30,15 @@ def _weighted(items: List[Dict]) -> float:
 
 def aggregate(indicators: List[Dict]) -> Dict:
     by_pillar: Dict[str, List[Dict]] = {k: [] for k in PILLAR_WEIGHTS}
+    orphans = set()
     for ind in indicators:
-        by_pillar.setdefault(ind["category"], []).append(ind)
+        cat = ind["category"]
+        if cat not in PILLAR_WEIGHTS:          # 分類拼錯/沒加權重 → 會被靜默漏算，出聲提醒
+            orphans.add(cat)
+        by_pillar.setdefault(cat, []).append(ind)
+    if orphans:
+        print("⚠️ scoring：指標分類不在 PILLAR_WEIGHTS，未計入綜合分數：%s"
+              % ", ".join(sorted(orphans)), file=sys.stderr)
 
     pillars = []
     num = 0.0
@@ -48,7 +57,11 @@ def aggregate(indicators: List[Dict]) -> Dict:
         num += pscore * weight
         den += weight
 
-    composite = round(num / den, 1) if den else 50.0
+    composite = num / den if den else 50.0
+    # 對比旋鈕：分數常被一堆窄區間指標拉回 50。COMPOSITE_CONTRAST>1 會以 50 為中心拉開，
+    # 讓「積極加碼/保守」band 更有機會觸發。預設 1.0＝完全不變（需用 forecast.py 回測再調）。
+    contrast = getattr(_cfg, "COMPOSITE_CONTRAST", 1.0)
+    composite = round(max(0.0, min(100.0, 50 + (composite - 50) * contrast)), 1)
     band, action, multiplier = _interpret(composite)
     return {
         "composite": composite,

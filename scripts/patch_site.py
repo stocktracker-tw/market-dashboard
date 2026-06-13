@@ -303,7 +303,8 @@ def _taifex_card(d):
     if not body:
         return None
     dt = inst.get("date") or pcr.get("date") or d.get("updated", "")
-    return ('<!--taifex--><div class="card" style="margin-bottom:14px">'
+    # 引擎 .card 是 grid(1fr 150px)；用 display:block 避免子元素被拆進左右兩欄
+    return ('<!--taifex--><div class="card" style="margin-bottom:14px;display:block">'
             '<div style="font-size:13px;color:#94a0b4">台指期籌碼'
             '（台灣期交所・每日結算）</div>'
             '<div style="display:flex;gap:22px;flex-wrap:wrap;margin-top:8px">'

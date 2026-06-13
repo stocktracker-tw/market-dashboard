@@ -853,11 +853,13 @@ EMPTYHIDE_JS = (
     '<script id="emptyhide">(function(){'
     'function blank(el){return !(el.textContent||"").trim()'
     '&&!el.querySelector("img,svg,canvas,input,iframe,table");}'
+    # 只負責「藏空的、還原自己藏過的」；非空且本來就有 inline display 的不要動，
+    # 否則會把別處設的 display（例如台指期卡的 display:block）清成 grid。
+    'function set(el){if(blank(el)){el.style.display="none";}'
+    'else if(el.style.display==="none"){el.style.display="";}}'
     'function tidy(){'
-    '["#wl","#res"].forEach(function(s){var el=document.querySelector(s);'
-    'if(el)el.style.display=blank(el)?"none":"";});'
-    'document.querySelectorAll(".card").forEach(function(el){'
-    'el.style.display=blank(el)?"none":"";});}'
+    '["#wl","#res"].forEach(function(s){var el=document.querySelector(s);if(el)set(el);});'
+    'document.querySelectorAll(".card").forEach(set);}'
     'tidy();'
     'if(window.MutationObserver){var r=null;new MutationObserver(function(){'
     'if(r)return;r=requestAnimationFrame(function(){r=null;tidy();});})'

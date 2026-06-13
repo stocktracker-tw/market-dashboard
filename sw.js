@@ -2,7 +2,7 @@
    導覽（HTML 等同源 GET）採「快取優先 + 背景更新」(stale-while-revalidate)：
    切分頁時先從快取秒開，背景默默更新下次內容 → 切換更順、離線也能用。
    跨來源（CDN）不攔截，交給瀏覽器處理。 */
-const C = "mkt-v35";
+const C = "mkt-v36";
 const ASSETS = ["index.html", "stocks.html", "universe.json", "news.html",
   "perspectives.html", "backtest.html", "rec_backtest.html", "taifex.json",
   "etf/index.html",

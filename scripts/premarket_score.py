@@ -87,10 +87,10 @@ def read_composite(html):
 
 
 def band_phrase(score):
-    """分數 → 盤前一句話。門檻與儀表板 5 級圖例一致（35/43/58/70），避免自打架。"""
+    """分數 → 盤前一句話。門檻與引擎 config.ACTION_BANDS 一致（35/45/58/70），避免自打架。"""
     if score >= 70: return "積極加碼區，數據明顯偏多"
     if score >= 58: return "加碼區，偏多逢回分批"
-    if score >= 43: return "正常定額區，維持原本節奏"
+    if score >= 45: return "正常定額區，維持原本節奏"
     if score >= 35: return "減碼區，偏謹慎、別追高"
     return "保守區，少扣、留銀彈"
 

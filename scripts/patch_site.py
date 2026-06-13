@@ -460,6 +460,22 @@ def patch_themecolor(html):
     return html.replace(THEMECOLOR_OLD, THEMECOLOR_NEW), True
 
 
+# --- 5 級圖例門檻對齊引擎 ACTION_BANDS（減碼/正常界線 43→45）----------------
+# 引擎 config.ACTION_BANDS 的「正常定額」從 45 起算（45 以下=減碼觀望、倍數 0.5），
+# 但引擎產出的頁面圖例卻寫 43，導致分數 44 徽章說「減碼」、圖例卻標「正常」自打架。
+# 這裡把顯示的界線改成 45 與引擎一致（只修顯示、不影響任何分數計算）。
+LEGEND_FIXES = [('35–43 減碼', '35–45 減碼'), ('43–58 正常定額', '45–58 正常定額'),
+                ('35-43 減碼', '35-45 減碼'), ('43-58 正常定額', '45-58 正常定額')]
+
+
+def patch_legend_threshold(html):
+    """頁面 5 級圖例的減碼/正常界線 43 → 45，對齊引擎 ACTION_BANDS。"""
+    orig = html
+    for old, new in LEGEND_FIXES:
+        html = html.replace(old, new)
+    return html, (html != orig)
+
+
 # --- 頂部安全區 liquid glass 玻璃條 ----------------------------------------
 # iOS PWA 全螢幕時，瀏海/狀態列那塊安全區跟頁面常出現一條暗帶（治標的 theme-color
 # 對 PWA 無效）。改成根治：在最上方鋪一條固定的霧面玻璃，高度=安全區，與導覽列
@@ -1048,6 +1064,10 @@ def patch(html, fname):
     # 1d) 頂部安全區 liquid glass 玻璃條（根治 PWA 頂部暗帶）
     html, tg = patch_topglass(html)
     changed = changed or tg
+
+    # 1e) 5 級圖例門檻 43→45 對齊引擎 ACTION_BANDS（修「減碼/正常」自打架）
+    html, lt = patch_legend_threshold(html)
+    changed = changed or lt
 
     # 2) 標題加品牌前綴（已加過則略過）
     def repl(m):

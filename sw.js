@@ -1,11 +1,6 @@
-/* 市場儀表板 PWA service worker。
-   導覽（HTML 等同源 GET）採「快取優先 + 背景更新」(stale-while-revalidate)：
-   切分頁時先從快取秒開，背景默默更新下次內容 → 切換更順、離線也能用。
-   跨來源（CDN）不攔截，交給瀏覽器處理。 */
-const C = "mkt-v36";
-const ASSETS = ["index.html", "stocks.html", "universe.json", "news.html",
-  "perspectives.html", "backtest.html", "rec_backtest.html", "taifex.json",
-  "etf/index.html",
+/* 市場儀表板 PWA service worker：網路優先、離線退回快取。 */
+const C = "mkt-v34";
+const ASSETS = ["index.html", "stocks.html", "universe.json", "news.html", "perspectives.html", "backtest.html",
   "manifest.webmanifest", "icon-192.png", "icon-512.png", "icon-180.png"];
 
 self.addEventListener("install", (e) => {
@@ -19,18 +14,12 @@ self.addEventListener("activate", (e) => {
 });
 
 self.addEventListener("fetch", (e) => {
-  const req = e.request;
-  if (req.method !== "GET") return;
-  // 只處理同源；CDN 等跨來源交給瀏覽器（本來就有自己的快取）
-  if (new URL(req.url).origin !== self.location.origin) return;
-
-  e.respondWith(caches.open(C).then((c) => c.match(req).then((cached) => {
-    // 背景抓網路、更新快取（下次就最新）
-    const fresh = fetch(req).then((r) => {
-      if (r && r.status === 200) c.put(req, r.clone());
+  if (e.request.method !== "GET") return;
+  e.respondWith(
+    fetch(e.request).then((r) => {
+      const cp = r.clone();
+      caches.open(C).then((c) => c.put(e.request, cp)).catch(() => {});
       return r;
-    }).catch(() => cached || c.match("./index.html"));
-    // 有快取就先回快取（秒開），沒有才等網路
-    return cached || fresh;
-  })));
+    }).catch(() => caches.match(e.request).then((m) => m || caches.match("./index.html")))
+  );
 });

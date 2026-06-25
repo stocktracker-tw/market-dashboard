@@ -265,14 +265,25 @@ def effective_news_adjust():
 
 
 def _load_briefing():
-    """若 ②（每日 AI 簡報）有寫入 data/briefing.txt 就讀進來顯示。"""
-    import os
+    """若 ②（每日 AI 簡報）有寫入 data/briefing.txt 就讀進來顯示。
+
+    簡報是純文字、本身沒有有效期；若 ② 沒跑，舊簡報會一直被當成「今天的」顯示。
+    所以這裡用檔案的最後修改時間把關：超過 BRIEFING_MAX_AGE_DAYS（預設 5 天）
+    就視為過期、自動不顯示，避免三週前的分析被誤當成最新。
+    """
+    import os, time
     p = os.path.join(cfg.DATA_DIR, "briefing.txt")
-    if os.path.exists(p):
-        try:
-            with open(p, encoding="utf-8") as f:
-                return _esc(f.read().strip())
-        except Exception:
+    if not os.path.exists(p):
+        return None
+    maxage = getattr(cfg, "BRIEFING_MAX_AGE_DAYS", 5)
+    try:
+        age_days = (time.time() - os.path.getmtime(p)) / 86400.0
+        if maxage and age_days > maxage:
+            print("  · 簡報 briefing.txt 已 %.1f 天沒更新（>%d 天）→ 自動不顯示"
+                  % (age_days, maxage))
             return None
-    return None
+        with open(p, encoding="utf-8") as f:
+            return _esc(f.read().strip())
+    except Exception:
+        return None
 

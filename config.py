@@ -140,6 +140,7 @@ MELTUP_FLOOR = 1.0                 # 噴發期的定額倍數下限（MELTUP_AWA
 NEWS_ADJUST_ENABLED = True
 NEWS_ADJUST_CAP = 8                # 微調上限（±分）
 NEWS_ADJUST_MAX_AGE_DAYS = 5       # 超過天數線性衰退到 0
+BRIEFING_MAX_AGE_DAYS = 5          # 每日 AI 簡報超過幾天沒更新就自動不顯示（避免舊簡報被當成今天的）
 
 # 10) 個股版進場分數（stock.py）：四個面向的權重（缺資料自動重新分配）。
 STOCK_WEIGHTS = {

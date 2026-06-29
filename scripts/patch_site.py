@@ -1084,6 +1084,11 @@ EXTRA_CARDS = (
 # 把兩張新卡插在 .grid 的收尾 </div>（其後緊接 <div class="section-title">）之前。
 EXTRA_CARDS_RE = re.compile(r'(<div class="grid">.*?)(</div><div class="section-title">)', re.S)
 
+# 五張卡在 2 欄格子會落單一張（最後一排只剩 1 張、右邊空）。讓「落單的最後一張」
+# 在 2 欄版面撐滿整排，看起來才不像漏掉。手機本來就是單欄、不受影響。只注入觀點頁。
+GRID5_STYLE = ('<style id="grid5">.grid .card:last-child:nth-child(odd)'
+               '{grid-column:1/-1}</style>')
+
 
 # 取消人名（清X君…），三張引擎立場卡直接顯示「派別」。用 keyOf 相同的字標比對；
 # 已是派別名（含「派」）就跳過 → 冪等。
@@ -1135,6 +1140,10 @@ def patch_ask(html):
         new = KEYOF_RE.sub(lambda m: KEYOF_NEW, html, count=1)
         if new != html:
             html = new
+            changed = True
+        # 落單卡撐滿整排的版面修正（冪等：已注入就跳過）
+        if 'id="grid5"' not in html and '</body>' in html:
+            html = html.replace('</body>', GRID5_STYLE + '</body>', 1)
             changed = True
     for prev in PCOL_PREV:                        # 既有面板的派系色 → 遷移成最新五色版
         if prev in html and prev != PCOL_NEW:

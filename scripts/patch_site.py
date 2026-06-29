@@ -911,8 +911,10 @@ ASK_Q = [
     "新手第一步該做什麼？", "大家都在賺、FOMO 怎麼辦？", "定期定額還是單筆 All in？",
     "該借錢／融資加大部位嗎？", "怎麼看「進場分數」這個工具？", "你最反對哪種做法？",
 ]
-# 只放「派別」字尾；角色名直接讀卡片上的實際名字（清X君…），確保與卡片一致
-ASK_NAME = {"passive": "被動指數派", "macro": "總經循環派", "trend": "順勢紀律派"}
+# 取消人名後，卡片名與此處皆用「派別」；DNAME 仍直接讀卡片文字，確保一致
+# 引擎只生三張立場卡（被動／總經／順勢），價值派與籌碼派由 patch 端補上。
+ASK_NAME = {"passive": "被動指數派", "macro": "總經循環派",
+            "trend": "順勢紀律派", "value": "價值派", "chips": "籌碼派"}
 ASK_A = {
     "passive": [
         "別問時機。你問『現在能不能進場』的當下，就已經掉進擇時陷阱了。照原定定期定額扣下去、別停，就這麼簡單。",
@@ -950,8 +952,33 @@ ASK_A = {
         "拿來當『該積極還是收手』的提醒不錯——分數低我多留銀彈，分數高也不無腦重壓。",
         "重壓 All in、追高、不設停損——散戶賠大錢三件套，中一個就夠你受的。",
     ],
+    "value": [
+        "看的不是時機，是價格。這家公司現在比它的內在價值便宜嗎？夠便宜（有安全邊際）就買，貴就等，跟大盤分數無關。",
+        "挑個股，但只挑你看得懂、有護城河的好公司。看不懂的不碰；沒把握判斷價值，那就乖乖買指數，別半調子。",
+        "崩盤是好公司打折出清——這時候我最興奮。前提是手上有現金、清單早就列好，別人恐慌時我進場撿便宜。",
+        "我不看股價停損，我看『當初買的理由有沒有壞掉』。基本面、護城河沒變就續抱甚至加碼；論點錯了才認錯出場。",
+        "先學會看財報、學會『怎麼估一家公司值多少錢』。看不懂估值之前，先買指數別亂挑股。能力圈，慢慢擴。",
+        "別人瘋搶、估值噴上天時，正是我該冷靜甚至減碼的時候。便宜才買，貴了我寧可空手等下一次。",
+        "找到夠便宜的好公司，我會單筆重押在懂的標的；沒便宜貨時就抱現金等，不為了進場而進場。",
+        "不借錢。槓桿會讓你在市場非理性的期間被迫賣在最低點——『活得夠久』才等得到價值實現。",
+        "當市場情緒溫度計看看可以。分數低＝市場恐慌＝我撿便宜的機會；但買不買，最終看個股的價格 vs 價值。",
+        "追高。買在貴的價格、沒有安全邊際，再好的公司也會套牢——『好公司』和『好價格』是兩回事。",
+    ],
+    "chips": [
+        "看錢往哪流。外資、投信連續買超、台指期外資淨未平倉偏多就站多方；法人在調節、未平倉翻空就先收手。跟主力同一邊。",
+        "挑法人有在買、籌碼集中的個股。但你資訊比法人慢，要嘛跟得夠快、要嘛就買指數，別瞎跟被巴。",
+        "看是誰在賣。法人停損式倒貨、融資斷頭潮通常是末段——等籌碼洗乾淨、外資回頭買超再進，別接還在跌的刀。",
+        "籌碼翻空就走：法人連續賣超、外資台指期未平倉由多翻空、跌破關鍵量價就減碼。籌碼是領先訊號，別凹。",
+        "先學會看每天三大法人買賣超、外資台指期未平倉、融資融券變化。知道錢往哪流，比聽明牌有用。",
+        "散戶融資狂追、人人都在賺的時候，常常就是主力準備出貨給你。FOMO 進場＝當被收割的那一方。",
+        "跟著籌碼節奏分批進出，不無腦定額也不一次梭哈。法人買我加、法人撤我減。",
+        "散戶融資追高是被收割的頭號訊號。我把融資水位當『過熱指標』看，不會自己跳進去當那個融資戶。",
+        "分數裡的籌碼面（法人、台指期未平倉）我最看重，其餘當參考。籌碼會說話，價格只是結果。",
+        "跟散戶一起追高、跟大戶對作。籌碼明明在倒貨還死多頭，遲早被抬出場。",
+    ],
 }
-ASK_ABBR = {"passive": "被動", "macro": "總經", "trend": "順勢"}
+ASK_ABBR = {"passive": "被動", "macro": "總經", "trend": "順勢",
+            "value": "價值", "chips": "籌碼"}
 _ASK_DATA = "var Q=%s,A=%s,NAME=%s,ABBR=%s;" % (
     json.dumps(ASK_Q, ensure_ascii=False),
     json.dumps(ASK_A, ensure_ascii=False),
@@ -960,8 +987,8 @@ _ASK_DATA = "var Q=%s,A=%s,NAME=%s,ABBR=%s;" % (
 )
 _ASK_JS = r'''
 var SEL=document.getElementById("askq"),AN=document.getElementById("askans"),HINT=document.getElementById("askhint"),cards={},DNAME={},cur=null;
-var PCOL={passive:"#06d6e0",macro:"#c462ff",trend:"#5b6cff"};
-function keyOf(t){return t.indexOf("清")>=0?"passive":t.indexOf("財經")>=0?"macro":t.indexOf("股")>=0?"trend":null;}
+var PCOL={passive:"#06d6e0",chips:"#3d8bff",trend:"#5b6cff",macro:"#c462ff",value:"#ff5fb0"};
+function keyOf(t){return (t.indexOf("被動")>=0||t.indexOf("清")>=0)?"passive":(t.indexOf("總經")>=0||t.indexOf("財經")>=0)?"macro":(t.indexOf("價值")>=0)?"value":(t.indexOf("籌碼")>=0)?"chips":(t.indexOf("順勢")>=0||t.indexOf("股")>=0)?"trend":null;}
 function rgba(h,a){var r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),b=parseInt(h.slice(5,7),16);return "rgba("+r+","+g+","+b+","+a+")";}
 function glass(h){return "linear-gradient(180deg,"+rgba(h,0.22)+","+rgba(h,0.06)+")";}
 SEL.innerHTML='<option value="">— 選一個問題 —</option>'+Q.map(function(q,i){return '<option value="'+i+'">'+q+'</option>';}).join("");
@@ -974,7 +1001,7 @@ SEL.addEventListener("change",render);
 
 ASK_PANEL = (
     '<div class="section-title">🎤 換你問：點上面選一位，再選問題</div>'
-    '<div id="askpanel" data-v="ask13" style="background:linear-gradient(180deg,'
+    '<div id="askpanel" data-v="ask15" style="background:linear-gradient(180deg,'
     'rgba(255,255,255,.06),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.1);'
     'border-radius:16px;padding:15px 16px;margin-bottom:14px">'
     '<div id="askhint" class="lbl">👆 點上面任一張立場卡片，再從下拉選問題</div>'
@@ -1005,40 +1032,122 @@ ASK_PANEL = (
     '</style>'
     '<script>(function(){' + _ASK_DATA + _ASK_JS + '})();</script>'
 )
-# 引擎原版（含辯論）→ 替換整段；舊版面板（v1）→ 升級成新版
+# 引擎原版（含辯論）→ 替換整段；舊版面板 → 升級成新版。
+# 舊面板以自身的 script 收尾（})();</script>）為界，不依賴後面接什麼（後面可能有 tidy script）。
 ASK_DEBATE_RE = re.compile(r'<div class="section-title">🔥 三方互嗆.*?</div>\s*</body>', re.S)
 ASK_OLD_RE = re.compile(
-    r'<div class="section-title">🎤 換你問.*?</script>\s*</div>\s*</body>', re.S)
+    r'<div class="section-title">🎤 換你問.*?\}\)\(\);</script>', re.S)
 
 
-# 三方派系配色 → 三個明顯分開的冷色寶石調（被動 亮青 / 順勢 靛藍 / 總經 洋紫）。
-# 獨立遷移：不受下方版本守門影響，把先前各版（金黃版、第一版極光）都換成新色，冪等。
-PCOL_NEW = 'var PCOL={passive:"#06d6e0",macro:"#c462ff",trend:"#5b6cff"};'
+# keyOf 認五派（被動／總經／價值／籌碼／順勢；保留人名字標相容）。就地遷移：用 regex
+# 直接把任何舊版 keyOf 整顆函式換成最新版，已注入的舊面板也能升級，不必整段重抽。冪等。
+KEYOF_NEW = ('function keyOf(t){return (t.indexOf("被動")>=0||t.indexOf("清")>=0)?"passive"'
+             ':(t.indexOf("總經")>=0||t.indexOf("財經")>=0)?"macro"'
+             ':(t.indexOf("價值")>=0)?"value":(t.indexOf("籌碼")>=0)?"chips"'
+             ':(t.indexOf("順勢")>=0||t.indexOf("股")>=0)?"trend":null;}')
+KEYOF_RE = re.compile(r'function keyOf\(t\)\{[^}]*\}')
+
+
+# 五派配色：明顯分開的冷色寶石調（青→藍→靛→紫→洋紅），不用綠（綠留給漲跌）。
+# 獨立遷移：把先前各版（金黃版、極光版、三色版）整串換成五色版，冪等。
+PCOL_NEW = ('var PCOL={passive:"#06d6e0",chips:"#3d8bff",trend:"#5b6cff",'
+            'macro:"#c462ff",value:"#ff5fb0"};')
 PCOL_PREV = (
     'var PCOL={passive:"#38c5e0",macro:"#f5c531",trend:"#3b82f6"};',   # 最初金黃版
     'var PCOL={passive:"#22d3ee",macro:"#8b7cf0",trend:"#5b9cff"};',   # 第一版極光
+    'var PCOL={passive:"#06d6e0",macro:"#c462ff",trend:"#5b6cff"};',   # 三色版（三方）
 )
 
 
+# 引擎只生三張立場卡；價值派、籌碼派由 patch 端補進同一個 .grid。
+# dot 顏色執行時會被 JS 依 PCOL 覆寫，這裡的 inline 色只是初次繪製用。
+EXTRA_CARDS = (
+    '<div class="card"><div class="top">'
+    '<span class="dot" style="background:#ff5fb0"></span><div>'
+    '<div class="name">價值派</div>'
+    '<div class="val">基本面選股／安全邊際 → 便宜買好公司、耐心等</div></div></div>'
+    '<div class="note" style="grid-column:1/3">不看大盤分數高低，看『價格 vs 價值』。'
+    '這套框架找有護城河、ROE 穩、低負債、現金流好的公司，等股價跌到夠便宜（安全邊際足）才買、'
+    '然後抱很久。市場恐慌、分數低的時候，反而是它最興奮的撿便宜時機。</div>'
+    '<div class="detail" style="grid-column:1/3">原則：能力圈內・護城河・安全邊際・'
+    '逆向布局・耐心等便宜・長期持有・不追高</div></div>'
+    '<div class="card"><div class="top">'
+    '<span class="dot" style="background:#3d8bff"></span><div>'
+    '<div class="name">籌碼派</div>'
+    '<div class="val">跟單聰明錢／籌碼流向 → 看法人、外資、未平倉</div></div></div>'
+    '<div class="note" style="grid-column:1/3">不猜方向，看『錢往哪流』。外資/投信買超、'
+    '台指期外資淨未平倉偏多、融資沒過熱，就站多方；法人連續調節、未平倉翻空、散戶融資追高，'
+    '就跟著收手。重點是站在主力同一邊，別跟散戶一起被收割。</div>'
+    '<div class="detail" style="grid-column:1/3">原則：跟主力／法人・三大法人買賣超・'
+    '台指期未平倉・融資融券・量價配合・不對作大戶</div></div>'
+)
+# 把兩張新卡插在 .grid 的收尾 </div>（其後緊接 <div class="section-title">）之前。
+EXTRA_CARDS_RE = re.compile(r'(<div class="grid">.*?)(</div><div class="section-title">)', re.S)
+
+
+# 取消人名（清X君…），三張引擎立場卡直接顯示「派別」。用 keyOf 相同的字標比對；
+# 已是派別名（含「派」）就跳過 → 冪等。
+_FACTION_BY_MARK = (("清", "被動指數派"), ("財經", "總經循環派"), ("股", "順勢紀律派"))
+_CARD_NAME_RE = re.compile(r'(<div class="name">)(.*?)(</div>)', re.S)
+
+
+def _to_faction_names(html):
+    """把三張引擎立場卡的人名換成派別名（被動指數派／總經循環派／順勢紀律派）。"""
+    def repl(m):
+        inner = m.group(2)
+        if "派" in inner:                       # 已是派別名 → 不動
+            return m.group(0)
+        for mark, faction in _FACTION_BY_MARK:
+            if mark in inner:
+                return m.group(1) + faction + m.group(3)
+        return m.group(0)
+    return _CARD_NAME_RE.sub(repl, html)
+
+
 def patch_ask(html):
-    """觀點頁：三方立場卡片直接點選，提問用下拉選單，移除辯論。"""
+    """觀點頁：立場卡片直接點選，提問用下拉選單，移除辯論。五派（含價值/籌碼）。"""
     changed = False
-    # 內容已不是辯論 → 標題改字（無論面板是否已注入都套用）
-    if "市場觀點・三方辯論" in html:
-        html = html.replace("市場觀點・三方辯論", "市場觀點・問三方")
-        changed = True
-    for prev in PCOL_PREV:                        # 既有面板的三方色 → 遷移成新冷色寶石調
-        if prev in html:
+    # 標題與計數字眼：三方 → 五方（無論面板是否已注入都套用，冪等）。
+    # 也修首頁「觀點」導引卡：舊文案還寫「三種…辯論」，與現行五派問答不符。
+    for old, new in (("市場觀點・三方辯論", "市場觀點・問五方"),
+                     ("市場觀點・問三方", "市場觀點・問五方"),
+                     ("三方立場", "五方立場"),
+                     ("三種投資流派（被動／總經／紀律）如何解讀、彼此激烈辯論並收斂出結論",
+                      "五種投資流派（被動／總經／順勢／價值／籌碼）各自怎麼解讀、各執一詞")):
+        if old in html:
+            html = html.replace(old, new)
+            changed = True
+    # 只在觀點頁動手：別頁的指標卡也有 .name（且含「股」字），不可誤改
+    if "五方立場" in html or "三方立場" in html:
+        # 取消人名，三張引擎卡直接顯示派別（每次都套，冪等）
+        new = _to_faction_names(html)
+        if new != html:
+            html = new
+            changed = True
+        # 補上價值派、籌碼派兩張卡（冪等：已補過就跳過）
+        if "價值派" not in html:
+            new = EXTRA_CARDS_RE.sub(lambda m: m.group(1) + EXTRA_CARDS + m.group(2),
+                                     html, count=1)
+            if new != html:
+                html = new
+                changed = True
+        # 既有面板的 keyOf 就地升級為最新版（認五派）
+        new = KEYOF_RE.sub(lambda m: KEYOF_NEW, html, count=1)
+        if new != html:
+            html = new
+            changed = True
+    for prev in PCOL_PREV:                        # 既有面板的派系色 → 遷移成最新五色版
+        if prev in html and prev != PCOL_NEW:
             html = html.replace(prev, PCOL_NEW, 1)
             changed = True
             break
 
-    if 'data-v="ask13"' in html:                 # 面板已是最新版
+    if 'data-v="ask15"' in html:                 # 面板已是最新版
         return html, changed
     if '🔥 三方互嗆' in html:                    # 引擎原版：替換辯論段
         new = ASK_DEBATE_RE.sub(lambda m: ASK_PANEL + '</div></body>', html, count=1)
-    elif '🎤 換你問' in html:                    # 舊版面板：升級
-        new = ASK_OLD_RE.sub(lambda m: ASK_PANEL + '</div></body>', html, count=1)
+    elif '🎤 換你問' in html:                    # 舊版面板：升級（就地換成最新面板）
+        new = ASK_OLD_RE.sub(lambda m: ASK_PANEL, html, count=1)
     else:
         return html, changed
     return (new, True) if new != html else (html, changed)

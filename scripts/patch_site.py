@@ -1033,8 +1033,11 @@ ASK_PANEL = (
     '<script>(function(){' + _ASK_DATA + _ASK_JS + '})();</script>'
 )
 # 引擎原版（含辯論）→ 替換整段；舊版面板 → 升級成新版。
+# 辯論段以 .wrap 收尾的 </div> 為界（其後緊接注入的 <style>/<script> 或 </body>），
+# 不依賴 </body> 緊鄰——否則一旦有別的補丁在 </body> 前插東西（如 grid5 樣式）就比對失敗。
+ASK_DEBATE_RE = re.compile(
+    r'<div class="section-title">🔥 三方互嗆.*?</div>(?=\s*(?:<style|<script|</body>))', re.S)
 # 舊面板以自身的 script 收尾（})();</script>）為界，不依賴後面接什麼（後面可能有 tidy script）。
-ASK_DEBATE_RE = re.compile(r'<div class="section-title">🔥 三方互嗆.*?</div>\s*</body>', re.S)
 ASK_OLD_RE = re.compile(
     r'<div class="section-title">🎤 換你問.*?\}\)\(\);</script>', re.S)
 
@@ -1141,25 +1144,30 @@ def patch_ask(html):
         if new != html:
             html = new
             changed = True
-        # 落單卡撐滿整排的版面修正（冪等：已注入就跳過）
-        if 'id="grid5"' not in html and '</body>' in html:
-            html = html.replace('</body>', GRID5_STYLE + '</body>', 1)
-            changed = True
+    is_persp = "五方立場" in html or "三方立場" in html
     for prev in PCOL_PREV:                        # 既有面板的派系色 → 遷移成最新五色版
         if prev in html and prev != PCOL_NEW:
             html = html.replace(prev, PCOL_NEW, 1)
             changed = True
             break
 
-    if 'data-v="ask15"' in html:                 # 面板已是最新版
-        return html, changed
-    if '🔥 三方互嗆' in html:                    # 引擎原版：替換辯論段
-        new = ASK_DEBATE_RE.sub(lambda m: ASK_PANEL + '</div></body>', html, count=1)
-    elif '🎤 換你問' in html:                    # 舊版面板：升級（就地換成最新面板）
-        new = ASK_OLD_RE.sub(lambda m: ASK_PANEL, html, count=1)
-    else:
-        return html, changed
-    return (new, True) if new != html else (html, changed)
+    # 面板：引擎辯論段 → 換面板；舊面板 → 升級。只在還不是最新版時動。
+    if 'data-v="ask15"' not in html:
+        if '🔥 三方互嗆' in html:                # 引擎原版：替換辯論段（保留 .wrap 收尾 </div>）
+            new = ASK_DEBATE_RE.sub(lambda m: ASK_PANEL + '</div>', html, count=1)
+            if new != html:
+                html = new
+                changed = True
+        elif '🎤 換你問' in html:                # 舊版面板：就地換成最新面板
+            new = ASK_OLD_RE.sub(lambda m: ASK_PANEL, html, count=1)
+            if new != html:
+                html = new
+                changed = True
+    # 版面修正擺最後：grid5 樣式插在 </body> 前，避免破壞上面辯論段的比對錨點
+    if is_persp and 'id="grid5"' not in html and '</body>' in html:
+        html = html.replace('</body>', GRID5_STYLE + '</body>', 1)
+        changed = True
+    return html, changed
 
 
 def patch(html, fname):

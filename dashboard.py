@@ -368,6 +368,15 @@ def render(result: Dict, indicators: List[Dict], score_history: List, meta: Dict
                  % (band_color, _esc(result["band"])))
     parts.append('<h2>進場分數 %.1f</h2>' % result["composite"])
     parts.append('<p>%s</p>' % _esc(result["action"]))
+    # 變動歸因：今天分數為什麼變（支柱貢獻前 3 名；raw 尺度）
+    attr = result.get("attribution")
+    if attr and attr.get("parts"):
+        _lbl = "原始分" if result.get("calibrated") else "分數"
+        _seg = "・".join("%s %+.1f" % (n, v) for n, v in attr["parts"])
+        parts.append('<div style="font-size:12.5px;color:var(--muted);margin:-4px 0 10px">'
+                     '📊 %s較 %s <b style="color:var(--text)">%+.1f</b>：%s</div>'
+                     % (_lbl, _esc(attr["prev_date"][5:].replace("-", "/")),
+                        attr["delta"], _esc(_seg)))
     # 0–100 分數圖例（對應儀表板色帶與建議倍數）
     parts.append('<div class="legend" style="display:flex;flex-wrap:wrap;gap:7px 10px;margin:6px 0 2px">'
                  + ''.join(
@@ -388,6 +397,13 @@ def render(result: Dict, indicators: List[Dict], score_history: List, meta: Dict
                      '（量化基準 %.1f）<br>%s</div>'
                      % (_ncol, _nd, result.get("composite_base", result["composite"]),
                         _esc(result.get("news_reason") or "")))
+    if result.get("calibrated"):
+        parts.append('<div style="font-size:12px;color:var(--muted);margin-top:6px">'
+                     '分數＝歷史百分位（比過去 %d 日中 %.0f%% 的日子更樂觀；'
+                     '原始加權分 %.1f）</div>'
+                     % (result.get("calib_n", 0),
+                        result.get("composite_base", result["composite"]),
+                        result.get("composite_raw", 0)))
     parts.append('<div id="score-hist" class="hist"></div>')
     n_hist = len(score_history) if score_history else 0
     if n_hist >= 2:

@@ -80,3 +80,49 @@ def _interpret(score: float):
             return (band_name, action, multiplier)
     last = ACTION_BANDS[-1]
     return (last[1], last[2], last[3])
+
+
+# ---------------- 歷史百分位校準 ----------------
+# 問題：各指標被窄區間 clamp、缺資料補 50、再取加權平均——三層壓縮讓 raw 分數
+# 長期擠在 45-60，積極/保守 band 幾乎永遠不觸發。
+# 解法：raw 算完後對照「自己過去的分佈」取百分位當顯示分數：今天比歷史上 85% 的
+# 日子樂觀就顯示 85。0-100 每一格都有意義、自動適應市場環境、不用調參。
+# 重要：history_score.csv 永遠存 raw（見 main.append_score_history），
+# 校準只在顯示層做，否則百分位會吃到自己的輸出、越算越飄（自我參照）。
+
+def load_raw_history():
+    """讀 history_score.csv 的 raw 分數（壞列跳過）。回傳 list[float]。"""
+    import csv
+    import os
+    vals = []
+    try:
+        if os.path.exists(_cfg.HISTORY_SCORE):
+            with open(_cfg.HISTORY_SCORE, encoding="utf-8", newline="") as f:
+                for r in csv.reader(f):
+                    if len(r) >= 2:
+                        try:
+                            vals.append(float(r[1]))
+                        except ValueError:
+                            pass
+    except OSError:
+        pass
+    return vals
+
+
+def percentile_of(raw: float, hist) -> float:
+    """raw 在 hist 分佈中的百分位（0-100）。把 raw 自己也算進分母，避免極端 0/100。"""
+    v = list(hist) + [raw]
+    below = sum(1 for x in v if x < raw)
+    eq = sum(1 for x in v if x == raw)
+    return (below + 0.5 * eq) / len(v) * 100.0
+
+
+def calibrate(raw: float):
+    """回傳 (校準後分數, 歷史樣本數)。關閉或樣本不足時回 (None, n)（顯示層自動退回 raw）。"""
+    if not getattr(_cfg, "COMPOSITE_CALIBRATION", False):
+        return None, 0
+    hist = load_raw_history()
+    n = len(hist)
+    if n < getattr(_cfg, "CALIBRATION_MIN_DAYS", 120):
+        return None, n
+    return round(percentile_of(raw, hist), 1), n

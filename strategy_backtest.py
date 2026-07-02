@@ -182,7 +182,12 @@ def run():
             rows["主動・" + bname] = simulate(keys, amap, lambda k, b=b: score_mult[b][k])
         results[sym] = {"label": label, "rows": rows, "keys": keys}
 
-    render_html(results, master)
+    try:
+        validation = score_validation(sig)
+    except Exception as e:                     # noqa: BLE001 — 體檢失敗不擋回測報告
+        validation = None
+        log("分數有效性體檢略過：%s" % str(e)[:120])
+    render_html(results, master, validation)
     print_summary(results)
 
     if getattr(cfg, "PUBLISH_ENABLED", False):
@@ -204,8 +209,76 @@ def print_summary(results):
                   (name, r["invested"], r["final"], r["ret"] * 100, irr, r["maxdd"] * 100))
 
 
+# ---------------- 分數有效性驗證 ----------------
+def score_validation(sig):
+    """「分數 vs 台股加權未來 20 個交易日報酬」分組統計 → 回傳 HTML 區塊（或 None）。
+
+    用 history_score.csv 的 raw 分數（週末列因對不到交易日自然剔除），按分數五分位
+    分組，看高分組的未來報酬是否真的優於低分組——這是整套系統最核心的體檢。
+    """
+    import csv
+    scores = {}
+    try:
+        with open(cfg.HISTORY_SCORE, encoding="utf-8", newline="") as f:
+            for r in csv.reader(f):
+                if len(r) >= 2:
+                    try:
+                        scores[r[0]] = float(r[1])
+                    except ValueError:
+                        pass
+    except OSError:
+        return None
+    twii = sig.get("twii") or {}
+    ts = twii.get("timestamps") or []
+    px = twii.get("adjclose") or twii.get("close") or []
+    daily = [(dt.datetime.fromtimestamp(t, dt.timezone.utc).date().strftime("%Y-%m-%d"),
+              float(p)) for t, p in zip(ts, px) if p]
+    idx = {d: i for i, (d, _) in enumerate(daily)}
+    H = 20
+    obs = []                                   # (score, fwd_return)
+    for dstr, sc in scores.items():
+        i = idx.get(dstr)
+        if i is None or i + H >= len(daily):
+            continue
+        obs.append((sc, daily[i + H][1] / daily[i][1] - 1.0))
+    if len(obs) < 30:
+        return None                            # 樣本太少，寧可不顯示
+    obs.sort(key=lambda x: x[0])
+    n = len(obs)
+    q = max(1, n // 5)
+    groups = [obs[i * q: (i + 1) * q if i < 4 else n] for i in range(5)]
+    rows = []
+    for g in groups:
+        if not g:
+            continue
+        avg = sum(r for _, r in g) / len(g) * 100
+        rows.append(("%.0f–%.0f" % (g[0][0], g[-1][0]), len(g), avg))
+    overall = sum(r for _, r in obs) / n * 100
+    mx = max(abs(a) for _, _, a in rows) or 1.0
+    parts = ['<div class="card"><h2>🎯 分數有效性體檢：分數高的日子，之後真的比較會漲嗎？</h2>',
+             '<div style="font-size:12.5px;color:#94a0b4;margin-bottom:10px">'
+             '把每天的 raw 分數按高低分五組，看各組「未來 %d 個交易日」台股加權的平均報酬。'
+             '若分數有效，越高的組報酬應越好。全樣本平均 %+.1f%%（n=%d）。</div>' % (H, overall, n)]
+    for label, cnt, avg in rows:
+        w = abs(avg) / mx * 100
+        color = "#ea5455" if avg >= 0 else "#28c76f"
+        parts.append(
+            '<div style="display:flex;align-items:center;gap:8px;margin:5px 0;font-size:12.5px">'
+            '<span style="flex:none;width:86px;color:#94a0b4">分數 %s</span>'
+            '<span style="flex:none;width:52px;color:#5f6b80">n=%d</span>'
+            '<span style="flex:1;height:14px;position:relative">'
+            '<span style="position:absolute;left:0;top:0;bottom:0;width:%.0f%%;'
+            'background:%s;border-radius:4px;opacity:.75"></span></span>'
+            '<b style="flex:none;width:64px;text-align:right;color:%s">%+.2f%%</b></div>'
+            % (label, cnt, w, color, color, avg))
+    parts.append('<div style="font-size:11.5px;color:#5f6b80;margin-top:8px">'
+                 '注意：分數歷史仍在累積（前 60 日為回測補值、含輕微後見之明）；'
+                 '樣本涵蓋期間短、屬同一市場環境，統計僅供方向參考。</div></div>')
+    return "".join(parts)
+
+
 # ---------------- HTML ----------------
-def render_html(results, master):
+def render_html(results, master, validation=None):
     C = {"green": "#28c76f", "amber": "#f6a821", "red": "#ea5455", "accent": "#5b9cff"}
     chart_data = {}
     parts = []
@@ -240,6 +313,8 @@ thead th{color:#94a0b4;font-weight:600}
                  '只用恐慌/估值/趨勢/總經；CPI 與景氣信號為月資料有輕微 look-ahead。'
                  '結論高度 regime-dependent：過去十年大多頭環境對逆勢策略先天不利。本頁為邏輯驗證、'
                  '<b>非投資建議</b>。</div>')
+    if validation:
+        parts.append(validation)
 
     for sym, blk in results.items():
         parts.append('<div class="card"><h2>%s <span style="color:#94a0b4;font-size:13px">%s</span></h2>'

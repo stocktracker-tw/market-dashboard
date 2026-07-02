@@ -130,6 +130,42 @@ def append_score_history(score, seeds=None):
     return [[d, float(hist[d])] for d in sorted(hist)][-120:]
 
 
+# ----------------------------- 分數變動歸因 -----------------------------
+def pillar_attribution(result):
+    """記錄每日支柱分數到 data/history_pillars.csv，回傳今天 vs 上一交易日的變動歸因。
+
+    綜合分 = Σ(支柱分×權重)/Σ權重 → 兩日之差可拆回各支柱貢獻
+    （以今天的權重集合近似；支柱增減時略有誤差，可接受）。
+    回傳 {"prev_date", "delta", "parts": [(支柱名, 貢獻分), …]}；無昨日資料回 None。
+    歸因一律用 raw 支柱分（校準只動顯示的綜合分，不動支柱）。
+    """
+    path = os.path.join(cfg.DATA_DIR, "history_pillars.csv")
+    today = dt.date.today().strftime("%Y-%m-%d")
+    rows = []
+    if os.path.exists(path):
+        with open(path, encoding="utf-8", newline="") as f:
+            rows = [r for r in csv.reader(f) if len(r) >= 4]
+    prev_dates = sorted({r[0] for r in rows if r[0] < today})
+    prev = ({r[1]: float(r[2]) for r in rows if r[0] == prev_dates[-1]}
+            if prev_dates else {})
+    rows = [r for r in rows if r[0] != today]        # 同日重跑 → 覆蓋今天
+    for p in result["pillars"]:
+        rows.append([today, p["key"], "%.2f" % p["score"], "%g" % p["weight"]])
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        csv.writer(f).writerows(sorted(rows))
+    if not prev:
+        return None
+    den = sum(p["weight"] for p in result["pillars"]) or 1.0
+    contribs = [(p["name"], (p["score"] - prev[p["key"]]) * p["weight"] / den)
+                for p in result["pillars"] if p["key"] in prev]
+    if not contribs:
+        return None
+    delta = round(sum(c for _, c in contribs), 1)
+    parts = sorted(((n, round(c, 1)) for n, c in contribs if abs(c) >= 0.05),
+                   key=lambda x: -abs(x[1]))[:3]
+    return {"prev_date": prev_dates[-1], "delta": delta, "parts": parts}
+
+
 # ----------------------------- 主流程 -----------------------------
 def run(open_browser=False):
     os.makedirs(cfg.DATA_DIR, exist_ok=True)
@@ -175,6 +211,22 @@ def run(open_browser=False):
     log("計算指標與綜合分數…")
     indicators = ind_mod.compute_all(data)
     result = scoring.aggregate(indicators)
+
+    # 顯示層校準：raw → 歷史百分位（history_score.csv 永遠存 raw，見下方 append）
+    result["composite_raw"] = result["composite"]
+    _cal, _caln = scoring.calibrate(result["composite_raw"])
+    if _cal is not None:
+        _b, _a, _m = scoring._interpret(_cal)
+        result.update({"composite": _cal, "calibrated": True, "calib_n": _caln,
+                       "band": _b, "action": _a, "dca_multiplier": _m})
+        log("百分位校準：raw %.1f → %.1f（對照近 %d 日分佈）"
+            % (result["composite_raw"], _cal, _caln))
+
+    # 今日 vs 上一交易日支柱變化 → 分數變動歸因（寫入 data/history_pillars.csv）
+    try:
+        result["attribution"] = pillar_attribution(result)
+    except Exception as e:
+        log("變動歸因略過：%s" % str(e)[:120])
 
     # 消息面微調（B：由查證簡報輸出，小幅、有上限、會衰退；只反映尚未反映的催化/真偽）
     try:
@@ -222,7 +274,13 @@ def run(open_browser=False):
         seeds = backtest.compute_backtest(data, cfg.BACKTEST_DAYS, existing | {today_iso})
         if seeds:
             log("回測補入過去 %d 日分數" % len(seeds))
-    score_history = append_score_history(result.get("composite_base", result["composite"]), seeds)
+    score_history = append_score_history(
+        result.get("composite_raw", result.get("composite_base", result["composite"])), seeds)
+    # 走勢圖與 hero 同一把尺：校準開啟時，把 raw 走勢也映射成歷史百分位
+    if result.get("calibrated"):
+        _ref = scoring.load_raw_history()
+        score_history = [[d, round(scoring.percentile_of(v, _ref), 1)]
+                         for d, v in score_history]
 
     # 自選股清單 → 個股分頁（output/stocks.html）
     shared = None

@@ -97,6 +97,14 @@ ACTION_BANDS = [
 #     確認沒有增加假訊號/反指標再上線。
 COMPOSITE_CONTRAST = 1.0
 
+# 4c) 顯示層「歷史百分位校準」：raw 分數 → 對照自己過去分佈的百分位。
+#     今天比歷史上 85% 的日子樂觀就顯示 85 → 0-100 每一格都有意義、5 級 band
+#     都會被用到，且自動適應市場環境（比 CONTRAST 硬拉誠實）。
+#     history_score.csv 永遠存 raw，校準只在顯示層做（避免自我參照）。
+#     歷史樣本不足 CALIBRATION_MIN_DAYS 時自動退回 raw 顯示。
+COMPOSITE_CALIBRATION = True
+CALIBRATION_MIN_DAYS = 120
+
 # 5) 台股籌碼回補天數（首次執行往回抓幾個交易日，建立背離訊號視窗）。
 BACKFILL_TRADING_DAYS = 20
 

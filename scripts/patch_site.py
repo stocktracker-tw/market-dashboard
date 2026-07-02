@@ -507,6 +507,47 @@ def patch_topglass(html):
     return html, (html != orig)
 
 
+# --- 全站 Liquid Glass 材質 ---------------------------------------------------
+# 玻璃要「後面有東西可透」才成立：先在頁面底層鋪三團極光色光暈（預先模糊、固定），
+# 卡片改成半透明漸層＋高光邊＋頂部鏡面反光。因為光暈本身已是模糊的，卡片不需要
+# backdrop-filter 就有玻璃感 → 幾十張卡也零效能負擔（手機不卡）。
+# 觀點頁三派卡的 JS inline !important 配色優先權更高，不受影響。
+LIQUID = (
+    '<style id="liquidglass">'
+    # 底層：body 讓出背景（html 已是 #0a1430），光暈鋪在內容後面
+    'body{background:transparent!important}'
+    'body::before{content:"";position:fixed;inset:-12% -8%;z-index:-1;pointer-events:none;'
+    'background:'
+    'radial-gradient(50% 42% at 16% 6%,rgba(139,92,246,.16),transparent 70%),'
+    'radial-gradient(46% 38% at 88% 14%,rgba(79,134,255,.14),transparent 70%),'
+    'radial-gradient(54% 46% at 55% 98%,rgba(31,224,208,.10),transparent 72%),'
+    'radial-gradient(34% 30% at 42% 48%,rgba(99,102,241,.07),transparent 70%)}'
+    # 玻璃面板：卡片與 hero（半透明漸層＋細高光邊＋頂緣鏡面反光＋柔和落影）
+    '.card,.hero{background:linear-gradient(180deg,rgba(255,255,255,.075),'
+    'rgba(255,255,255,.028))!important;'
+    'border:1px solid rgba(255,255,255,.13)!important;'
+    'box-shadow:0 12px 30px rgba(3,8,26,.35),'
+    'inset 0 1px 0 rgba(255,255,255,.13)!important}'
+    '.card{border-radius:16px!important}'
+    # 次要面板（消息頁的大盤框/新聞列/簡報）：更淡一階的玻璃
+    '.box,.nrow,.brief{background:linear-gradient(180deg,rgba(255,255,255,.055),'
+    'rgba(255,255,255,.018))!important;'
+    'border:1px solid rgba(255,255,255,.10)!important;border-radius:14px!important}'
+    '</style>'
+)
+LIQUID_RE = re.compile(r'<style id="liquidglass">.*?</style>', re.S)
+
+
+def patch_liquid(html):
+    """全站玻璃材質：底層極光光暈 + 卡片玻璃化。移除舊版再注入（冪等、可升級）。"""
+    if '</body>' not in html:
+        return html, False
+    orig = html
+    html = LIQUID_RE.sub('', html)
+    html = html.replace('</body>', LIQUID + '</body>', 1)
+    return html, (html != orig)
+
+
 # --- canonical + 缺漏的 meta description ------------------------------------
 # 各頁都沒有 rel=canonical（同內容可能以不同 URL 被收錄、分散權重）；
 # backtest / rec_backtest 連 meta description 都沒有 → 搜尋結果摘要隨機抓字。
@@ -1120,6 +1161,7 @@ def patch_ask(html):
     for old, new in (("市場觀點・三方辯論", "市場觀點・問五方"),
                      ("市場觀點・問三方", "市場觀點・問五方"),
                      ("三方立場", "五方立場"),
+                     ("同一份數據・三種解讀", "同一份數據・五種解讀"),
                      ("三種投資流派（被動／總經／紀律）如何解讀、彼此激烈辯論並收斂出結論",
                       "五種投資流派（被動／總經／順勢／價值／籌碼）各自怎麼解讀、各執一詞")):
         if old in html:
@@ -1193,6 +1235,10 @@ def patch(html, fname):
     # 1d) 頂部安全區 liquid glass 玻璃條（根治 PWA 頂部暗帶）
     html, tg = patch_topglass(html)
     changed = changed or tg
+
+    # 1d2) 全站 Liquid Glass 材質（底層極光光暈 + 卡片玻璃化）
+    html, lq = patch_liquid(html)
+    changed = changed or lq
 
     # 1e) 5 級圖例門檻 43→45 對齊引擎 ACTION_BANDS（修「減碼/正常」自打架）
     html, lt = patch_legend_threshold(html)
@@ -1325,6 +1371,34 @@ def fix_manifest():
     return False
 
 
+def fix_sw():
+    """sw.js 快取版本改成「內容雜湊」：ASSETS 裡任何檔案變了，版本自動跟著變，
+    手機 PWA 不必手動下拉重整就會在背景拿到新版。引擎每天把版本蓋回固定字串
+    （例 mkt-v34）也沒關係——本函式在收尾時依當日內容重算。冪等：內容沒變就不動。
+    必須在所有 HTML 補丁寫檔『之後』呼叫，雜湊才會涵蓋補丁後的最終內容。"""
+    import hashlib
+    try:
+        sw = open("sw.js", encoding="utf-8").read()
+    except Exception:                      # noqa: BLE001 — 缺檔就跳過
+        return False
+    m = re.search(r'const C = "mkt-[^"]*"', sw)
+    ma = re.search(r'const ASSETS = \[(.*?)\];', sw, re.S)
+    if not m or not ma:
+        return False
+    h = hashlib.md5()
+    for a in re.findall(r'"([^"]+)"', ma.group(1)):
+        try:
+            h.update(open(a, "rb").read())
+        except Exception:                  # noqa: BLE001 — 缺檔用檔名頂替，維持穩定
+            h.update(a.encode())
+    new = sw.replace(m.group(0), 'const C = "mkt-h%s"' % h.hexdigest()[:8], 1)
+    if new != sw:
+        with open("sw.js", "w", encoding="utf-8") as fh:
+            fh.write(new)
+        return True
+    return False
+
+
 def main():
     touched = []
     for f in sorted(glob.glob("*.html")):
@@ -1342,6 +1416,8 @@ def main():
         touched.append("universe.json")
     if fix_manifest():
         touched.append("manifest.webmanifest")
+    if fix_sw():                           # 必須最後：雜湊要涵蓋以上全部產出
+        touched.append("sw.js")
     print("已補丁：" + (", ".join(touched) if touched else "(無需變更)"))
 
 

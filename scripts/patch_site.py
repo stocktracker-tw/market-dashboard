@@ -620,6 +620,80 @@ def patch_etflink(html):
     return html.replace(ETFLINK_ANCHOR, ETFLINK_ANCHOR + ETFLINK_HTML, 1), True
 
 
+# --- 定額計畫追蹤（localStorage，無後端）------------------------------------
+# 讓網站從「看完就走的資訊頁」變「工具」：每次照建議倍數扣款後按一下記錄，
+# 累積下來就能對照「聽分數的我 vs 無腦固定 1x 的我」實際差多少。
+# 資料只存在使用者自己的瀏覽器（localStorage），不上傳。
+# 注入 index 計算機（含 ETF 連結）之後、5 級圖例之前；移除→重插維持冪等。
+# 刪除鈕用 <span>（不用 <a>），避免被 MULTCALC_RE 的 .*?</a> 誤吞。
+DCATRACK = (
+    '<!--dcatrack--><div id="dcatrack" style="margin:10px 0 8px;padding:12px 14px;'
+    'border-radius:14px;background:linear-gradient(180deg,rgba(255,255,255,.06),'
+    'rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.11)">'
+    '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;'
+    'justify-content:space-between">'
+    '<div style="font-weight:600;font-size:13px">📒 定額計畫追蹤 '
+    '<span style="color:#8b96a8;font-weight:400;font-size:11px">只存在本機瀏覽器</span></div>'
+    '<button id="dtAdd" style="background:rgba(139,92,246,.22);color:#d9ccff;'
+    'border:1px solid rgba(139,92,246,.45);border-radius:10px;padding:7px 12px;'
+    'font-size:12.5px;font-family:inherit;cursor:pointer">＋ 記一筆今天的扣款</button></div>'
+    '<div id="dtList" style="margin-top:4px"></div>'
+    '<div id="dtSum" style="font-size:12px;color:#aab4c6;margin-top:8px;line-height:1.6"></div>'
+    '<style>#dcatrack .dtRow{display:flex;gap:10px;align-items:center;font-size:12.5px;'
+    'padding:5px 0;border-bottom:1px solid rgba(255,255,255,.06)}'
+    '#dcatrack .dtRow .dtD{color:#8b96a8}#dcatrack .dtRow b{margin-left:auto}'
+    '#dcatrack .dtDel{color:#8b96a8;cursor:pointer;padding:0 6px}'
+    '#dcatrack .dtDel:hover{color:#ef5d5d}</style>'
+    '<script>(function(){'
+    'var K="dcalog",KB="dcabase";'
+    'function load(){try{return JSON.parse(localStorage.getItem(K))||[]}catch(e){return[]}}'
+    'function save(v){localStorage.setItem(K,JSON.stringify(v))}'
+    'function fmt(n){return Math.round(n).toLocaleString("zh-TW")}'
+    'function mult(){var el=document.getElementById("calcMult");'
+    'var v=el?parseFloat(el.textContent):1;return isFinite(v)&&v>0?v:1}'
+    'function base(){var el=document.getElementById("calcBase");'
+    'var v=el&&el.value?parseFloat(el.value):parseFloat(localStorage.getItem(KB)||"0");'
+    'return isFinite(v)&&v>0?v:0}'
+    'function render(){var v=load(),L=document.getElementById("dtList"),'
+    'S=document.getElementById("dtSum");if(!L||!S)return;'
+    'L.innerHTML=v.slice(-6).reverse().map(function(r,i){var idx=v.length-1-i;'
+    'return \'<div class="dtRow"><span class="dtD">\'+r.d+\'</span>\''
+    '+\'<span>\'+r.m+\'x</span><b>\'+fmt(r.a)+\' 元</b>\''
+    '+\'<span class="dtDel" data-i="\'+idx+\'" role="button" aria-label="刪除">✕</span></div>\';'
+    '}).join("");'
+    'var ta=0,tb=0;v.forEach(function(r){ta+=r.a;tb+=r.b});'
+    'if(v.length){var d=ta-tb;'
+    'S.innerHTML="已記 <b>"+v.length+"</b> 筆｜聽分數共投入 <b>"+fmt(ta)+"</b> 元｜"'
+    '+"若固定 1x："+fmt(tb)+" 元（分數讓你"+(d>=0?"多投 ":"少投 ")+fmt(Math.abs(d))+" 元"'
+    '+"——低分省下的是子彈、高分多投的是布局）";'
+    '}else{S.textContent="每次照建議倍數扣款後，按上面按鈕記一筆。累積幾個月，'
+    '就能看到「聽分數的你」和「無腦定額的你」實際差在哪。";}'
+    'Array.prototype.forEach.call(L.querySelectorAll(".dtDel"),function(x){'
+    'x.onclick=function(){var v2=load();v2.splice(+this.dataset.i,1);save(v2);render()};});}'
+    'var btn=document.getElementById("dtAdd");'
+    'if(btn)btn.onclick=function(){var b=base();'
+    'if(!b){alert("先在上面『平常每月定額』填金額");return}'
+    'localStorage.setItem(KB,String(b));'
+    'var today=new Date().toISOString().slice(0,10),v=load();'
+    'if(v.length&&v[v.length-1].d===today&&!confirm("今天已記過一筆，再記一筆？"))return;'
+    'var m=mult();v.push({d:today,m:m,a:Math.round(b*m),b:b});save(v);render();};'
+    'render();})();</script></div><!--/dcatrack-->'
+)
+DCATRACK_RE = re.compile(r'<!--dcatrack-->.*?<!--/dcatrack-->', re.S)
+
+
+def patch_dcatrack(html):
+    """index：計算機下方注入定額計畫追蹤 widget（localStorage）。"""
+    if 'id="gauge"' not in html or 'id="calc"' not in html:
+        return html, False                        # 只動大盤首頁
+    if '<div class="legend"' not in html:
+        return html, False
+    orig = html
+    html = DCATRACK_RE.sub('', html)
+    html = html.replace('<div class="legend"', DCATRACK + '<div class="legend"', 1)
+    return html, (html != orig)
+
+
 # --- 把「建議定額倍數＋計算機」上移到 5 級圖例之前（行動先於說明）-----------
 # 引擎原順序：分數→盤前→圖例→倍數→計算機。最 actionable 的倍數/計算機在圖例
 # 下方，往下滑才看到。改成：分數→盤前→倍數＋計算機→圖例。
@@ -1310,6 +1384,10 @@ def patch(html, fname):
     # 11b) 把建議定額倍數＋計算機上移到 5 級圖例之前（行動先於說明）
     html, cu = patch_calcup(html)
     changed = changed or cu
+
+    # 11c) 定額計畫追蹤 widget（計算機之後、圖例之前；localStorage）
+    html, dtk = patch_dcatrack(html)
+    changed = changed or dtk
 
     # 12) 導覽列液態玻璃風（只圖示、無字、更透明）
     html, vt = patch_vtliquid(html)

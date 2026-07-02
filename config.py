@@ -102,8 +102,9 @@ COMPOSITE_CONTRAST = 1.0
 #     都會被用到，且自動適應市場環境（比 CONTRAST 硬拉誠實）。
 #     history_score.csv 永遠存 raw，校準只在顯示層做（避免自我參照）。
 #     歷史樣本不足 CALIBRATION_MIN_DAYS 時自動退回 raw 顯示。
+#     門檻 80：現有歷史約 91 日（含回測補值）即可啟用；分佈樣本會隨每日累積更穩。
 COMPOSITE_CALIBRATION = True
-CALIBRATION_MIN_DAYS = 120
+CALIBRATION_MIN_DAYS = 80
 
 # 5) 台股籌碼回補天數（首次執行往回抓幾個交易日，建立背離訊號視窗）。
 BACKFILL_TRADING_DAYS = 20

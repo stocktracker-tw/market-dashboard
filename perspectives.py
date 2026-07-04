@@ -1,14 +1,19 @@
 # -*- coding: utf-8 -*-
-r"""三派投資策略觀點——用三位公開倡導的投資理念『框架』解讀目前數據。
+r"""五派投資觀點——用五種公開投資流派的『框架』解讀當天的實際數據。
 
 ⚠️ 重要：以下是以「公開的投資策略流派」為框架對現況的推演，
-   **不是這三位本人的發言、不是他們對個股/大盤的看法、也不是投資建議**。
-   重點之一是誠實呈現：三派的哲學彼此矛盾（被動派根本反對擇時），
+   **不是任何人的發言、也不是投資建議**。
+   重點之一是誠實呈現：五派的哲學彼此矛盾（被動派根本反對擇時），
    所以「正解」取決於你信哪一套。
 
-  • 清流君 → 指數化／被動投資（市場有效、反對擇時、低成本、資產配置、定期定額、長期）。
-  • 游庭皓 → 由上而下總經／景氣循環（流動性、利率、信用、債市、循環位置）。
-  • 股癌   → 紀律風控／順勢控倉（別追高當散戶、留銀彈、設停損、不 All in 不空手）。
+  • 被動指數派 → 市場有效、反對擇時、低成本、資產配置、定期定額、長期。
+  • 總經循環派 → 由上而下：景氣循環位置、流動性、利率、信用、債市。
+  • 順勢紀律派 → 順勢控倉：別追高當散戶、留銀彈、設停損、不 All in 不空手。
+  • 價值派     → 基本面選股：能力圈、護城河、安全邊際、便宜才買、長期持有。
+  • 籌碼派     → 跟著錢走：三大法人、外資期貨未平倉、融資融券、法人散戶背離。
+
+每一派的 take 都從當天引擎算出的指標／支柱／循環／籌碼資料生成，
+數據變了說法就變——不是寫死的罐頭文。
 """
 from __future__ import annotations
 
@@ -22,42 +27,30 @@ def _ind(indicators, namekey):
     return None
 
 
-def _debate(comp):
-    """三方激烈交鋒（以各自投資流派的立場互嗆，非本人發言）。"""
-    ex = [
-        # 被動 ↔ 紀律
-        ("清X君", "股X", "你那套停損、加減碼，交易成本加擇時失誤長期吃掉的，比你閃掉的回檔還多——主動擇時十年有八年跑輸大盤，這是數據，不是嘴砲。"),
-        ("股X", "清X君", "市場長期有效我同意，但 2022 大盤腰斬那段你真抱得住？多少人帳面對折就停損在最低點。先活下來，才有資格談你那個『長期』。"),
-        # 被動 ↔ 總經
-        ("清X君", "財經X角", "你天天猜 Fed、猜循環位置——到底猜對幾次？總經預測準度跟丟銅板差不多，難得猜對方向的，進場時機又全錯。"),
-        ("財經X角", "清X君", "無腦定額在升息抽銀根、流動性枯竭那兩年照樣套到天荒地老。你不是不擇時，是被動承受最爛的時機，還催眠自己沒事。"),
-        # 總經 ↔ 紀律
-        ("財經X角", "股X", "你盯 50 日線、看籌碼，那全是後照鏡。等價格跌破你的訊號，流動性早就轉向，你永遠慢人家半拍。"),
-        ("股X", "財經X角", "總經講得頭頭是道，但真正進出場那一刻靠的是價格與紀律，不是你那張景氣循環圖——圖很漂亮，可惜換不到錢。"),
-    ]
-    if comp is not None and comp < 42:
-        ex.append(("財經X角", "大家", "現在這位置我只有一句：先防禦，別跟流動性收縮硬拚。"))
-        ex.append(("股X", "大家", "分數轉弱就該減碼，還在凹單硬拗的，等著被市場抬出場。"))
-        ex.append(("清X君", "大家", "你們兩個吵得臉紅脖子粗，我照樣定額買、繼續睡覺，十年後再看誰笑。"))
-    elif comp is not None and comp >= 58:
-        ex.append(("股X", "大家", "分數轉強可以參與，但我還是那句——留銀彈、別 All in，輪到主流股再上。"))
-        ex.append(("財經X角", "大家", "循環沒翻空、流動性還在，可以偏積極；但融資這麼燙，我會死盯信用利差。"))
-        ex.append(("清X君", "大家", "轉強轉弱跟我無關，加碼減碼的成本你們自己付，我只負責不間斷地買。"))
-    else:
-        ex.append(("清X君", "大家", "分數不上不下，你們還在折騰加減碼——我繼續定額，省下的力氣拿去過生活。"))
-    return ex
+def _pillar(result, key, default=50.0):
+    return next((p for p in result.get("pillars", []) if p["key"] == key),
+                {}).get("score", default)
+
+
+def _disp(ind):
+    """指標的 value_display；沒有就回 '—'。"""
+    return (ind or {}).get("value_display") or "—"
 
 
 def assess(result: Dict, indicators: List[Dict], regime: Optional[Dict],
-           cycle: Optional[Dict], forecast: Optional[List]) -> List[Dict]:
+           cycle: Optional[Dict], forecast: Optional[List],
+           taifex: Optional[Dict] = None) -> List[Dict]:
     comp = result.get("composite")
     phase = (cycle or {}).get("phase")
     pos = (cycle or {}).get("position", "")
+    implication = (cycle or {}).get("implication") or ""
     status = (regime or {}).get("status")
     frag = (regime or {}).get("fragility")
     margin = _ind(indicators, "融資餘額")
     margin_chasing = bool(margin and margin.get("light") == "red")     # 融資增=散戶追
-    trend_p = next((p for p in result.get("pillars", []) if p["key"] == "trend"), {}).get("score", 50)
+    trend_p = _pillar(result, "trend")
+    val_p = _pillar(result, "valuation")
+    chips_p = _pillar(result, "chips")
     fc_tw = next((t for t in (forecast or []) if "台股" in t.get("label", "")), None)
     fc_txt = ""
     if fc_tw:
@@ -67,18 +60,18 @@ def assess(result: Dict, indicators: List[Dict], regime: Optional[Dict],
 
     out = []
 
-    # 1) 清流君：被動指數
+    # 1) 被動指數派——立場永遠不變，這正是它的觀點
     out.append({
-        "name": "清X君", "school": "指數化／被動投資",
+        "name": "被動指數派", "school": "指數化／被動投資",
         "principles": "市場有效・反對擇時・低成本・全球分散・定期定額不間斷・長期持有・定期再平衡",
         "lean": "照表操課（不擇時）", "lean_light": "amber",
         "take": ("在這套框架下，綜合分數 %s、噴發、景氣紅燈……都是雜訊。建議：維持原定定期定額"
                  "（0050／VT 之類）不間斷，把力氣放在**降低成本、股債資產配置與再平衡**，而不是加減碼。"
-                 "他會直接質疑這支『擇時』工具的前提——長期而言擇時勝率低於紀律定額。"
-                 % (("%.0f" % comp) if comp is not None else "")),
+                 "這派會直接質疑這支『擇時』工具的前提——長期而言擇時勝率低於紀律定額。"
+                 % (("%.0f" % comp) if comp is not None else "—")),
     })
 
-    # 2) 游庭皓：總經/景氣循環
+    # 2) 總經循環派——lean 跟著景氣循環位置走，內文引用當天的循環/利率/槓桿數據
     if phase in ("過熱", "滯脹"):
         lean, light = "偏防禦、重質、控風險", "red"
     elif phase in ("趨緩/衰退",):
@@ -87,16 +80,23 @@ def assess(result: Dict, indicators: List[Dict], regime: Optional[Dict],
         lean, light = "偏積極（循環向上）", "green"
     else:
         lean, light = "中性、看流動性臉色", "amber"
+    ust = _ind(indicators, "殖利率曲線")
+    macro_bits = ["景氣循環研判為「%s」(%s)" % (phase or "—", pos or "—")]
+    if ust:
+        macro_bits.append("殖利率曲線 %s" % _disp(ust))
+    if margin_chasing:
+        macro_bits.append("散戶融資槓桿在升溫")
     out.append({
-        "name": "財經X角", "school": "由上而下總經／景氣循環",
+        "name": "總經循環派", "school": "由上而下總經／景氣循環",
         "principles": "景氣循環位置・流動性・利率與債市・信用利差・由上而下",
         "lean": lean, "lean_light": light,
-        "take": ("由總經看：景氣循環研判為「%s」(%s)、Fed 全年僅約 1 碼、殖利率曲線與信用是關鍵變數、"
-                 "且融資槓桿暴增。這套框架會偏**防禦、重基本面與現金流、緊盯流動性與信用轉折**，"
-                 "而非追估值或題材。" % (phase or "—", pos or "—")),
+        "take": ("由總經看：%s。%s這套框架會**緊盯流動性與信用轉折、重基本面與現金流**，"
+                 "而非追估值或題材。"
+                 % ("、".join(macro_bits),
+                    (implication + "。") if implication else "")),
     })
 
-    # 3) 股癌：紀律風控/順勢控倉
+    # 3) 順勢紀律派——lean 跟著趨勢支柱與噴發/融資狀態走
     if trend_p >= 50 and (status == "噴發中" or margin_chasing):
         lean, light = "參與但留銀彈、別重壓", "amber"
         take = ("趨勢還偏多、動能在%s，但**散戶融資在追、噴發脆弱度 %s**。這派的紀律：可參與、"
@@ -104,31 +104,87 @@ def assess(result: Dict, indicators: List[Dict], regime: Optional[Dict],
                 % (fc_txt, frag if frag is not None else "偏高"))
     elif trend_p < 42:
         lean, light = "弱勢、減碼控風險", "red"
-        take = "趨勢轉弱，這派會降部位、守紀律、等訊號重新轉強再進。"
+        take = "趨勢轉弱（趨勢支柱 %.0f 分），這派會降部位、守紀律、等訊號重新轉強再進。" % trend_p
     else:
         lean, light = "順勢操作、嚴設停損", "green"
-        take = "趨勢健康、籌碼未過熱，這派傾向順勢參與，但一樣嚴設停損、控部位。"
+        take = ("趨勢健康（趨勢支柱 %.0f 分）、籌碼未過熱%s，這派傾向順勢參與，"
+                "但一樣嚴設停損、控部位。" % (trend_p, fc_txt))
     out.append({
-        "name": "股X", "school": "紀律風控／順勢控倉",
+        "name": "順勢紀律派", "school": "紀律風控／順勢控倉",
         "principles": "順勢但控部位・別追高當散戶・留銀彈・設停損・不 All in 不空手",
         "lean": lean, "lean_light": light, "take": take,
     })
 
-    # 結論（把三方辯論收斂成一段；分歧本身就是訊息）
-    band = result.get("band", "")
-    cscore = ("%.0f" % comp) if comp is not None else ""
-    if comp is None:
-        verdict = "資料不足，先別急著動作。"
-    elif comp >= 58:
-        verdict = "三方裡被動派照買不動、紀律派說可參與但留銀彈、總經派看循環沒翻空也不反對——勉強的共識：可分批，但別重壓、別 All in。"
-    elif comp < 42:
-        verdict = "總經派與紀律派都喊防禦、別追高；被動派照買不動、把下跌當打折。共識僅止於：別在這裡重壓賭反彈。"
+    # 4) 價值派——lean 跟著估值支柱走，內文引用當天的估值與回檔數據
+    tw_val = _ind(indicators, "台股估值")
+    dd_tw = _ind(indicators, "台股距高點回檔")
+    dd_us = _ind(indicators, "美股距高點回檔")
+    if val_p >= 58:
+        vlean, vlight = "價格出現折扣、分批布局", "green"
+        vline = "折扣出現了——這派會開始分批撿便宜，但仍然只買能力圈內、看得懂的好公司。"
+    elif val_p < 42:
+        vlean, vlight = "估值偏貴、忍住等待", "red"
+        vline = "現在是別人貪婪的時候——這派寧可抱著現金等，也不用貴的價格買好公司。"
     else:
-        verdict = "分數中性，三方沒有壓倒性共識——維持定額節奏、控好部位，別在這時候賭方向。"
-    synthesis = ("【結論】三方交鋒收斂：被動派(清X君)叫你『照買別動、擇時長期輸給定額』、"
-                 "總經派(財經X角)要你『看景氣與流動性臉色』、紀律派(股X)要你『順勢但留銀彈、跌破就減碼』。\n"
-                 "三套邏輯彼此矛盾——被動派根本反對另外兩派擇時——正解取決於你信哪一套。\n"
-                 "目前工具分數 %s（%s）。%s\n"
-                 "以上皆為策略流派框架推演、非本人發言、非投資建議。"
-                 % (cscore, band, verdict))
-    return [{"synthesis": synthesis, "debate": _debate(comp)}] + out
+        vlean, vlight = "等更好的價格、留現金", "amber"
+        vline = "價格不上不下，這派會把清單列好、想買的價位算好，然後耐心等它來。"
+    val_bits = []
+    if tw_val:
+        val_bits.append("台股估值 %s" % _disp(tw_val))
+    if dd_tw:
+        val_bits.append("台股距高點 %s" % _disp(dd_tw))
+    if dd_us:
+        val_bits.append("美股距高點 %s" % _disp(dd_us))
+    out.append({
+        "name": "價值派", "school": "基本面選股／安全邊際",
+        "principles": "能力圈內・護城河・安全邊際・逆向布局・耐心等便宜・長期持有・不追高",
+        "lean": vlean, "lean_light": vlight,
+        "take": ("看的不是時機，是『價格 vs 價值』：%s（估值支柱 %.0f 分）。%s"
+                 % ("、".join(val_bits) if val_bits else "估值資料本次缺漏", val_p, vline)),
+    })
+
+    # 5) 籌碼派——lean 跟著籌碼支柱走，內文引用法人/融資/台指期未平倉實際數字
+    inst = _ind(indicators, "法人買賣超")
+    diverg = _ind(indicators, "背離")
+    if chips_p >= 58:
+        clean, clight = "法人偏多、跟著站多方", "green"
+        cline = "錢在進場——這派會跟著主力方向站，但融資若開始過熱就提高警覺。"
+    elif chips_p < 42:
+        clean, clight = "籌碼轉空、先收手", "red"
+        cline = "法人在撤、散戶在接——這派的鐵律：別跟大戶對作，先退出觀望。"
+    else:
+        clean, clight = "多空拉鋸、看誰先出手", "amber"
+        cline = "籌碼面沒有明確方向，這派會等法人連續動作再表態。"
+    chips_bits = []
+    if inst:
+        chips_bits.append("法人 %s" % _disp(inst))
+    if margin:
+        chips_bits.append("融資 %s" % _disp(margin))
+    tx_inst = (taifex or {}).get("foreign_net_oi")
+    if tx_inst is not None:
+        side = "偏多" if tx_inst > 0 else "偏空" if tx_inst < 0 else "中性"
+        chips_bits.append("外資台指期淨未平倉 {:+,} 口（{}）".format(int(tx_inst), side))
+    tx_pcr = (taifex or {}).get("pcr_oi")
+    if tx_pcr is not None:
+        chips_bits.append("選擇權 P/C 未平倉比 %.2f" % tx_pcr)
+    div_note = ""
+    if diverg and diverg.get("light") == "red":
+        div_note = "⚠ 法人與散戶正在背離——歷史上通常法人是對的。"
+    out.append({
+        "name": "籌碼派", "school": "跟單聰明錢／籌碼流向",
+        "principles": "跟主力／法人・三大法人買賣超・台指期未平倉・融資融券・量價配合・不對作大戶",
+        "lean": clean, "lean_light": clight,
+        "take": ("跟著錢走：%s（籌碼支柱 %.0f 分）。%s%s"
+                 % ("、".join(chips_bits) if chips_bits else "籌碼資料本次缺漏",
+                    chips_p, div_note, cline)),
+    })
+
+    # 元素 0 = 摘要（頁面目前不渲染辯論；欄位保留給其他模組引用）
+    band = result.get("band", "")
+    cscore = ("%.0f" % comp) if comp is not None else "—"
+    synthesis = ("【五派速覽】被動派照買不動；總經派%s；順勢派%s；價值派%s；籌碼派%s。\n"
+                 "五套邏輯彼此矛盾——被動派根本反對其餘四派擇時——正解取決於你信哪一套。\n"
+                 "目前工具分數 %s（%s）。以上皆為策略流派框架推演、非投資建議。"
+                 % (out[1]["lean"], out[2]["lean"], out[3]["lean"], out[4]["lean"],
+                    cscore, band))
+    return [{"synthesis": synthesis}] + out

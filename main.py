@@ -310,13 +310,19 @@ def run(open_browser=False):
     except Exception as e:
         log("市場消息失敗（不影響大盤儀表板）：%s" % str(e)[:140])
 
-    # 三派投資策略觀點
+    # 五派投資策略觀點（含台指期籌碼；抓不到就用快取/略過）
+    try:
+        tx_chips = src.taifex_chips()
+        if tx_chips:
+            log("台指期籌碼：外資淨未平倉 %s 口" % tx_chips.get("foreign_net_oi", "—"))
+    except Exception:
+        tx_chips = None
     try:
         import perspectives
-        persp = perspectives.assess(result, indicators, regime, cyc, fc)
+        persp = perspectives.assess(result, indicators, regime, cyc, fc, taifex=tx_chips)
     except Exception as e:
         persp = None
-        log("三派觀點計算失敗：%s" % str(e)[:120])
+        log("五派觀點計算失敗：%s" % str(e)[:120])
 
     meta = {
         "generated_at": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),

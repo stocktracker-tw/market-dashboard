@@ -698,3 +698,76 @@ def twse_announcements() -> Dict:
     else:
         out = _cache_load("announce") or {}
     return out
+
+
+# ---------------- 台指期籌碼（TAIFEX OpenAPI） ----------------
+def _row_key(row, *needles):
+    """在 dict 的 key 裡找同時包含所有 needle 的第一個 key（不分大小寫）。"""
+    for k in row:
+        kl = str(k).lower()
+        if all(n.lower() in kl for n in needles):
+            return k
+    return None
+
+
+def _row_num(v):
+    s = str(v).replace(",", "").replace("%", "").strip()
+    if s in ("", "-", "--", "None"):
+        return None
+    try:
+        return float(s)
+    except ValueError:
+        return None
+
+
+def taifex_chips():
+    """台指期籌碼：外資臺股期貨(TX)淨未平倉口數 + 選擇權 P/C 未平倉比。
+
+    來源 TAIFEX OpenAPI（回 JSON）。欄位用關鍵字比對抗欄名差異；任何一段失敗
+    就跳過該段。全部失敗 → 回上次快取（cache_taifex.json），再沒有 → None。
+    回傳 {"date", "foreign_net_oi", "pcr_oi"}（欄位缺漏就沒有該 key）。
+    """
+    base = "https://openapi.taifex.com.tw/v1/"
+    out = {}
+    r = _get(base + "MarketDataOfMajorInstitutionalTradersDetails"
+                    "OfFuturesContractsBytheDate", timeout=30)
+    if r is not None:
+        try:
+            rows = r.json()
+            ck = _row_key(rows[0], "contract") or _row_key(rows[0], "商品") or ""
+            ik = (_row_key(rows[0], "item") or _row_key(rows[0], "身份")
+                  or _row_key(rows[0], "institution") or "")
+            dk = _row_key(rows[0], "date") or "Date"
+            tx = [x for x in rows
+                  if "臺股期貨" in str(x.get(ck, "")) or
+                  str(x.get(ck, "")).strip().upper() in ("TX", "TXF")]
+            if tx:
+                latest = max(str(x.get(dk, "")) for x in tx)
+                for x in tx:
+                    if str(x.get(dk)) != latest or "外資" not in str(x.get(ik, "")):
+                        continue
+                    nk = (_row_key(x, "net", "openinterest") or
+                          _row_key(x, "net", "oi") or _row_key(x, "淨", "未平倉"))
+                    v = _row_num(x.get(nk)) if nk else None
+                    if v is not None:
+                        out["foreign_net_oi"] = int(v)
+                        out["date"] = latest
+        except Exception:
+            pass
+    r = _get(base + "PutCallRatio", timeout=30)
+    if r is not None:
+        try:
+            rows = r.json()
+            dk = _row_key(rows[0], "date") or "Date"
+            row = max((x for x in rows if x.get(dk)), key=lambda x: str(x.get(dk)))
+            ok = (_row_key(row, "oi", "ratio") or _row_key(row, "未平倉", "比")
+                  or _row_key(row, "putcalloi"))
+            v = _row_num(row.get(ok)) if ok else None
+            if v is not None:
+                out["pcr_oi"] = round(v / 100, 2) if v > 10 else v   # % → 比值
+        except Exception:
+            pass
+    if out:
+        _cache_save("taifex", out)
+        return out
+    return _cache_load("taifex")

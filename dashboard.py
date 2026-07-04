@@ -23,7 +23,7 @@ _HEAD = """<!DOCTYPE html>
 <style>
 :root{
   --bg:#0e1116; --panel:#171b24; --panel2:#1e2430; --line:#2a3142;
-  --text:#e7ebf3; --muted:#aab4c6; --green:#34d07f; --amber:#f9b43a; --red:#ef5d5d; --accent:#5b9cff;
+  --text:#e7ebf3; --muted:#aab4c6; --green:#34d07f; --amber:#f9b43a; --red:#ef5d5d; --accent:#5b9cff; --gray:#6b7280;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);
@@ -146,7 +146,7 @@ _OG_DESC = ("幾十項指標 → 一個 0–100 進場分數。法人 vs 散戶�
 _OG_BASE = "https://%s.github.io/%s" % (getattr(cfg, "GITHUB_USER", "stocktracker-tw"),
                                         getattr(cfg, "GITHUB_REPO", "market-dashboard"))
 PWA_HEAD = ('<link rel="manifest" href="manifest.webmanifest">'
-            '<meta name="theme-color" content="#0f2148">'
+            '<meta name="theme-color" content="#0a1430">'
             '<link rel="apple-touch-icon" href="apple-icon-v9.png">'
             '<meta name="apple-mobile-web-app-capable" content="yes">'
             '<meta name="mobile-web-app-capable" content="yes">'
@@ -177,9 +177,9 @@ def with_pwa(html: str) -> str:
 SWIPE_JS = """<script>
 (function(){
  if(window.__tabdrag)return;window.__tabdrag=1;
- var order=["news.html","index.html","perspectives.html","stocks.html"];
+ var order=["index.html","stocks.html","perspectives.html","news.html"];
  function curIdx(){var f=(location.pathname.split("/").pop()||"").toLowerCase();
-  if(f==="news.html")return 0;if(f==="perspectives.html")return 2;if(f==="stocks.html")return 3;return 1;}
+  if(f==="stocks.html")return 1;if(f==="perspectives.html")return 2;if(f==="news.html")return 3;return 0;}
  function start(){
   var bar=document.querySelector(".tabbar");if(!bar)return;
   var tabs=[].slice.call(bar.querySelectorAll("a.tab"));if(tabs.length<2)return;
@@ -335,8 +335,8 @@ GLASS_SVG = ('<svg width="0" height="0" style="position:absolute;pointer-events:
 def nav(active="", include_css=False):
     """底部分頁列（iOS 風格）。消息＝首頁。回測收進大盤子頁，不在主分頁。
     active ∈ news/index/stocks（在回測頁傳 index，視為大盤子頁）。"""
-    tabs = [("news.html", "news", "📰", "消息"), ("index.html", "index", "📊", "大盤"),
-            ("perspectives.html", "debate", "🗣️", "觀點"), ("stocks.html", "stocks", "📈", "個股")]
+    tabs = [("index.html", "index", "📊", "進場"), ("stocks.html", "stocks", "📈", "個股"),
+            ("perspectives.html", "debate", "🗣️", "觀點"), ("news.html", "news", "📰", "消息")]
     items = "".join('<a class="tab%s" href="%s"><span class="ic">%s</span><span>%s</span></a>'
                     % (" on" if k == active else "", href, ic, lb) for href, k, ic, lb in tabs)
     css = (_NAV_CSS + GLASS_CSS) if include_css else ""
@@ -418,10 +418,11 @@ def render(result: Dict, indicators: List[Dict], score_history: List, meta: Dict
     parts.append('<div class="pillars">')
     for p in result["pillars"]:
         parts.append(
-            '<div class="pcard"><div class="pn">%s</div>'
+            '<a class="pcard" href="#sec-%s" style="text-decoration:none;color:inherit;cursor:pointer">'
+            '<div class="pn">%s</div>'
             '<div class="ps" style="color:var(--%s)">%.0f</div>'
-            '<div class="pw">權重 %d%%・%d 指標</div></div>'
-            % (_esc(p["name"]), p["light"], p["score"], p["weight"], p["n"]))
+            '<div class="pw">權重 %d%%・%d 指標</div></a>'
+            % (_esc(p["key"]), _esc(p["name"]), p["light"], p["score"], p["weight"], p["n"]))
     parts.append('</div>')
 
     # 策略回測：直接內嵌績效（不用點進去）
@@ -496,9 +497,9 @@ def render(result: Dict, indicators: List[Dict], score_history: List, meta: Dict
 
     # 多派觀點已獨立成「🗣️ 觀點」分頁，這裡只放入口
     if perspectives and len(perspectives) > 1:
-        parts.append('<div class="section-title">市場觀點・三方辯論</div>')
+        parts.append('<div class="section-title">市場觀點・問五方</div>')
         parts.append('<div class="card" style="grid-template-columns:1fr"><div class="note" style="grid-column:1/3">'
-                     '同一份數據，三種投資流派（被動／總經／紀律）如何解讀、彼此激烈辯論並收斂出結論 → '
+                     '同一份數據，五種投資流派（被動／總經／順勢／價值／籌碼）各自怎麼解讀、各執一詞 → '
                      '<a href="perspectives.html">看「🗣️ 觀點」分頁 →</a>'
                      '<br><span style="color:var(--muted);font-size:12px">以公開投資流派為框架・非本人發言・非投資建議</span>'
                      '</div></div>')
@@ -571,10 +572,10 @@ def render(result: Dict, indicators: List[Dict], score_history: List, meta: Dict
             for h in t["horizons"]:
                 c = "green" if h["mean"] > 0 else "red"
                 parts.append('<div class="note" style="grid-column:1/3;display:flex;justify-content:space-between">'
-                             '<span class="muted">未來%s</span>'
-                             '<span class="%s">平均 %+.1f%%</span>'
-                             '<span class="muted">上漲機率 %.0f%%</span>'
-                             '<span class="muted">樣本 %d</span></div>'
+                             '<span style="color:var(--muted)">未來%s</span>'
+                             '<span style="color:var(--%s)">平均 %+.1f%%</span>'
+                             '<span style="color:var(--muted)">上漲機率 %.0f%%</span>'
+                             '<span style="color:var(--muted)">樣本 %d</span></div>'
                              % (_esc(h["label"]), c, h["mean"] * 100, h["win"] * 100, h["n"]))
             parts.append('</div>')
         parts.append('</div>')
@@ -590,8 +591,8 @@ def render(result: Dict, indicators: List[Dict], score_history: List, meta: Dict
         items = by_cat.get(cat)
         if not items:
             continue
-        parts.append('<div class="section-title">%s</div><div class="grid">'
-                     % _esc(PILLAR_NAMES.get(cat, cat)))
+        parts.append('<div class="section-title" id="sec-%s">%s</div><div class="grid">'
+                     % (_esc(cat), _esc(PILLAR_NAMES.get(cat, cat))))
         for ind in items:
             parts.append('<div class="card">')
             parts.append('<div class="top"><span class="dot" style="background:var(--%s)"></span>'
@@ -631,17 +632,22 @@ def render(result: Dict, indicators: List[Dict], score_history: List, meta: Dict
 
 
 def render_perspectives_page(perspectives: List, meta: Dict) -> str:
-    """獨立的「🗣️ 觀點」分頁：三方立場辯論 + 結論。寫出 output/perspectives.html。"""
+    """獨立的「🗣️ 觀點」分頁：五方立場＋「換你問」問答面板。寫出 output/perspectives.html。
+
+    互嗆辯論已移除（使用者要求）；問答面板 ASK_PANEL 與 patch_site 逐字節相同，
+    patch 端以 data-v 守門自動跳過 → 頁面出生就是最終版，補丁只是安全網。
+    """
     import os
     from config import REFRESH_SECONDS
+    from ask_panel import ASK_PANEL, GRID5_STYLE
     p: List[str] = [_HEAD.replace("__REFRESH__", str(REFRESH_SECONDS))]
     p.append(nav("debate", include_css=True))
     p.append('<div class="wrap">')
-    p.append('<h1>🗣️ 市場觀點・三方辯論 <span style="font-size:14px;color:var(--muted)">同一份數據・三種解讀</span></h1>')
+    p.append('<h1>🗣️ 市場觀點・問五方 <span style="font-size:14px;color:var(--muted)">同一份數據・五種解讀</span></h1>')
     p.append('<div class="sub">資料時間：%s　｜　以公開投資流派為「框架」推演・<b>非本人發言・非投資建議</b></div>'
              % _esc(meta.get("generated_at", "")))
     if perspectives and len(perspectives) > 1:
-        p.append('<div class="section-title">三方立場</div>')
+        p.append('<div class="section-title">五方立場</div>')
         p.append('<div class="grid">')
         for pp in perspectives[1:]:
             p.append('<div class="card">')
@@ -653,32 +659,12 @@ def render_perspectives_page(perspectives: List, meta: Dict) -> str:
             p.append('<div class="detail" style="grid-column:1/3">原則：%s</div>' % _esc(pp["principles"]))
             p.append('</div>')
         p.append('</div>')
-        # 🔥 三方互嗆（交鋒對話）
-        deb = perspectives[0].get("debate")
-        if deb:
-            n2l = {pp["name"]: pp.get("lean_light", "amber") for pp in perspectives[1:]}
-            p.append('<div class="section-title">🔥 三方互嗆</div>')
-            p.append('<div class="card" style="grid-template-columns:1fr">')
-            for i, (frm, to, line) in enumerate(deb):
-                col = n2l.get(frm, "amber")
-                side = "right" if i % 2 else "left"
-                align = "margin-left:auto;" if i % 2 else ""
-                p.append('<div style="grid-column:1/3;max-width:90%;' + align +
-                         'margin-bottom:10px;background:var(--panel2);border-' + side +
-                         ':3px solid var(--' + col + ');border-radius:12px;padding:10px 13px">'
-                         '<div style="font-size:12px;font-weight:700;color:var(--' + col + ')">' + _esc(frm) +
-                         ' <span style="color:var(--muted);font-weight:400">嗆 ' + _esc(to) + '</span></div>'
-                         '<div style="font-size:14.5px;margin-top:4px;color:var(--text)">' + _esc(line) + '</div></div>')
-            p.append('</div>')
-        syn = perspectives[0].get("synthesis")
-        if syn:
-            p.append('<div class="section-title">辯論結論</div>')
-            p.append('<div class="card" style="grid-template-columns:1fr">'
-                     '<div class="note" style="grid-column:1/3;white-space:pre-wrap;line-height:1.7">%s</div></div>'
-                     % _esc(syn))
+        p.append(ASK_PANEL)
     else:
         p.append('<div class="card"><div class="note">本次無觀點資料。</div></div>')
-    p.append('</div></body></html>')
+    p.append('</div>')
+    p.append(GRID5_STYLE)
+    p.append('</body></html>')
     html = with_pwa("".join(p))
     import config as cfg
     os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)

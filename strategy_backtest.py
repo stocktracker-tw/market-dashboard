@@ -154,6 +154,8 @@ def run():
     log("逐月計算分數（三種立場）…")
     orig = getattr(cfg, "MEAN_REVERSION_BIAS", 1.0)
     score_mult = {b: {} for _, b in BIASES}
+    pillar_hist = {}     # (year,month) -> {pillar_key: score, "composite": comp}（orig bias 那輪）
+    rec_bias = orig if orig in {b for _, b in BIASES} else BIASES[0][1]
     for _, b in BIASES:
         cfg.MEAN_REVERSION_BIAS = b
         for key in master:
@@ -166,8 +168,13 @@ def run():
                 "val": None, "turnover": None, "tw_hist": [],
             }
             inds = ind_mod.compute_all(asof)
-            comp = scoring.aggregate(inds)["composite"] if inds else 50.0
+            agg = scoring.aggregate(inds) if inds else None
+            comp = agg["composite"] if agg else 50.0
             score_mult[b][key] = scoring._interpret(comp)[2]
+            if agg and b == rec_bias:
+                ph = {p["key"]: p["score"] for p in agg["pillars"]}
+                ph["composite"] = comp
+                pillar_hist[key] = ph
     cfg.MEAN_REVERSION_BIAS = orig
 
     # 各資產 × 策略 模擬
@@ -187,7 +194,13 @@ def run():
     except Exception as e:                     # noqa: BLE001 — 體檢失敗不擋回測報告
         validation = None
         log("分數有效性體檢略過：%s" % str(e)[:120])
-    render_html(results, master, validation)
+    try:
+        ic_html = pillar_ic_card(pillar_hist, sig)
+    except Exception as e:                     # noqa: BLE001 — IC 失敗不擋回測報告
+        ic_html = None
+        log("支柱 IC 計算略過：%s" % str(e)[:120])
+    validation = (validation or "") + (ic_html or "")
+    render_html(results, master, validation or None)
     print_summary(results)
 
     if getattr(cfg, "PUBLISH_ENABLED", False):
@@ -274,6 +287,102 @@ def score_validation(sig):
     parts.append('<div style="font-size:11.5px;color:#5f6b80;margin-top:8px">'
                  '注意：分數歷史仍在累積（前 60 日為回測補值、含輕微後見之明）；'
                  '樣本涵蓋期間短、屬同一市場環境，統計僅供方向參考。</div></div>')
+    return "".join(parts)
+
+
+# ---------------- 支柱預測力（IC） ----------------
+def _rank(xs):
+    """平均秩（處理同分）。"""
+    order = sorted(range(len(xs)), key=lambda i: xs[i])
+    ranks = [0.0] * len(xs)
+    i = 0
+    while i < len(order):
+        j = i
+        while j + 1 < len(order) and xs[order[j + 1]] == xs[order[i]]:
+            j += 1
+        avg = (i + j) / 2.0 + 1
+        for k in range(i, j + 1):
+            ranks[order[k]] = avg
+        i = j + 1
+    return ranks
+
+
+def _spearman(xs, ys):
+    """Spearman 等級相關（-1..1）。樣本太少或無變異回 None。"""
+    if len(xs) < 12 or len(set(xs)) < 3 or len(set(ys)) < 3:
+        return None
+    rx, ry = _rank(xs), _rank(ys)
+    n = len(xs)
+    mx, my = sum(rx) / n, sum(ry) / n
+    num = sum((a - mx) * (b - my) for a, b in zip(rx, ry))
+    dx = (sum((a - mx) ** 2 for a in rx)) ** 0.5
+    dy = (sum((b - my) ** 2 for b in ry)) ** 0.5
+    return num / (dx * dy) if dx and dy else None
+
+
+def pillar_ic_card(pillar_hist, sig):
+    """各支柱月度分數 vs 台股加權未來 1／3 個月報酬的 Spearman IC → HTML 卡。
+
+    回答「哪根支柱真的會預測、哪根是安慰劑」。歷史重算的限制一併標註：
+    籌碼支柱歷史上只剩量能一項、估值支柱只剩距高點回檔（法人/融資/本益比
+    無 10 年史料），這兩根的 IC 只代表其可回測的子集。
+    """
+    if not pillar_hist:
+        return None
+    tmap = monthly_map(sig.get("twii") or {})
+    keys = [k for k in sorted(pillar_hist) if k in tmap]
+    if len(keys) < 15:
+        return None
+    fwd = {1: {}, 3: {}}
+    for i, k in enumerate(keys):
+        for h in (1, 3):
+            if i + h < len(keys):
+                fwd[h][k] = tmap[keys[i + h]][2] / tmap[k][2] - 1.0
+    from config import PILLAR_NAMES
+    caveat = {"chips": "※", "valuation": "※"}
+    rows = []
+    pillar_keys = [pk for pk in list(PILLAR_NAMES) if any(pk in v for v in pillar_hist.values())]
+    for pk in pillar_keys + ["composite"]:
+        nm = "綜合分數" if pk == "composite" else PILLAR_NAMES.get(pk, pk)
+        cells = []
+        for h in (1, 3):
+            pairs = [(pillar_hist[k][pk], fwd[h][k]) for k in keys
+                     if pk in pillar_hist[k] and k in fwd[h]]
+            ic = _spearman([a for a, _ in pairs], [b for _, b in pairs]) if pairs else None
+            cells.append((ic, len(pairs)))
+        rows.append((nm + caveat.get(pk, ""), pk == "composite", cells))
+    parts = ['<div class="card"><h2>🧭 支柱預測力（IC）：哪根柱子真的會預測？</h2>',
+             '<div style="font-size:12.5px;color:#94a0b4;margin-bottom:10px">'
+             '把每月各支柱分數與台股加權「之後 1／3 個月」報酬做等級相關（Spearman IC，'
+             '-1〜+1，越正代表分數越高之後越漲）。|IC| ≥ 0.1 已屬有用訊號；'
+             '接近 0 ＝該支柱對未來報酬沒有辨識力。</div>']
+    for nm, is_comp, cells in rows:
+        bar_cells = []
+        for ic, n in cells:
+            if ic is None:
+                bar_cells.append('<span style="flex:1;color:#5f6b80;font-size:12px">樣本不足</span>')
+                continue
+            w = min(100, abs(ic) * 250)
+            color = "#ea5455" if ic >= 0 else "#28c76f"
+            bar_cells.append(
+                '<span style="flex:1;display:flex;align-items:center;gap:6px">'
+                '<span style="flex:1;height:12px;position:relative">'
+                '<span style="position:absolute;left:0;top:0;bottom:0;width:%.0f%%;'
+                'background:%s;border-radius:4px;opacity:.75"></span></span>'
+                '<b style="flex:none;width:56px;text-align:right;color:%s">%+.2f</b>'
+                '<span style="flex:none;color:#5f6b80;font-size:11px">n=%d</span></span>'
+                % (w, color, color, ic, n))
+        weight = ' style="font-weight:700"' if is_comp else ''
+        parts.append('<div style="display:flex;align-items:center;gap:12px;margin:6px 0;font-size:12.5px">'
+                     '<span%s style="flex:none;width:120px;color:#cdd5e3">%s</span>%s</div>'
+                     % (weight, nm, "".join(bar_cells)))
+    parts.append('<div style="display:flex;gap:12px;margin:2px 0 0;font-size:11px;color:#5f6b80">'
+                 '<span style="width:120px;flex:none"></span>'
+                 '<span style="flex:1">↑ 未來 1 個月</span><span style="flex:1">↑ 未來 3 個月</span></div>')
+    parts.append('<div style="font-size:11.5px;color:#5f6b80;margin-top:8px">'
+                 '※ 籌碼／估值支柱缺 10 年史料（無法人/融資/本益比），歷史重算只含其可回測子集'
+                 '（量能、距高點回檔），IC 僅代表該子集。月資料、單一市場環境，僅供方向參考。</div>')
+    parts.append('</div>')
     return "".join(parts)
 
 

@@ -333,13 +333,15 @@ def pillar_ic_card(pillar_hist, sig):
     keys = [k for k in sorted(pillar_hist) if k in tmap]
     if len(keys) < 15:
         return None
+    def _midx(k):
+        return k[0] * 12 + k[1]
     fwd = {1: {}, 3: {}}
     for i, k in enumerate(keys):
         for h in (1, 3):
-            if i + h < len(keys):
+            if i + h < len(keys) and _midx(keys[i + h]) - _midx(k) == h:
                 fwd[h][k] = tmap[keys[i + h]][2] / tmap[k][2] - 1.0
     from config import PILLAR_NAMES
-    caveat = {"chips": "※", "valuation": "※"}
+    caveat = {"chips": "※", "valuation": "※", "macro": "†"}
     rows = []
     pillar_keys = [pk for pk in list(PILLAR_NAMES) if any(pk in v for v in pillar_hist.values())]
     for pk in pillar_keys + ["composite"]:
@@ -354,7 +356,8 @@ def pillar_ic_card(pillar_hist, sig):
     parts = ['<div class="card"><h2>🧭 支柱預測力（IC）：哪根柱子真的會預測？</h2>',
              '<div style="font-size:12.5px;color:#94a0b4;margin-bottom:10px">'
              '把每月各支柱分數與台股加權「之後 1／3 個月」報酬做等級相關（Spearman IC，'
-             '-1〜+1，越正代表分數越高之後越漲）。|IC| ≥ 0.1 已屬有用訊號；'
+             '-1〜+1，越正代表分數越高之後越漲）。單一時間序列樣本 n≈80，'
+             '雜訊帶約 ±0.11（1σ≈1/√n）——<b>|IC| 要 ≳ 0.2 才算明顯跳出雜訊</b>；'
              '接近 0 ＝該支柱對未來報酬沒有辨識力。</div>']
     for nm, is_comp, cells in rows:
         bar_cells = []
@@ -372,16 +375,18 @@ def pillar_ic_card(pillar_hist, sig):
                 '<b style="flex:none;width:56px;text-align:right;color:%s">%+.2f</b>'
                 '<span style="flex:none;color:#5f6b80;font-size:11px">n=%d</span></span>'
                 % (w, color, color, ic, n))
-        weight = ' style="font-weight:700"' if is_comp else ''
+        weight = ';font-weight:700' if is_comp else ''
         parts.append('<div style="display:flex;align-items:center;gap:12px;margin:6px 0;font-size:12.5px">'
-                     '<span%s style="flex:none;width:120px;color:#cdd5e3">%s</span>%s</div>'
+                     '<span style="flex:none;width:120px;color:#cdd5e3%s">%s</span>%s</div>'
                      % (weight, nm, "".join(bar_cells)))
     parts.append('<div style="display:flex;gap:12px;margin:2px 0 0;font-size:11px;color:#5f6b80">'
                  '<span style="width:120px;flex:none"></span>'
                  '<span style="flex:1">↑ 未來 1 個月</span><span style="flex:1">↑ 未來 3 個月</span></div>')
     parts.append('<div style="font-size:11.5px;color:#5f6b80;margin-top:8px">'
                  '※ 籌碼／估值支柱缺 10 年史料（無法人/融資/本益比），歷史重算只含其可回測子集'
-                 '（量能、距高點回檔），IC 僅代表該子集。月資料、單一市場環境，僅供方向參考。</div>')
+                 '（量能、距高點回檔），IC 僅代表該子集。'
+                 '† 總經支柱以「當月」CPI/景氣信號計分，實務上這些數據下月才公布，'
+                 '含輕微 look-ahead、IC 略偏樂觀。月資料、單一市場環境，僅供方向參考。</div>')
     parts.append('</div>')
     return "".join(parts)
 
@@ -420,8 +425,9 @@ thead th{color:#94a0b4;font-weight:600}
                  '區間 %s ~ %s。</div>' % (master[0], master[-1]))
     parts.append('<div class="note">⚠️ 重要限制：此回測的「分數」<b>不含籌碼面</b>（法人/融資歷史太短），'
                  '只用恐慌/估值/趨勢/總經；CPI 與景氣信號為月資料有輕微 look-ahead。'
-                 '結論高度 regime-dependent：過去十年大多頭環境對逆勢策略先天不利。本頁為邏輯驗證、'
-                 '<b>非投資建議</b>。</div>')
+                 '結論高度 regime-dependent：過去十年大多頭環境對逆勢策略先天不利。'
+                 '主動倍數依 raw 分數的 ACTION_BANDS 計算；線上顯示另有「歷史百分位校準」層，'
+                 '本回測未重現該層。本頁為邏輯驗證、<b>非投資建議</b>。</div>')
     if validation:
         parts.append(validation)
 

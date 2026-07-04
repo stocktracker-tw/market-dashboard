@@ -737,7 +737,7 @@ def taifex_chips():
             ck = _row_key(rows[0], "contract") or _row_key(rows[0], "商品") or ""
             ik = (_row_key(rows[0], "item") or _row_key(rows[0], "身份")
                   or _row_key(rows[0], "institution") or "")
-            dk = _row_key(rows[0], "date") or "Date"
+            dk = _row_key(rows[0], "date") or _row_key(rows[0], "日期") or "Date"
             tx = [x for x in rows
                   if "臺股期貨" in str(x.get(ck, "")) or
                   str(x.get(ck, "")).strip().upper() in ("TX", "TXF")]
@@ -758,7 +758,7 @@ def taifex_chips():
     if r is not None:
         try:
             rows = r.json()
-            dk = _row_key(rows[0], "date") or "Date"
+            dk = _row_key(rows[0], "date") or _row_key(rows[0], "日期") or "Date"
             row = max((x for x in rows if x.get(dk)), key=lambda x: str(x.get(dk)))
             ok = (_row_key(row, "oi", "ratio") or _row_key(row, "未平倉", "比")
                   or _row_key(row, "putcalloi"))
@@ -768,6 +768,10 @@ def taifex_chips():
         except Exception:
             pass
     if out:
-        _cache_save("taifex", out)
-        return out
+        # 與舊快取合併再存：部分成功（例如只抓到 PCR）不可洗掉先前的外資未平倉
+        old = _cache_load("taifex") or {}
+        old.pop("_cached", None)
+        old.update(out)
+        _cache_save("taifex", old)
+        return old
     return _cache_load("taifex")

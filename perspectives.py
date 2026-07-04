@@ -81,7 +81,8 @@ def assess(result: Dict, indicators: List[Dict], regime: Optional[Dict],
     else:
         lean, light = "中性、看流動性臉色", "amber"
     ust = _ind(indicators, "殖利率曲線")
-    macro_bits = ["景氣循環研判為「%s」(%s)" % (phase or "—", pos or "—")]
+    macro_bits = ["景氣循環研判為「%s」%s"
+                  % (phase or "—", ("（%s）" % pos) if pos else "")]
     if ust:
         macro_bits.append("殖利率曲線 %s" % _disp(ust))
     if margin_chasing:
@@ -99,9 +100,14 @@ def assess(result: Dict, indicators: List[Dict], regime: Optional[Dict],
     # 3) 順勢紀律派——lean 跟著趨勢支柱與噴發/融資狀態走
     if trend_p >= 50 and (status == "噴發中" or margin_chasing):
         lean, light = "參與但留銀彈、別重壓", "amber"
-        take = ("趨勢還偏多、動能在%s，但**散戶融資在追、噴發脆弱度 %s**。這派的紀律：可參與、"
+        risks = []
+        if margin_chasing:
+            risks.append("散戶融資在追")
+        if status == "噴發中":
+            risks.append("噴發脆弱度 %s" % (frag if frag is not None else "偏高"))
+        take = ("趨勢還偏多、動能在%s，但**%s**。這派的紀律：可參與、"
                 "但**控制部位、別 All in、留現金等回檔**，**跌破 50 日線就減碼**——重點是別當追高的那隻韭菜。"
-                % (fc_txt, frag if frag is not None else "偏高"))
+                % (fc_txt, "、".join(risks)))
     elif trend_p < 42:
         lean, light = "弱勢、減碼控風險", "red"
         take = "趨勢轉弱（趨勢支柱 %.0f 分），這派會降部位、守紀律、等訊號重新轉強再進。" % trend_p
@@ -163,7 +169,9 @@ def assess(result: Dict, indicators: List[Dict], regime: Optional[Dict],
     tx_inst = (taifex or {}).get("foreign_net_oi")
     if tx_inst is not None:
         side = "偏多" if tx_inst > 0 else "偏空" if tx_inst < 0 else "中性"
-        chips_bits.append("外資台指期淨未平倉 {:+,} 口（{}）".format(int(tx_inst), side))
+        tx_date = (taifex or {}).get("date")
+        tag = "、%s" % tx_date if tx_date else ""
+        chips_bits.append("外資台指期淨未平倉 {:+,} 口（{}{}）".format(int(tx_inst), side, tag))
     tx_pcr = (taifex or {}).get("pcr_oi")
     if tx_pcr is not None:
         chips_bits.append("選擇權 P/C 未平倉比 %.2f" % tx_pcr)

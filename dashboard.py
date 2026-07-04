@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Dict, List
 
 import config as cfg
@@ -31,6 +32,8 @@ body{margin:0;background:var(--bg);color:var(--text);
 a{color:var(--accent)}
 .wrap{max-width:1180px;margin:0 auto;padding:24px 18px 60px}
 h1{font-size:24px;margin:0 0 2px}
+html{scroll-behavior:smooth}
+.section-title{scroll-margin-top:calc(env(safe-area-inset-top,0px) + 14px)}
 .sub{color:var(--muted);font-size:13px;margin-bottom:20px}
 .hero{display:grid;grid-template-columns:300px 1fr;gap:20px;background:var(--panel);
   border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:22px}
@@ -570,10 +573,10 @@ def render(result: Dict, indicators: List[Dict], score_history: List, meta: Dict
                          % (t.get("lean_light", "amber"), _esc(t["label"]), t["ext"] * 100,
                             t["decile"], _esc(t["lean"])))
             for h in t["horizons"]:
-                c = "green" if h["mean"] > 0 else "red"
+                c = "#ea5455" if h["mean"] > 0 else "#28c76f"      # 台股慣例：紅漲綠跌
                 parts.append('<div class="note" style="grid-column:1/3;display:flex;justify-content:space-between">'
                              '<span style="color:var(--muted)">未來%s</span>'
-                             '<span style="color:var(--%s)">平均 %+.1f%%</span>'
+                             '<span style="color:%s">平均 %+.1f%%</span>'
                              '<span style="color:var(--muted)">上漲機率 %.0f%%</span>'
                              '<span style="color:var(--muted)">樣本 %d</span></div>'
                              % (_esc(h["label"]), c, h["mean"] * 100, h["win"] * 100, h["n"]))
@@ -655,7 +658,8 @@ def render_perspectives_page(perspectives: List, meta: Dict) -> str:
                      '<div><div class="name">%s</div><div class="val">%s → %s</div></div></div>'
                      % (pp.get("lean_light", "amber"), _esc(pp["name"]),
                         _esc(pp["school"]), _esc(pp["lean"])))
-            p.append('<div class="note" style="grid-column:1/3">%s</div>' % _esc(pp["take"]))
+            _take = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', _esc(pp["take"]))
+            p.append('<div class="note" style="grid-column:1/3">%s</div>' % _take)
             p.append('<div class="detail" style="grid-column:1/3">原則：%s</div>' % _esc(pp["principles"]))
             p.append('</div>')
         p.append('</div>')

@@ -495,7 +495,7 @@ LIQUID_RE = re.compile(r'<style id="liquidglass">.*?</style>', re.S)
 
 def patch_liquid(html):
     """全站玻璃材質：底層極光光暈 + 卡片玻璃化。移除舊版再注入（冪等、可升級）。"""
-    if '</body>' not in html:
+    if '</body>' not in html or LIQUID in html:
         return html, False
     orig = html
     html = LIQUID_RE.sub('', html)
@@ -907,8 +907,10 @@ SCORECOLOR_RE = re.compile(r'<script id="scorecolor">.*?</script>', re.S)
 
 
 def patch_scorecolor(html):
-    """全站 0–100 分數統一沿極光色帶連續上色（含分類卡/支柱/動態清單），漲跌不動。"""
-    if '</body>' not in html:
+    """全站 0–100 分數統一沿極光色帶連續上色（含分類卡/支柱/動態清單），漲跌不動。
+
+    目前版本已在頁上 → 跳過（凍結位置，避免尾部順序抖動；理由見 patch_liquid）。"""
+    if '</body>' not in html or SCORECOLOR_JS in html:
         return html, False
     orig = html
     html = SCORECOLOR_RE.sub('', html)         # 移除舊版再重注入（保持冪等）
@@ -942,8 +944,10 @@ EMPTYHIDE_RE = re.compile(r'<script id="emptyhide">.*?</script>', re.S)
 
 
 def patch_emptyhide(html):
-    """把完全沒內容的動態容器（#wl/#res）與空 .card 自動隱藏，避免空白框。"""
-    if '</body>' not in html:
+    """把完全沒內容的動態容器（#wl/#res）與空 .card 自動隱藏，避免空白框。
+
+    目前版本已在頁上 → 跳過（凍結位置，避免尾部順序抖動；理由見 patch_liquid）。"""
+    if '</body>' not in html or EMPTYHIDE_JS in html:
         return html, False
     orig = html
     html = EMPTYHIDE_RE.sub('', html)          # 移除舊版再重注入（保持冪等）
@@ -1064,7 +1068,7 @@ function keyOf(t){return (t.indexOf("被動")>=0||t.indexOf("清")>=0)?"passive"
 function rgba(h,a){var r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),b=parseInt(h.slice(5,7),16);return "rgba("+r+","+g+","+b+","+a+")";}
 function glass(h){return "linear-gradient(180deg,"+rgba(h,0.22)+","+rgba(h,0.06)+")";}
 SEL.innerHTML='<option value="">— 選一個問題 —</option>'+Q.map(function(q,i){return '<option value="'+i+'">'+q+'</option>';}).join("");
-[].forEach.call(document.querySelectorAll(".card .name"),function(n){var k=keyOf(n.textContent||"");if(!k)return;var c=n.closest(".card");if(!c)return;cards[k]=c;DNAME[k]=(n.textContent||"").replace(/\s+/g,"");c.style.setProperty("background",glass(PCOL[k]),"important");c.style.setProperty("border-color",rgba(PCOL[k],0.5),"important");c.style.setProperty("box-shadow","inset 0 1px 0.5px rgba(255,255,255,.22)","important");var d=c.querySelector(".dot");if(d)d.style.setProperty("background",PCOL[k],"important");c.classList.add("askpick");c.addEventListener("click",function(){pick(k);});});
+[].forEach.call(document.querySelectorAll(".card .name"),function(n){var k=keyOf(n.textContent||"");if(!k)return;var c=n.closest(".card");if(!c)return;cards[k]=c;DNAME[k]=(n.textContent||"").replace(/\s+/g,"");c.style.setProperty("background",glass(PCOL[k]),"important");c.style.setProperty("border-color",rgba(PCOL[k],0.5),"important");c.style.setProperty("box-shadow","inset 0 1px 0.5px rgba(255,255,255,.22)","important");var d=c.querySelector(".dot");if(d)d.style.setProperty("background",PCOL[k],"important");c.classList.add("askpick");c.setAttribute("tabindex","0");c.setAttribute("role","button");c.setAttribute("aria-label","選擇 "+DNAME[k]);c.addEventListener("click",function(){pick(k);});c.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();pick(k);}});});
 function render(){if(cur===null||!SEL.value){AN.innerHTML="";return;}var i=+SEL.value,c=PCOL[cur];AN.innerHTML='<div class="bubble"><div class="av" style="background:'+c+'">'+ABBR[cur]+'</div><div class="bub" style="border-color:'+c+';background:'+glass(c)+'"><div class="bn" style="color:'+c+'">'+DNAME[cur]+'</div>'+A[cur][i]+'</div></div>';}
 function pick(k){cur=k;for(var x in cards){cards[x].style.outline=(x===k?"2px solid "+PCOL[k]:"");cards[x].style.outlineOffset="2px";}HINT.innerHTML="已選 <b style='color:"+PCOL[k]+"'>"+DNAME[k]+"</b>　選個問題，或點別位比較 👇";SEL.disabled=false;render();}
 SEL.addEventListener("change",render);
@@ -1073,7 +1077,7 @@ SEL.addEventListener("change",render);
 
 ASK_PANEL = (
     '<div class="section-title">🎤 換你問：點上面選一位，再選問題</div>'
-    '<div id="askpanel" data-v="ask15" style="background:linear-gradient(180deg,'
+    '<div id="askpanel" data-v="ask16" style="background:linear-gradient(180deg,'
     'rgba(255,255,255,.06),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.1);'
     'border-radius:16px;padding:15px 16px;margin-bottom:14px">'
     '<div id="askhint" class="lbl">👆 點上面任一張立場卡片，再從下拉選問題</div>'
@@ -1100,7 +1104,7 @@ ASK_PANEL = (
     'backdrop-filter:blur(18px) saturate(1.6);'
     'box-shadow:0 8px 26px rgba(0,0,0,.35),inset 0 1px 0.5px rgba(255,255,255,.18)}'
     '#askpanel .bn{font-weight:700;font-size:13px;margin-bottom:5px}'
-    '.card.askpick{cursor:pointer}'
+    '.card.askpick{cursor:pointer}.card.askpick:focus-visible{outline:2px solid #8b5cf6;outline-offset:2px}'
     '</style>'
     '<script>(function(){' + _ASK_DATA + _ASK_JS + '})();</script>'
 )
@@ -1225,7 +1229,7 @@ def patch_ask(html):
             break
 
     # 面板：引擎辯論段 → 換面板；舊面板 → 升級。只在還不是最新版時動。
-    if 'data-v="ask15"' not in html:
+    if 'data-v="ask16"' not in html:
         if '🔥 三方互嗆' in html:                # 引擎原版：替換辯論段（保留 .wrap 收尾 </div>）
             new = ASK_DEBATE_RE.sub(lambda m: ASK_PANEL + '</div>', html, count=1)
             if new != html:
@@ -1270,6 +1274,11 @@ def patch(html, fname):
     # 1d2) 全站 Liquid Glass 材質（底層極光光暈 + 卡片玻璃化）
     html, lq = patch_liquid(html)
     changed = changed or lq
+
+    # 1e0) 已注入的 howto 盒門檻字樣 43→45（模板早改了，但 id 守門不回改舊頁）
+    if '· <b>43–58＝中性</b>' in html:
+        html = html.replace('· <b>43–58＝中性</b>', '· <b>45–58＝中性</b>')
+        changed = True
 
     # 1e) 5 級圖例門檻 43→45 對齊引擎 ACTION_BANDS（修「減碼/正常」自打架）
     html, lt = patch_legend_threshold(html)

@@ -25,6 +25,9 @@ def _truncate_yh(yh: Dict, cutoff_ts: int) -> Dict:
         if idx < 5:
             continue
         out[k] = {"timestamps": ts[:idx],
+                  "open": (h.get("open") or [])[:idx],
+                  "high": (h.get("high") or [])[:idx],
+                  "low": (h.get("low") or [])[:idx],
                   "close": (h.get("close") or [])[:idx],
                   "volume": (h.get("volume") or [])[:idx],
                   "meta": h.get("meta", {})}

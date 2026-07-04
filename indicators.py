@@ -414,6 +414,8 @@ def _volatility(yh, key, name) -> Optional[Dict]:
     h = yh.get(key)
     if not h:
         return None
+    if not (h.get("high") and h.get("low") and h.get("close")):
+        return None                      # 缺高低價（如舊版回測截斷資料）→ 跳過
     a = A.atr(h.get("high"), h.get("low"), h.get("close"), 14)
     cl = A.last(h.get("close"))
     if a is None or not cl:
@@ -432,6 +434,8 @@ def _candle(yh, key, name) -> Optional[Dict]:
     h = yh.get(key)
     if not h:
         return None
+    if not (h.get("open") and h.get("high") and h.get("low") and h.get("close")):
+        return None                      # 缺 OHLC → 跳過
     ck = A.candle_read(h.get("open"), h.get("high"), h.get("low"), h.get("close"), h.get("volume"))
     if not ck:
         return None

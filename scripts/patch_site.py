@@ -21,27 +21,6 @@ BRAND = "Stock Tracker"
 APPLE_RE = re.compile(r'<link rel="apple-touch-icon"[^>]*>')
 TITLE_RE = re.compile(r'<title>(.*?)</title>', re.S)
 
-# --- 評分一致性 -----------------------------------------------------------
-# 中性（正常定額）下界。Bot 若退回舊的 45，43–44 分會被標成「減碼」與內文打架。
-NEUTRAL_LOW = 43
-# 圖例分界正規化：把舊的 45 分界字樣改回 43（沒有就不動）
-LEGEND_FIXES = [
-    (">35–45 減碼<", ">35–43 減碼<"),
-    (">45–58 正常定額<", ">43–58 正常定額<"),
-]
-# 中性段的精準輸出（只在 43–44 被標錯時才套用）
-NEUTRAL_BADGE = ('<span class="badge" style="background:var(--amber);'
-                 'color:#0e1116">中性（正常定額）</span>')
-NEUTRAL_VERDICT = "中性，維持原本的定期定額節奏即可。"
-COMPOSITE_RE = re.compile(r'"composite":\s*([0-9.]+)')
-# 徽章 + 分數 h2 + 評語 三件一組
-VERDICT_RE = re.compile(
-    r'<span class="badge" style="background:[^"]*;color:#0e1116">[^<]*</span>'
-    r'(<h2>進場分數 [0-9.]+</h2>)'
-    r'<p>[^<]*</p>'
-)
-
-
 # --- 直覺化 UX --------------------------------------------------------------
 # 「這個分數怎麼用」說明盒（原生 <details>，免 JS；以 id="howto" 判斷是否已注入）
 HOWTO_BOX = (
@@ -54,7 +33,7 @@ HOWTO_BOX = (
     '我把下面這些指標壓成一個 0–100 分：<br>'
     '· <b style="color:#34d07f">分數高</b>＝數據偏多，這個月定期定額可以<b>比平常多扣一點</b><br>'
     '· <b style="color:#ef5d5d">分數低</b>＝偏空，<b>少扣、留點銀彈</b>等更好的價位<br>'
-    '· <b>43–58＝中性</b>，維持原本節奏就好<br>'
+    '· <b>45–58＝中性</b>，維持原本節奏就好<br>'
     '重點：這<b>不是</b>叫你買哪一支股票，而是幫你決定「這個月該<b>積極還是保守</b>」。'
     '⚠️ 非投資建議</div></details>'
 )
@@ -95,30 +74,6 @@ def patch_ux(html):
         if old in html:
             html = html.replace(old, new)
             changed = True
-
-    return html, changed
-
-
-def patch_scoring(html):
-    """只處理會因『45 vs 43 分界』而標錯的唯一區間，其餘一律不碰 Bot 輸出。"""
-    changed = False
-
-    # A) 圖例分界一律正規化成 43
-    for old, new in LEGEND_FIXES:
-        if old in html:
-            html = html.replace(old, new)
-            changed = True
-
-    # B) 只有當分數落在 43–44（會因分界不同而標錯）且徽章不是中性時，才修正
-    m = COMPOSITE_RE.search(html)
-    if m:
-        score = float(m.group(1))
-        if NEUTRAL_LOW <= score < 45:
-            vm = VERDICT_RE.search(html)
-            if vm and "中性（正常定額）" not in vm.group(0):
-                fixed = NEUTRAL_BADGE + vm.group(1) + f"<p>{NEUTRAL_VERDICT}</p>"
-                html = html[:vm.start()] + fixed + html[vm.end():]
-                changed = True
 
     return html, changed
 
@@ -686,6 +641,8 @@ def patch_dcatrack(html):
     """index：計算機下方注入定額計畫追蹤 widget（localStorage）。"""
     if 'id="gauge"' not in html or 'id="calc"' not in html:
         return html, False                        # 只動大盤首頁
+    if 'id="dcatrack"' in html and '<!--dcatrack-->' not in html:
+        return html, False                        # 引擎原生版（無標記）→ 不重複注入
     if '<div class="legend"' not in html:
         return html, False
     orig = html
@@ -1330,10 +1287,8 @@ def patch(html, fname):
         html = new
         changed = True
 
-    # 3) 評分一致性 + 直覺化 UX（只有含評語區塊的儀表板頁才處理）
+    # 3) 直覺化 UX（只有含評語區塊的儀表板頁才處理）
     if 'class="verdict"' in html:
-        html, sc = patch_scoring(html)
-        changed = changed or sc
         html, ux = patch_ux(html)
         changed = changed or ux
 

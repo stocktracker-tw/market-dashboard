@@ -98,7 +98,7 @@ const fmt=v=>(v>0?'+':'')+v.toFixed(1);
   const g=echarts.init(el,null,{renderer:'canvas'});
   g.setOption({series:[{type:'gauge',min:0,max:100,radius:'100%',center:['50%','62%'],
     startAngle:210,endAngle:-30,
-    axisLine:{lineStyle:{width:16,color:[[0.35,C.red],[0.45,'#f6862a'],[0.58,C.amber],[0.70,'#7cc24a'],[1,C.green]]}},
+    axisLine:{lineStyle:{width:16,color:[[0.35,'#8b5cf6'],[0.6,'#4f86ff'],[0.8,'#34b8e5'],[1,'#1fe0d0']]}},
     pointer:{width:5,length:'62%',itemStyle:{color:'#e7ebf3'}},
     axisTick:{show:false},splitLine:{length:14,lineStyle:{color:'#39414f'}},
     axisLabel:{color:'#8590a3',fontSize:10,distance:-30},

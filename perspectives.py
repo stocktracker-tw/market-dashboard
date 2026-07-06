@@ -61,18 +61,7 @@ def assess(result: Dict, indicators: List[Dict], regime: Optional[Dict],
 
     out = []
 
-    # 1) 被動指數派——立場永遠不變，這正是它的觀點
-    out.append({
-        "name": "被動指數派", "school": "指數化／被動投資",
-        "principles": "市場有效・反對擇時・低成本・全球分散・定期定額不間斷・長期持有・定期再平衡",
-        "lean": "照表操課（不擇時）", "lean_light": "amber",
-        "take": ("在這套框架下，綜合分數 %s、噴發、景氣紅燈……都是雜訊。建議：維持原定定期定額"
-                 "（0050／VT 之類）不間斷，把力氣放在**降低成本、股債資產配置與再平衡**，而不是加減碼。"
-                 "這派會直接質疑這支『擇時』工具的前提——長期而言擇時勝率低於紀律定額。"
-                 % (("%.0f" % comp) if comp is not None else "—")),
-    })
-
-    # 2) 總經循環派——lean 跟著景氣循環位置走，內文引用當天的循環/利率/槓桿數據
+    # 大環境水位（總經派升格為頂部橫幅：它本來就「選階段不選股」）
     if phase in ("過熱", "滯脹"):
         lean, light = "偏防禦、重質、控風險", "red"
     elif phase in ("趨緩/衰退",):
@@ -88,17 +77,13 @@ def assess(result: Dict, indicators: List[Dict], regime: Optional[Dict],
         macro_bits.append("殖利率曲線 %s" % _disp(ust))
     if margin_chasing:
         macro_bits.append("散戶融資槓桿在升溫")
-    out.append({
-        "name": "總經循環派", "school": "由上而下總經／景氣循環",
-        "principles": "景氣循環位置・流動性・利率與債市・信用利差・由上而下",
-        "lean": lean, "lean_light": light,
-        "take": ("由總經看：%s。%s這套框架會**緊盯流動性與信用轉折、重基本面與現金流**，"
-                 "而非追估值或題材。"
-                 % ("、".join(macro_bits),
-                    (implication + "。") if implication else "")),
-    })
+    env_line = {"lean": lean, "light": light,
+                "text": ("總經水位：%s。%s" % ("、".join(macro_bits),
+                         (implication + "。") if implication else ""))}
+    anchor_line = ("被動派的永恆答案：照原定定額買 0050／VT、別擇時——"
+                   "本頁所有擇時內容，都該先過得了這一句再說。")
 
-    # 3) 順勢紀律派——lean 跟著趨勢支柱與噴發/融資狀態走
+    # 1) 順勢紀律派——lean 跟著趨勢支柱與噴發/融資狀態走
     if trend_p >= 50 and (status == "噴發中" or margin_chasing):
         lean, light = "參與但留銀彈、別重壓", "amber"
         risks = []
@@ -122,7 +107,7 @@ def assess(result: Dict, indicators: List[Dict], regime: Optional[Dict],
         "lean": lean, "lean_light": light, "take": take,
     })
 
-    # 4) 價值派——lean 跟著估值支柱走，內文引用當天的估值與回檔數據
+    # 2) 價值派——lean 跟著估值支柱走，內文引用當天的估值與回檔數據
     tw_val = _ind(indicators, "台股估值")
     dd_tw = _ind(indicators, "台股距高點回檔")
     dd_us = _ind(indicators, "美股距高點回檔")
@@ -150,7 +135,7 @@ def assess(result: Dict, indicators: List[Dict], regime: Optional[Dict],
                  % ("、".join(val_bits) if val_bits else "估值資料本次缺漏", val_p, vline)),
     })
 
-    # 5) 籌碼派——lean 跟著籌碼支柱走，內文引用法人/融資/台指期未平倉實際數字
+    # 3) 籌碼派——lean 跟著籌碼支柱走，內文引用法人/融資/台指期未平倉實際數字
     inst = _ind(indicators, "法人買賣超")
     diverg = _ind(indicators, "背離")
     if chips_p >= 58:
@@ -191,21 +176,19 @@ def assess(result: Dict, indicators: List[Dict], regime: Optional[Dict],
                     chips_p, div_note, cline)),
     })
 
-    # 各派選股（同一個股票池、三種選法；被動/總經不選股是它們的觀點）
+    # 各派選股（同一個股票池、三種選法）
     pk = picks or {}
-    out[0]["picks_note"] = "0050／VT——答案永遠一樣，這正是這派的重點：買市場本身，不猜誰是明星"
-    out[1]["picks_note"] = ("不選股、選階段：循環位置決定曝險高低，" 
-                            "個股是 beta 的載體而已" if phase else None)
-    out[2]["picks"] = pk.get("trend") or None
-    out[3]["picks"] = pk.get("value") or None
-    out[4]["picks"] = pk.get("chips") or None
+    out[0]["picks"] = pk.get("trend") or None
+    out[1]["picks"] = pk.get("value") or None
+    out[2]["picks"] = pk.get("chips") or None
 
     # 元素 0 = 摘要（頁面目前不渲染辯論；欄位保留給其他模組引用）
     band = result.get("band", "")
     cscore = ("%.0f" % comp) if comp is not None else "—"
-    synthesis = ("【五派速覽】被動派照買不動；總經派%s；順勢派%s；價值派%s；籌碼派%s。\n"
-                 "五套邏輯彼此矛盾——被動派根本反對其餘四派擇時——正解取決於你信哪一套。\n"
+    synthesis = ("【三派速覽】順勢派%s；價值派%s；籌碼派%s（大環境：%s）。\n"
+                 "三套邏輯彼此矛盾，正解取決於你信哪一套；而被動派會說這些全是雜訊。\n"
                  "目前工具分數 %s（%s）。以上皆為策略流派框架推演、非投資建議。"
-                 % (out[1]["lean"], out[2]["lean"], out[3]["lean"], out[4]["lean"],
+                 % (out[0]["lean"], out[1]["lean"], out[2]["lean"], env_line["lean"],
                     cscore, band))
-    return [{"synthesis": synthesis}] + out
+    return [{"synthesis": synthesis, "env_line": env_line,
+             "anchor_line": anchor_line}] + out

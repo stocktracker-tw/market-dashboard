@@ -482,12 +482,12 @@ def render(result: Dict, indicators: List[Dict], score_history: List, meta: Dict
                          'Object.keys(BT).forEach(function(id){var el=document.getElementById(id);if(!el)return;'
                          'var d=BT[id];var c=echarts.init(el);'
                          'c.setOption({grid:{left:46,right:14,top:34,bottom:28},'
-                         'legend:{data:["固定定額","主動・逆勢"],textStyle:{color:"#cdd5e3"},top:4},'
+                         'legend:{data:["固定定額","主動"],textStyle:{color:"#cdd5e3"},top:4},'
                          'tooltip:{trigger:"axis"},'
                          'xAxis:{type:"category",data:d.labels,axisLabel:{color:"#8590a3",fontSize:10}},'
                          'yAxis:{type:"value",scale:true,axisLabel:{color:"#8590a3",fontSize:10,formatter:function(v){return v.toFixed(2);}}},'
                          'series:[{name:"固定定額",type:"line",data:d.fixed,smooth:true,symbol:"none",lineStyle:{color:"#94a0b4",width:2}},'
-                         '{name:"主動・逆勢",type:"line",data:d.active,smooth:true,symbol:"none",lineStyle:{color:"#5b9cff",width:2.5}}]});'
+                         '{name:"主動",type:"line",data:d.active,smooth:true,symbol:"none",lineStyle:{color:"#5b9cff",width:2.5}}]});'
                          'setTimeout(function(){c.resize();},60);'
                          'window.addEventListener("resize",function(){c.resize();});});}'
                          'if(document.readyState==="complete"){init();}else{window.addEventListener("load",init);}'
@@ -510,15 +510,22 @@ def render(result: Dict, indicators: List[Dict], score_history: List, meta: Dict
             for pp in perspectives[1:])
         leans = [pp.get("lean_light") for pp in perspectives[1:]]
         n_red, n_green = leans.count("red"), leans.count("green")
-        cons = ("五派罕見偏空——分歧比共識更常見，這值得注意" if n_red >= 3 else
-                "五派難得偏多——但別忘了它們平常互相反對" if n_green >= 3 else
-                "五派立場分歧（常態）——正解取決於你信哪一套")
+        cons = ("三派罕見同偏空——分歧才是常態，這值得注意" if n_red >= 2 else
+                "三派偏多居多——但別忘了它們平常互相反對" if n_green >= 2 else
+                "三派立場分歧（常態）——正解取決於你信哪一套")
+        env = perspectives[0].get("env_line") or {}
+        env_row = ('<div style="display:flex;align-items:baseline;gap:8px;padding:3px 0;'
+                   'border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:4px">'
+                   '<span class="dot" style="background:var(--%s);flex:none;align-self:center"></span>'
+                   '<b style="flex:none;font-size:13px">🌐 大環境</b>'
+                   '<span style="color:var(--muted);font-size:12.5px">%s</span></div>'
+                   % (env.get("light", "amber"), _esc(env.get("lean", "")))) if env else ''
         parts.append('<div class="card" style="grid-template-columns:1fr"><div class="note" style="grid-column:1/3">'
-                     + rows +
+                     + env_row + rows +
                      '<div style="font-size:12px;color:var(--muted);margin-top:6px">%s</div>'
                      '<a href="perspectives.html" style="display:inline-block;margin-top:8px">'
-                     '五派完整說法＋各派選股 →</a>'
-                     '<br><span style="color:var(--muted);font-size:11.5px">以公開投資流派為框架・非投資建議</span>'
+                     '三派完整說法＋各派選股 →</a>'
+                     '<br><span style="color:var(--muted);font-size:11.5px">⚓ 被動派永遠的答案：照原定定額買 0050、別擇時。以公開投資流派為框架・非投資建議</span>'
                      '</div></div>' % cons)
 
     # AI 噴發 / 泡沫 情境面板
@@ -660,11 +667,19 @@ def render_perspectives_page(perspectives: List, meta: Dict) -> str:
     p: List[str] = [_HEAD.replace("__REFRESH__", str(REFRESH_SECONDS))]
     p.append(nav("debate", include_css=True))
     p.append('<div class="wrap">')
-    p.append('<h1>🗣️ 市場觀點・問五方 <span style="font-size:14px;color:var(--muted)">同一份數據・五種解讀</span></h1>')
+    p.append('<h1>🗣️ 市場觀點・問三派 <span style="font-size:14px;color:var(--muted)">同一份數據・三派解讀</span></h1>')
     p.append('<div class="sub">資料時間：%s　｜　以公開投資流派為「框架」推演・<b>非本人發言・非投資建議</b></div>'
              % _esc(meta.get("generated_at", "")))
     if perspectives and len(perspectives) > 1:
-        p.append('<div class="section-title">五方立場</div>')
+        env = perspectives[0].get("env_line")
+        if env:
+            p.append('<div class="card" style="grid-template-columns:1fr;margin-bottom:14px">'
+                     '<div class="note" style="grid-column:1/3;display:flex;gap:9px;align-items:baseline">'
+                     '<span class="dot" style="background:var(--%s);flex:none;align-self:center"></span>'
+                     '<span>🌐 <b>%s</b>　%s</span></div></div>'
+                     % (env.get("light", "amber"), _esc(env.get("lean", "")),
+                        _esc(env.get("text", ""))))
+        p.append('<div class="section-title">三派立場</div>')
         p.append('<div class="grid">')
         for pp in perspectives[1:]:
             p.append('<div class="card">')
@@ -689,6 +704,10 @@ def render_perspectives_page(perspectives: List, meta: Dict) -> str:
                          '📌 %s</div>' % _esc(pp["picks_note"]))
             p.append('</div>')
         p.append('</div>')
+        anchor = perspectives[0].get("anchor_line")
+        if anchor:
+            p.append('<div style="font-size:12px;color:var(--muted);margin:2px 2px 14px">'
+                     '⚓ %s</div>' % _esc(anchor))
         p.append(ASK_PANEL)
     else:
         p.append('<div class="card"><div class="note">本次無觀點資料。</div></div>')

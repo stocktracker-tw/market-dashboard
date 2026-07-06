@@ -36,7 +36,6 @@ import backtest as bt
 
 MONTHS = 84          # 回測月數（約 7 年；受資料長度限制會自動縮短）
 BASE = 10000.0       # 每月基準投入金額
-BIASES = [("逆勢", 1.0), ("趨勢中性", 0.5), ("順勢", 0.0)]
 
 SIG_SYMBOLS = {       # 算分數要用的訊號代碼（價格序列有多年歷史）
     "^VIX": "vix", "^VIX3M": "vix3m", "^GSPC": "spx", "^TWII": "twii",
@@ -150,32 +149,32 @@ def run():
     master = sorted(spy_map)[-MONTHS:]
     log("回測區間：%s ~ %s（%d 個月）" % (master[0], master[-1], len(master)))
 
-    # 各立場逐月分數 → 倍數
-    log("逐月計算分數（三種立場）…")
-    orig = getattr(cfg, "MEAN_REVERSION_BIAS", 1.0)
-    score_mult = {b: {} for _, b in BIASES}
-    pillar_hist = {}     # (year,month) -> {pillar_key: score, "composite": comp}（orig bias 那輪）
-    rec_bias = orig if orig in {b for _, b in BIASES} else BIASES[0][1]
-    for _, b in BIASES:
-        cfg.MEAN_REVERSION_BIAS = b
-        for key in master:
-            epoch, d, _ = spy_map[key]
-            asof = {
-                "yh": bt._truncate_yh(sig, epoch),
-                "cpi": bt._cpi_asof(cpi, d.strftime("%Y-%m")),
-                "ust": bt._ust_asof(ust, d.strftime("%Y-%m-%d")),
-                "ndc": bt._ndc_asof(ndc, d.strftime("%Y%m")),
-                "val": None, "turnover": None, "tw_hist": [],
-            }
-            inds = ind_mod.compute_all(asof)
-            agg = scoring.aggregate(inds) if inds else None
-            comp = agg["composite"] if agg else 50.0
-            score_mult[b][key] = scoring._interpret(comp)[2]
-            if agg and b == rec_bias:
-                ph = {p["key"]: p["score"] for p in agg["pillars"]}
-                ph["composite"] = comp
-                pillar_hist[key] = ph
-    cfg.MEAN_REVERSION_BIAS = orig
+    # 逐月分數 → 倍數（bias 機制已移除：三立場曲線本就因死指標權重歸零而完全重合）
+    log("逐月計算分數…")
+    score_mult = {}
+    pillar_hist = {}     # (year,month) -> {pillar_key: score, "composite": comp}
+    ind_hist = {}        # ind_key -> {(year,month): score}（指標成績單用）
+    ind_names = {}
+    for key in master:
+        epoch, d, _ = spy_map[key]
+        asof = {
+            "yh": bt._truncate_yh(sig, epoch),
+            "cpi": bt._cpi_asof(cpi, d.strftime("%Y-%m")),
+            "ust": bt._ust_asof(ust, d.strftime("%Y-%m-%d")),
+            "ndc": bt._ndc_asof(ndc, d.strftime("%Y%m")),
+            "val": None, "turnover": None, "tw_hist": [],
+        }
+        inds = ind_mod.compute_all(asof)
+        agg = scoring.aggregate(inds) if inds else None
+        comp = agg["composite"] if agg else 50.0
+        score_mult[key] = scoring._interpret(comp)[2]
+        if agg:
+            ph = {p["key"]: p["score"] for p in agg["pillars"]}
+            ph["composite"] = comp
+            pillar_hist[key] = ph
+            for i0 in inds:
+                ind_hist.setdefault(i0["key"], {})[key] = i0["score"]
+                ind_names[i0["key"]] = i0["name"]
 
     # 各資產 × 策略 模擬
     results = {}
@@ -184,9 +183,8 @@ def run():
         keys = [k for k in master if k in amap]
         if len(keys) < 12:
             continue
-        rows = {"固定定額": simulate(keys, amap, lambda k: 1.0)}
-        for bname, b in BIASES:
-            rows["主動・" + bname] = simulate(keys, amap, lambda k, b=b: score_mult[b][k])
+        rows = {"固定定額": simulate(keys, amap, lambda k: 1.0),
+                "主動": simulate(keys, amap, lambda k: score_mult[k])}
         results[sym] = {"label": label, "rows": rows, "keys": keys}
 
     try:
@@ -199,7 +197,12 @@ def run():
     except Exception as e:                     # noqa: BLE001 — IC 失敗不擋回測報告
         ic_html = None
         log("支柱 IC 計算略過：%s" % str(e)[:120])
-    validation = (validation or "") + (ic_html or "")
+    try:
+        report_html = indicator_report_card(ind_hist, ind_names, sig)
+    except Exception as e:                     # noqa: BLE001 — 成績單失敗不擋回測報告
+        report_html = None
+        log("指標成績單略過：%s" % str(e)[:120])
+    validation = (validation or "") + (ic_html or "") + (report_html or "")
     render_html(results, master, validation or None)
     print_summary(results)
 
@@ -391,6 +394,57 @@ def pillar_ic_card(pillar_hist, sig):
     return "".join(parts)
 
 
+def indicator_report_card(ind_hist, ind_names, sig):
+    """📋 指標成績單：每個（可歷史重算的）指標的月度 IC → 排序列表。
+
+    這是「讓數據決定去留」的裁判：|IC| 長期趨近 0 的指標是刪除候選。
+    僅涵蓋回測算得出來的指標（法人/融資/PTT 等無 10 年史料者不在此列，
+    其去留由每日累積的 history 與體檢卡另行判斷）。
+    """
+    if not ind_hist:
+        return None
+    tmap = monthly_map(sig.get("twii") or {})
+    def _midx(k):
+        return k[0] * 12 + k[1]
+    rows = []
+    for ikey, hist in ind_hist.items():
+        keys = [k for k in sorted(hist) if k in tmap]
+        if len(keys) < 15:
+            continue
+        pairs = []
+        for i, k in enumerate(keys):
+            if i + 3 < len(keys) and _midx(keys[i + 3]) - _midx(k) == 3:
+                pairs.append((hist[k], tmap[keys[i + 3]][2] / tmap[k][2] - 1.0))
+        ic = _spearman([a for a, _ in pairs], [b for _, b in pairs]) if pairs else None
+        if ic is not None:
+            rows.append((ic, len(pairs), ikey))
+    if not rows:
+        return None
+    rows.sort(key=lambda r: -abs(r[0]))
+    parts = ['<div class="card"><h2>📋 指標成績單：誰在做事、誰在划水？</h2>',
+             '<div style="font-size:12.5px;color:#94a0b4;margin-bottom:10px">'
+             '各指標月度分數 vs 台股加權未來 3 個月報酬的 Spearman IC，按辨識力排序。'
+             '雜訊帶約 ±0.11——<b>長期趴在雜訊帶裡的指標是刪除候選</b>（讓數據決定去留，'
+             '而不是捨不得）。僅列可歷史重算的指標；正 IC＝分數高之後漲。</div>']
+    mx = max(abs(r[0]) for r in rows) or 1.0
+    for ic, n, ikey in rows:
+        color = "#ea5455" if ic >= 0 else "#28c76f"
+        noise = ' <span style="color:#5f6b80;font-size:10.5px">趴在雜訊帶</span>' if abs(ic) < 0.11 else ""
+        parts.append(
+            '<div style="display:flex;align-items:center;gap:10px;margin:4px 0;font-size:12px">'
+            '<span style="flex:none;width:190px;color:#cdd5e3">%s%s</span>'
+            '<span style="flex:1;height:11px;position:relative">'
+            '<span style="position:absolute;left:0;top:0;bottom:0;width:%.0f%%;'
+            'background:%s;border-radius:4px;opacity:.7"></span></span>'
+            '<b style="flex:none;width:52px;text-align:right;color:%s">%+.2f</b>'
+            '<span style="flex:none;width:40px;color:#5f6b80;font-size:10.5px">n=%d</span></div>'
+            % (ind_names.get(ikey, ikey), noise, abs(ic) / mx * 100, color, color, ic, n))
+    parts.append('<div style="font-size:11.5px;color:#5f6b80;margin-top:8px">'
+                 '注意：單一時間序列、月資料、同一市場環境；總經類含輕微 look-ahead。'
+                 '刪指標前先看它是否在別的環境有價值（如恐慌類平時無用、崩盤時救命）。</div></div>')
+    return "".join(parts)
+
+
 # ---------------- HTML ----------------
 def render_html(results, master, validation=None):
     C = {"green": "#28c76f", "amber": "#f6a821", "red": "#ea5455", "accent": "#5b9cff"}
@@ -452,7 +506,7 @@ thead th{color:#94a0b4;font-weight:600}
         chart_data[sym] = {
             "labels": blk["rows"]["固定定額"]["labels"],
             "fixed": [round(x, 3) for x in blk["rows"]["固定定額"]["efficiency"]],
-            "active": [round(x, 3) for x in blk["rows"]["主動・逆勢"]["efficiency"]],
+            "active": [round(x, 3) for x in blk["rows"]["主動"]["efficiency"]],
         }
 
     parts.append('<div class="foot">資料來源：Yahoo Finance（還原權值）、BLS、美國財政部、國發會。'
@@ -466,12 +520,12 @@ Object.keys(CH).forEach(function(sym){
   var el=document.getElementById(id); if(!el)return;
   var d=CH[sym]; var c=echarts.init(el);
   c.setOption({grid:{left:44,right:12,top:18,bottom:24},
-    legend:{data:['固定定額','主動・逆勢'],textStyle:{color:'#cdd5e3'},top:0},
+    legend:{data:['固定定額','主動'],textStyle:{color:'#cdd5e3'},top:0},
     tooltip:{trigger:'axis'},
     xAxis:{type:'category',data:d.labels,axisLabel:{color:'#8590a3',fontSize:10}},
     yAxis:{type:'value',scale:true,axisLabel:{color:'#8590a3',fontSize:10}},
     series:[{name:'固定定額',type:'line',data:d.fixed,smooth:true,symbol:'none',lineStyle:{color:'#94a0b4',width:2}},
-            {name:'主動・逆勢',type:'line',data:d.active,smooth:true,symbol:'none',lineStyle:{color:C.accent,width:2}}]});
+            {name:'主動',type:'line',data:d.active,smooth:true,symbol:'none',lineStyle:{color:C.accent,width:2}}]});
   window.addEventListener('resize',function(){c.resize();});
 });
 </script></div></body></html>""")

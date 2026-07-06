@@ -21,19 +21,6 @@ def band(score: float) -> str:
     return "amber"          # 中性
 
 
-def _stance(contrarian_score: float) -> float:
-    """依 config.MEAN_REVERSION_BIAS 在『逆勢分數』與其鏡像『順勢分數』間內插。
-    bias=1.0 → 純逆勢（原樣）；0.0 → 純動能；0.5 → 趨勢不表態(≈50)。"""
-    b = getattr(cfg, "MEAN_REVERSION_BIAS", 1.0)
-    momentum_score = 100 - contrarian_score
-    return b * contrarian_score + (1 - b) * momentum_score
-
-
-def _stance_label() -> str:
-    b = getattr(cfg, "MEAN_REVERSION_BIAS", 1.0)
-    return "逆勢" if b >= 0.75 else "順勢" if b <= 0.25 else "趨勢中性"
-
-
 def _ind(key, name, category, value_display, score, note,
          series=None, weight=1.0, detail=None) -> Dict:
     score = round(float(A.clamp(score, 0, 100)), 1)
@@ -286,55 +273,6 @@ def _business_signal(ndc) -> Optional[Dict]:
 # =====================================================================
 # 趨勢 / 動能
 # =====================================================================
-def _trend(yh, key, name) -> Optional[Dict]:
-    s = A.clean(_yh_close(yh, key))
-    if len(s) < 60:
-        return None
-    dist = A.dist_from_ma(s, 200)
-    r = A.rsi(s, 14)
-    parts, scores = [], []
-    if dist is not None:
-        ds = A.piecewise(dist, [(-0.20, 92), (-0.10, 80), (-0.03, 64),
-                                (0.03, 52), (0.08, 42), (0.15, 30), (0.25, 20)])
-        scores.append(ds)
-        parts.append("距200日均 %+.1f%%" % (dist * 100))
-    if r is not None:
-        rs = A.piecewise(r, [(20, 90), (30, 78), (40, 64), (50, 52),
-                             (60, 42), (70, 30), (80, 20)])
-        scores.append(rs)
-        parts.append("RSI %.0f" % r)
-    if not scores:
-        return None
-    score = _stance(sum(scores) / len(scores))
-    if _stance_label() == "順勢":
-        note = "目前採『順勢』立場：站上均線/強勢＝加碼機會，超賣＝避免接刀。"
-    elif _stance_label() == "趨勢中性":
-        note = "目前採『趨勢中性』立場：趨勢面不主動左右分數。"
-    else:
-        note = "綜合均線乖離與 RSI：超賣/低於均線＝逆向加碼機會；超買/遠高於均線＝追高風險。"
-    return _ind("trend_" + key, name, "trend", "　".join(parts), score, note,
-                series=s[-120:], weight=1.0)
-
-
-def _rel_strength(yh) -> Optional[Dict]:
-    tw = A.clean(_yh_close(yh, "twii"))
-    us = A.clean(_yh_close(yh, "spx"))
-    if len(tw) < 70 or len(us) < 70:
-        return None
-    a = A.pct_change(tw, 60)
-    b = A.pct_change(us, 60)
-    if a is None or b is None:
-        return None
-    diff = a - b
-    score = _stance(A.clamp(50 - (diff / 0.10) * 15, 35, 65))
-    note = ("台股近60日 %+.1f%%、美股 %+.1f%%（相對 %+.1f%%）。"
-            % (a * 100, b * 100, diff * 100)) + (
-            "台股相對落後時補漲機會較高。" if _stance_label() != "順勢"
-            else "（順勢立場：台股相對強勢時才視為機會。）")
-    return _ind("rel", "台股 vs 美股 相對強弱", "trend",
-                "相對 %+.1f%%" % (diff * 100), score, note, weight=0.5)
-
-
 # =====================================================================
 # A・長期趨勢品質（不採 mean-reversion，純看趨勢結構）
 # =====================================================================
@@ -623,10 +561,7 @@ def compute_all(data: Dict) -> List[Dict]:
         _drawdown(yh, "spx", "美股距高點回檔（S&P500）"),
         _drawdown(yh, "twii", "台股距高點回檔（加權）"),
         _cpi(cpi), _yield_curve(ust), _dxy(yh), _copper_gold(yh), _business_signal(ndc),
-        _trend(yh, "spx", "美股趨勢（S&P500）"),
-        _trend(yh, "twii", "台股趨勢（加權指數）"),
-        _rel_strength(yh),
-        # A・長期趨勢品質（直接看趨勢結構，修掉「趨勢面向空轉」）
+        # A・長期趨勢品質（直接看趨勢結構）
         _trend_quality(yh, "twii", "台股長期趨勢品質"),
         _trend_quality(yh, "spx", "美股長期趨勢品質", weight=1.0),
         # C・技術面擴充

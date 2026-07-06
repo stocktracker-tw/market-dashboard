@@ -22,6 +22,8 @@ try:
 except Exception:
     pass
 
+import subprocess
+
 import config as cfg
 import sources as src
 import indicators as ind_mod
@@ -167,6 +169,42 @@ def pillar_attribution(result):
 
 
 # ----------------------------- 主流程 -----------------------------
+def self_update():
+    """開跑前自動同步 engine-src；有更新就以新程式碼重新啟動自己（僅一次）。
+
+    設計：
+    - --ff-only：本機有髒改動就放棄更新、照常用現有版本跑（絕不卡住排程）。
+    - 更新成功且 HEAD 有變 → 以子行程重跑自己並沿用參數，防迴圈用環境變數擋第二次。
+    - 任何失敗都只印一行、不擋主流程。可用 ST_NO_SELFUPDATE=1 完全停用。
+    """
+    if os.environ.get("ST_NO_SELFUPDATE"):
+        return False
+    base = os.path.dirname(os.path.abspath(__file__))
+    remote = getattr(cfg, "ENGINE_GIT_REMOTE", "dash")
+    def _git(*args, timeout=120):
+        return subprocess.run(["git", "-C", base] + list(args),
+                              capture_output=True, text=True, timeout=timeout)
+    try:
+        before = _git("rev-parse", "HEAD", timeout=30).stdout.strip()
+        r = _git("pull", "--ff-only", remote, "engine-src")
+        after = _git("rev-parse", "HEAD", timeout=30).stdout.strip()
+        if r.returncode != 0:
+            tail = (r.stderr or r.stdout or "").strip().splitlines()
+            log("自動更新略過（%s）——照常用現有版本跑" % (tail[-1][:120] if tail else "git 非零返回"))
+            return False
+        if before and after and before != after:
+            log("引擎已自動更新 %s → %s，以新版重新啟動…" % (before[:7], after[:7]))
+            env = dict(os.environ)
+            env["ST_NO_SELFUPDATE"] = "1"
+            child = subprocess.run([sys.executable, "-X", "utf8",
+                                    os.path.abspath(__file__)] + sys.argv[1:], env=env)
+            sys.exit(child.returncode)
+        log("引擎已是最新（%s）" % (after[:7] or "?"))
+    except Exception as e:                         # noqa: BLE001 — 自動更新永不擋主流程
+        log("自動更新略過：%s" % str(e)[:120])
+    return False
+
+
 def run(open_browser=False):
     os.makedirs(cfg.DATA_DIR, exist_ok=True)
     os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
@@ -430,4 +468,5 @@ def run(open_browser=False):
 
 
 if __name__ == "__main__":
+    self_update()                          # 先自我更新（有新版會重啟自己）
     run(open_browser=("--open" in sys.argv))

@@ -205,8 +205,19 @@ def run(open_browser=False):
     log("更新台股三大法人/融資歷史…")
     tw_hist = update_tw_history()
 
+    log("抓取 PTT 散戶情緒…")
+    try:
+        ptt = src.ptt_stock_sentiment()
+    except Exception:                              # noqa: BLE001 — 情緒指標非必要
+        ptt = None
+    if ptt:
+        log("PTT 標的文多空：看多 %d、看空 %d、爆文 %d" %
+            (ptt.get("bull", 0), ptt.get("bear", 0), ptt.get("hot", 0)))
+    else:
+        log("PTT 情緒抓不到（本次略過，該指標自動退出加權）")
+
     data = {"yh": yh, "cpi": cpi, "ust": ust, "val": val,
-            "turnover": turnover, "ndc": ndc, "tw_hist": tw_hist}
+            "turnover": turnover, "ndc": ndc, "tw_hist": tw_hist, "ptt": ptt}
 
     log("計算指標與綜合分數…")
     indicators = ind_mod.compute_all(data)

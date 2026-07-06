@@ -579,6 +579,32 @@ def _volume(turnover, yh) -> Optional[Dict]:
 # =====================================================================
 # 組裝
 # =====================================================================
+def _ptt_sentiment(ptt) -> Optional[Dict]:
+    """散戶情緒溫度計（PTT，逆勢）：標的文一面倒看多＝過熱、一面倒看空＝恐慌打折。
+
+    與融資餘額、法人散戶背離同族：反映「散戶在想什麼」，方向反著用。
+    樣本 <6 篇不表態；爆文連發會放大原方向（看多爆文=更過熱、看空爆文=恐慌高潮）。
+    """
+    if not ptt:
+        return None
+    b, brs = ptt.get("bull", 0), ptt.get("bear", 0)
+    n = b + brs
+    if n < 6:
+        return None
+    ratio = b / n * 100.0
+    score = A.piecewise(ratio, [(15, 74), (30, 64), (45, 55), (60, 48), (75, 40), (90, 30)])
+    hot = ptt.get("hot", 0)
+    if ratio >= 60 and hot >= 3:
+        score -= 4
+    elif ratio <= 30 and hot >= 3:
+        score += 4
+    cached = "（快取）" if ptt.get("_cached") else ""
+    note = ("PTT Stock 近 %d 篇標的文：看多 %.0f%%、全板爆文 %d 篇。逆勢指標——散戶"
+            "一面倒看多＝過熱訊號；一面倒看空、恐慌洗版＝歷史上常是分批撿貨區。" % (n, ratio, hot))
+    return _ind("ptt", "散戶情緒溫度計（PTT）", "chips",
+                "看多 %.0f%%・n=%d%s" % (ratio, n, cached), score, note, weight=0.6)
+
+
 def compute_all(data: Dict) -> List[Dict]:
     yh = data.get("yh", {})
     cpi = data.get("cpi")
@@ -608,6 +634,7 @@ def compute_all(data: Dict) -> List[Dict]:
         _candle(yh, "twii", "台股 K 線型態"),
         _institutional(hist), _margin(hist), _divergence(hist),
         _volume(turnover, yh),
+        _ptt_sentiment(data.get("ptt")),
     ]
     out = [c for c in candidates if c]
     # 套用 config 的可調權重（找不到就沿用指標自帶的預設）

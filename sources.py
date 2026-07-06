@@ -12,6 +12,7 @@ import csv
 import io
 import json
 import os
+import re
 import time
 import xml.etree.ElementTree as ET
 import zipfile
@@ -775,3 +776,48 @@ def taifex_chips():
         _cache_save("taifex", old)
         return old
     return _cache_load("taifex")
+
+
+# ---------------- PTT Stock 散戶情緒（逆勢指標原料） ----------------
+def ptt_stock_sentiment(pages: int = 4):
+    """PTT Stock 板近幾頁的 [標的] 文多空比＋爆文數（散戶情緒溫度計的原料）。
+
+    只抓公開網頁版、每天 4 個 GET。標題同時含多與空（如「多轉空」）視為模糊、
+    不計入。全抓失敗 → 回上次快取（cache_ptt.json），再沒有 → None。
+    回傳 {"bull", "bear", "hot", "total", "date"}。
+    """
+    base = "https://www.ptt.cc"
+    url = base + "/bbs/Stock/index.html"
+    bull = bear = hot = total = 0
+    ok = False
+    for _ in range(max(1, pages)):
+        r = _get(url, headers={"Cookie": "over18=1"})
+        if r is None:
+            break
+        html = r.text
+        ok = True
+        for ent in re.findall(r'<div class="r-ent">(.*?)<div class="meta">', html, re.S):
+            m = re.search(r'class="title">\s*<a[^>]*>([^<]+)</a>', ent)
+            if not m:                              # 刪文沒有連結
+                continue
+            title = m.group(1)
+            total += 1
+            nrec = re.search(r'class="nrec">(?:<span[^>]*>)?([^<]*)', ent)
+            if nrec and (nrec.group(1) or "").strip() == "爆":
+                hot += 1
+            if "[標的]" in title:
+                has_bull, has_bear = ("多" in title), ("空" in title)
+                if has_bull and not has_bear:
+                    bull += 1
+                elif has_bear and not has_bull:
+                    bear += 1
+        pm = re.search(r'href="(/bbs/Stock/index\d+\.html)">&lsaquo; 上頁', html)
+        if not pm:
+            break
+        url = base + pm.group(1)
+    if ok and (bull + bear) > 0:
+        out = {"bull": bull, "bear": bear, "hot": hot, "total": total,
+               "date": time.strftime("%Y-%m-%d")}
+        _cache_save("ptt", out)
+        return out
+    return _cache_load("ptt")

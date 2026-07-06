@@ -175,6 +175,9 @@ def assess(result: Dict, indicators: List[Dict], regime: Optional[Dict],
     tx_pcr = (taifex or {}).get("pcr_oi")
     if tx_pcr is not None:
         chips_bits.append("選擇權 P/C 未平倉比 %.2f" % tx_pcr)
+    ptt_sent = _ind(indicators, "散戶情緒")
+    if ptt_sent:
+        chips_bits.append("PTT 散戶%s" % _disp(ptt_sent))
     div_note = ""
     if diverg and diverg.get("light") == "red":
         div_note = "⚠ 法人與散戶正在背離——歷史上通常法人是對的。"

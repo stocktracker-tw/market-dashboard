@@ -74,6 +74,7 @@ INDICATOR_WEIGHTS = {
     "candle_twii": 0.5,                            # B・K 線型態
     # 籌碼
     "inst": 1.0, "margin": 1.0, "diverg": 1.5, "volume": 0.5,
+    "ptt": 0.6,                                    # 散戶情緒溫度計（PTT，逆勢）
 }
 
 # 3) 紅綠燈門檻：進場機會分數 >= GREEN 亮綠（偏多/加碼）、< RED 亮紅（偏空/保守）、中間黃燈。

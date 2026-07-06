@@ -779,10 +779,12 @@ def taifex_chips():
 
 
 # ---------------- PTT Stock 散戶情緒（逆勢指標原料） ----------------
-def ptt_stock_sentiment(pages: int = 4):
+def ptt_stock_sentiment(pages: int = 10):
     """PTT Stock 板近幾頁的 [標的] 文多空比＋爆文數（散戶情緒溫度計的原料）。
 
-    只抓公開網頁版、每天 4 個 GET。標題同時含多與空（如「多轉空」）視為模糊、
+    只抓公開網頁版、每天約 10 個 GET（頁間 0.3s 禮貌間隔）。實測 [標的] 文
+    密度不高（4 頁常常只有 2~3 篇有方向），掃 10 頁才穩定湊滿樣本門檻。
+    標題同時含多與空（如「多轉空」）視為模糊、
     不計入。全抓失敗 → 回上次快取（cache_ptt.json），再沒有 → None。
     回傳 {"bull", "bear", "hot", "total", "date"}。
     """
@@ -815,6 +817,7 @@ def ptt_stock_sentiment(pages: int = 4):
         if not pm:
             break
         url = base + pm.group(1)
+        time.sleep(0.3)                            # 禮貌間隔，避免對 PTT 造成負擔
     if ok and (bull + bear) > 0:
         out = {"bull": bull, "bear": bear, "hot": hot, "total": total,
                "date": time.strftime("%Y-%m-%d")}

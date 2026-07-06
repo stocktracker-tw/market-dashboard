@@ -657,6 +657,95 @@ def recommend(env, shared, universe, n=None):
     return full[:n]
 
 
+def faction_picks(shared, universe, n=3):
+    """五派選股（觀點頁用）：同一個股票池，三種選法各取前 n 檔（互不重複）。
+
+    順勢＝20日動能強＋站上月線＋法人在買；籌碼＝法人5日追買最兇（散戶未跟加分）；
+    價值＝估值子分最高＋法人有買。被動/總經兩派不選股（那是它們的觀點）。
+    回傳 {"trend": [...], "chips": [...], "value": [...]}，每檔 {code,name,why}。
+    """
+    if not shared or not universe:
+        return None
+    stocks = (shared.get("valuation") or {}).get("stocks", {})
+    net5 = shared.get("net5") or {}
+    margin = shared.get("margin") or {}
+    phist = shared.get("pricehist") or {}
+    min_price = getattr(cfg, "STOCK_TOP_MIN_PRICE", 30)
+    rows = {x["code"]: x for x in universe}
+    taken = set()
+
+    def _mom(code):
+        closes = list(phist.get(code) or [])
+        px = (stocks.get(code) or {}).get("close")
+        if px:
+            closes = closes + [px]
+        if len(closes) < 11:
+            return None, None
+        look = min(20, len(closes) - 1)
+        m = closes[-1] / closes[-1 - look] - 1.0
+        d20 = A.dist_from_ma(closes, min(20, len(closes) - 1))
+        return m, d20
+
+    def _base_ok(code):
+        px = (stocks.get(code) or {}).get("close") or 0
+        return code not in taken and px >= min_price and (net5.get(code, 0) or 0) > 0
+
+    def _fmt_net(code):
+        return "法人5日%+.0f張" % ((net5.get(code, 0) or 0) / 1000)
+
+    out = {}
+    # 1) 順勢動能榜
+    cand = []
+    for code, x in rows.items():
+        if not _base_ok(code):
+            continue
+        m, d20 = _mom(code)
+        if m is None or m < 0.08 or (d20 is not None and d20 < 0):
+            continue                      # 20 日至少 +8%（真動能）且沒跌破月線
+        cand.append((m, code, d20))
+    cand.sort(reverse=True)
+    picks = []
+    for m, code, d20 in cand[:n]:
+        taken.add(code)
+        why = "20日%+.0f%%" % (m * 100)
+        if d20 is not None:
+            why += "・站上月線" if d20 >= 0 else ""
+        picks.append({"code": code, "name": rows[code]["name"],
+                      "why": why + "・" + _fmt_net(code)})
+    out["trend"] = picks
+    # 2) 價值便宜榜
+    cand = [(x.get("val") or 0, code) for code, x in rows.items()
+            if _base_ok(code) and (x.get("val") or 0) >= 60]   # 真便宜才上榜
+    cand.sort(reverse=True)
+    picks = []
+    for v, code in cand[:n]:
+        taken.add(code)
+        vd = (rows[code].get("val_disp") or "").split("｜")[0].strip()
+        picks.append({"code": code, "name": rows[code]["name"],
+                      "why": (vd + "・" if vd else "") + _fmt_net(code)})
+    out["value"] = picks
+    # 3) 籌碼追買榜（候選最多、放最後）
+    cand = []
+    for code, x in rows.items():
+        if not _base_ok(code):
+            continue
+        mrow = margin.get(code) or {}
+        mp, mt = mrow.get("margin_prev"), mrow.get("margin_today")
+        mchg = (mt / mp - 1) if (mp and mp > 0 and mt is not None) else None
+        smart = 1 if (mchg is not None and mchg <= 0) else 0   # 法人買、散戶沒跟 → 加分
+        cand.append(((net5.get(code, 0) or 0) * (1.3 if smart else 1.0), code, mchg))
+    cand.sort(reverse=True)
+    picks = []
+    for _, code, mchg in cand[:n]:
+        taken.add(code)
+        why = _fmt_net(code)
+        if mchg is not None:
+            why += "・融資%+.1f%%（散戶%s）" % (mchg * 100, "減碼" if mchg <= 0 else "加碼")
+        picks.append({"code": code, "name": rows[code]["name"], "why": why})
+    out["chips"] = picks
+    return out if any(out.values()) else None
+
+
 def build_universe(env, shared):
     stocks = (shared.get("valuation") or {}).get("stocks", {})
     out = []

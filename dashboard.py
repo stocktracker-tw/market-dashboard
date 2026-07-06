@@ -501,11 +501,25 @@ def render(result: Dict, indicators: List[Dict], score_history: List, meta: Dict
     # 多派觀點已獨立成「🗣️ 觀點」分頁，這裡只放入口
     if perspectives and len(perspectives) > 1:
         parts.append('<div class="section-title">市場觀點・問五方</div>')
+        rows = "".join(
+            '<div style="display:flex;align-items:baseline;gap:8px;padding:3px 0">'
+            '<span class="dot" style="background:var(--%s);flex:none;align-self:center"></span>'
+            '<b style="flex:none;font-size:13px">%s</b>'
+            '<span style="color:var(--muted);font-size:12.5px">%s</span></div>'
+            % (pp.get("lean_light", "amber"), _esc(pp["name"]), _esc(pp["lean"]))
+            for pp in perspectives[1:])
+        leans = [pp.get("lean_light") for pp in perspectives[1:]]
+        n_red, n_green = leans.count("red"), leans.count("green")
+        cons = ("五派罕見偏空——分歧比共識更常見，這值得注意" if n_red >= 3 else
+                "五派難得偏多——但別忘了它們平常互相反對" if n_green >= 3 else
+                "五派立場分歧（常態）——正解取決於你信哪一套")
         parts.append('<div class="card" style="grid-template-columns:1fr"><div class="note" style="grid-column:1/3">'
-                     '同一份數據，五種投資流派（被動／總經／順勢／價值／籌碼）各自怎麼解讀、各執一詞 → '
-                     '<a href="perspectives.html">看「🗣️ 觀點」分頁 →</a>'
-                     '<br><span style="color:var(--muted);font-size:12px">以公開投資流派為框架・非本人發言・非投資建議</span>'
-                     '</div></div>')
+                     + rows +
+                     '<div style="font-size:12px;color:var(--muted);margin-top:6px">%s</div>'
+                     '<a href="perspectives.html" style="display:inline-block;margin-top:8px">'
+                     '五派完整說法＋各派選股 →</a>'
+                     '<br><span style="color:var(--muted);font-size:11.5px">以公開投資流派為框架・非投資建議</span>'
+                     '</div></div>' % cons)
 
     # AI 噴發 / 泡沫 情境面板
     if regime:
@@ -661,6 +675,18 @@ def render_perspectives_page(perspectives: List, meta: Dict) -> str:
             _take = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', _esc(pp["take"]))
             p.append('<div class="note" style="grid-column:1/3">%s</div>' % _take)
             p.append('<div class="detail" style="grid-column:1/3">原則：%s</div>' % _esc(pp["principles"]))
+            pks = pp.get("picks")
+            if pks:
+                seg = "、".join("<b>%s %s</b>（%s）" % (_esc(k["name"]), _esc(k["code"]),
+                                                        _esc(k["why"])) for k in pks)
+                p.append('<div class="note" style="grid-column:1/3;font-size:12px;'
+                         'border-top:1px solid rgba(255,255,255,.08);padding-top:8px">'
+                         '📌 這派今天會看：%s <span style="color:var(--muted)">'
+                         '（同一股票池、依本派邏輯排序・非投資建議）</span></div>' % seg)
+            elif pp.get("picks_note"):
+                p.append('<div class="note" style="grid-column:1/3;font-size:12px;'
+                         'border-top:1px solid rgba(255,255,255,.08);padding-top:8px">'
+                         '📌 %s</div>' % _esc(pp["picks_note"]))
             p.append('</div>')
         p.append('</div>')
         p.append(ASK_PANEL)

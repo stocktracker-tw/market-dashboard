@@ -321,6 +321,14 @@ def run(open_browser=False):
     except Exception as e:
         log("市場消息失敗（不影響大盤儀表板）：%s" % str(e)[:140])
 
+    # 五派選股（觀點頁「這派今天會看」；個股區失敗就略過）
+    faction_pk = None
+    try:
+        if shared is not None:
+            faction_pk = stock.faction_picks(shared, universe)
+    except Exception as e:                         # noqa: BLE001 — 選股失敗不擋觀點
+        log("五派選股略過：%s" % str(e)[:120])
+
     # 五派投資策略觀點（含台指期籌碼；抓不到就用快取/略過）
     try:
         tx_chips = src.taifex_chips()
@@ -330,7 +338,8 @@ def run(open_browser=False):
         tx_chips = None
     try:
         import perspectives
-        persp = perspectives.assess(result, indicators, regime, cyc, fc, taifex=tx_chips)
+        persp = perspectives.assess(result, indicators, regime, cyc, fc,
+                                    taifex=tx_chips, picks=faction_pk)
     except Exception as e:
         persp = None
         log("五派觀點計算失敗：%s" % str(e)[:120])

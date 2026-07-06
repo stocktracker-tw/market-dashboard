@@ -39,7 +39,8 @@ def _disp(ind):
 
 def assess(result: Dict, indicators: List[Dict], regime: Optional[Dict],
            cycle: Optional[Dict], forecast: Optional[List],
-           taifex: Optional[Dict] = None) -> List[Dict]:
+           taifex: Optional[Dict] = None,
+           picks: Optional[Dict] = None) -> List[Dict]:
     comp = result.get("composite")
     phase = (cycle or {}).get("phase")
     pos = (cycle or {}).get("position", "")
@@ -189,6 +190,15 @@ def assess(result: Dict, indicators: List[Dict], regime: Optional[Dict],
                  % ("、".join(chips_bits) if chips_bits else "籌碼資料本次缺漏",
                     chips_p, div_note, cline)),
     })
+
+    # 各派選股（同一個股票池、三種選法；被動/總經不選股是它們的觀點）
+    pk = picks or {}
+    out[0]["picks_note"] = "0050／VT——答案永遠一樣，這正是這派的重點：買市場本身，不猜誰是明星"
+    out[1]["picks_note"] = ("不選股、選階段：循環位置決定曝險高低，" 
+                            "個股是 beta 的載體而已" if phase else None)
+    out[2]["picks"] = pk.get("trend") or None
+    out[3]["picks"] = pk.get("value") or None
+    out[4]["picks"] = pk.get("chips") or None
 
     # 元素 0 = 摘要（頁面目前不渲染辯論；欄位保留給其他模組引用）
     band = result.get("band", "")

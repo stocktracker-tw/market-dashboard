@@ -694,14 +694,16 @@ def faction_picks(shared, universe, n=3):
         return "法人5日%+.0f張" % ((net5.get(code, 0) or 0) / 1000)
 
     out = {}
-    # 1) 順勢動能榜
+    # 1) 順勢動能榜——順勢派自己的紀律：別追末端妖股、要有真法人背書
     cand = []
     for code, x in rows.items():
         if not _base_ok(code):
             continue
+        if (net5.get(code, 0) or 0) < 300_000:
+            continue                      # 法人 5 日至少 +300 張（>0 但只有幾張不算背書）
         m, d20 = _mom(code)
-        if m is None or m < 0.08 or (d20 is not None and d20 < 0):
-            continue                      # 20 日至少 +8%（真動能）且沒跌破月線
+        if m is None or not (0.08 <= m <= 0.50) or (d20 is not None and d20 < 0):
+            continue                      # 20 日 +8%~+50%：太弱不是動能、太瘋是漲停妖股末端
         cand.append((m, code, d20))
     cand.sort(reverse=True)
     picks = []

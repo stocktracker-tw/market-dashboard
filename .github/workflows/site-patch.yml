@@ -1,12 +1,18 @@
 name: 站台自動補丁（favicon + 分頁標題）
 
-# 外部 Bot（Stock Tracker Bot）每天重產 HTML 時，會把分頁圖示與品牌標題洗掉。
-# 這個 workflow 在每次 HTML 變動後自動把它們補回去，所以不需要改到外部引擎。
+# 外部 Bot（Stock Tracker Bot）每天重產 HTML 時，會把補丁層的樣式/功能洗掉。
+# 這個 workflow 在每次 HTML 變動後自動補回去，所以不需要改到外部引擎。
 #
 # 為什麼不會無限迴圈：
 #   1) 本 workflow 用內建 GITHUB_TOKEN 推送，GitHub 規定這種推送「不會」再觸發 workflow。
 #   2) commit 訊息帶 [skip ci] 再保險一層。
 #   3) patch_site.py 是冪等的，沒有變更就不會 commit。
+#
+# 為什麼要「等待＋重試迴圈」：引擎是逐檔上傳（一天約 8 個 commit 連發 10~30 秒），
+# GitHub 在連發下會合併/吞掉部分 push 事件（實測 2026-07-06：最後一個 commit
+# 沒有產生 run），而舊版遇到基底過時 push 被拒就直接失敗 → 當天整站裸奔。
+# 現在：先等連發告一段落，再以「當下最新」基底補丁；push 被拒代表引擎又推了，
+# 就拉最新重補，最多五輪。任何一輪成功都代表「最新狀態已補丁」。
 
 on:
   push:
@@ -16,6 +22,7 @@ on:
       - "scripts/patch_site.py"        # 補丁邏輯一改也自動套到現有 HTML
       - "scripts/gen_stock_pages.py"   # 個股頁產生器一改也重產
       - "universe.json"                # 引擎每天更新分數 → 重產個股頁
+      - ".github/workflows/site-patch.yml"
   workflow_dispatch:
 
 permissions:
@@ -35,21 +42,27 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: 套用補丁
-        run: python scripts/patch_site.py
+      - name: 等引擎連發告一段落
+        run: sleep 45
 
-      - name: 產生熱門個股 SEO 頁
-        run: python scripts/gen_stock_pages.py
-
-      - name: 有變更才提交
+      - name: 補丁＋提交（基底過時就拉最新重補，最多五輪）
         run: |
-          if [ -n "$(git status --porcelain)" ]; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for i in 1 2 3 4 5; do
+            git fetch origin main
+            git reset --hard origin/main
+            python scripts/gen_stock_pages.py   # 先產頁
+            python scripts/patch_site.py        # 再補丁（連新產的個股/ETF 頁一起補）
+            if [ -z "$(git status --porcelain)" ]; then
+              echo "第 $i 輪：無需變更，完成。"; exit 0
+            fi
             git add -A
             git commit -m "自動補丁：favicon + 分頁標題 [skip ci]"
-            git push
-            echo "已補回 favicon／標題並推送。"
-          else
-            echo "無需變更，略過。"
-          fi
+            if git push origin main; then
+              echo "第 $i 輪：已補丁並推送，完成。"; exit 0
+            fi
+            echo "第 $i 輪：push 被拒（引擎又推了新檔），20 秒後以最新基底重補…"
+            sleep 20
+          done
+          echo "::error::重試 5 輪仍無法推送"; exit 1

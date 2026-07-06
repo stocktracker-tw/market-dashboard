@@ -592,15 +592,18 @@ def _ptt_sentiment(ptt) -> Optional[Dict]:
     if n < 6:
         return None
     ratio = b / n * 100.0
-    score = A.piecewise(ratio, [(15, 74), (30, 64), (45, 55), (60, 48), (75, 40), (90, 30)])
+    # 逆勢只在「極端」成立：溫和樂觀常伴隨動能延續（人人喊多也確實會再漲一段），
+    # 所以 40~72% 是寬平的無訊號區；只有一面倒（>80% 或 <25%）才給方向。
+    score = A.piecewise(ratio, [(10, 74), (25, 63), (40, 53), (72, 50), (82, 43), (92, 33)])
     hot = ptt.get("hot", 0)
-    if ratio >= 60 and hot >= 3:
-        score -= 4
-    elif ratio <= 30 and hot >= 3:
-        score += 4
+    if ratio >= 80 and hot >= 3:
+        score -= 4                        # 一面倒看多＋全場歡騰 → 買盤枯竭警訊
+    elif ratio <= 25 and hot >= 3:
+        score += 4                        # 一面倒看空＋恐慌洗版 → 賣壓高潮
     cached = "（快取）" if ptt.get("_cached") else ""
-    note = ("PTT Stock 近 %d 篇標的文：看多 %.0f%%、全板爆文 %d 篇。逆勢指標——散戶"
-            "一面倒看多＝過熱訊號；一面倒看空、恐慌洗版＝歷史上常是分批撿貨區。" % (n, ratio, hot))
+    note = ("PTT Stock 近 %d 篇標的文：看多 %.0f%%、全板爆文 %d 篇。逆勢但只看極端——"
+            "溫和樂觀不是訊號（動能常延續）；一面倒看多＋歡騰＝買盤枯竭警訊、"
+            "一面倒看空＋恐慌洗版＝歷史上常是分批撿貨區。" % (n, ratio, hot))
     return _ind("ptt", "散戶情緒溫度計（PTT）", "chips",
                 "看多 %.0f%%・n=%d%s" % (ratio, n, cached), score, note, weight=0.6)
 

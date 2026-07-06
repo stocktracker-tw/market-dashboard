@@ -1,7 +1,6 @@
 /* 市場儀表板 PWA service worker：網路優先、離線退回快取。 */
-const C = "mkt-h7fa1cf2b";
-const ASSETS = ["index.html", "stocks.html", "universe.json", "news.html", "perspectives.html", "backtest.html",
-  "manifest.webmanifest", "icon-192.png", "icon-512.png", "icon-180.png"];
+const C = "mkt-hf5f59a1e";
+const ASSETS = ["index.html", "stocks.html", "perspectives.html", "news.html", "backtest.html", "rec_backtest.html", "threads.html", "stock/index.html", "etf/index.html", "universe.json", "taifex.json", "manifest.webmanifest", "icon-192.png", "icon-512.png", "icon-180.png"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(C).then((c) => c.addAll(ASSETS.map((a) => "./" + a)))

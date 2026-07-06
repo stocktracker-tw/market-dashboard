@@ -128,17 +128,6 @@ PRECONNECT = ('<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigi
               '<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">'
               '<link rel="preconnect" href="https://unpkg.com" crossorigin>')
 # 舊版「滑到才畫」shim（庫仍阻塞）。保留字串只為了把已注入的頁面升級時移除。
-LAZY_ECHARTS = (
-    '<script>/*lazy-echarts*/(function(g){if(!g.IntersectionObserver||!g.echarts||'
-    'g.echarts.__lazy)return;var R=g.echarts.init;g.echarts.__lazy=1;'
-    'g.echarts.init=function(el){var a=arguments;if(!el||el.__forceEager)'
-    'return R.apply(g.echarts,a);var p={_q:[],setOption:function(o){this._q.push(o);'
-    'return this},resize:function(){return this}};var io=new g.IntersectionObserver('
-    'function(es){for(var i=0;i<es.length;i++){if(es[i].isIntersecting){io.disconnect();'
-    'var inst=R.apply(g.echarts,a);for(var j=0;j<p._q.length;j++)inst.setOption(p._q[j]);'
-    'p.setOption=function(o){return inst.setOption(o)};p.resize=function(){'
-    'return inst.resize()};break}}},{rootMargin:"200px"});io.observe(el);return p}})(window);</script>'
-)
 ECHARTS_STUB = (
     '<script>/*echarts-stub*/(function(g){var Q=[];'
     'function P(){var p={_q:[],setOption:function(){p._q.push(arguments);return p},'
@@ -171,9 +160,6 @@ ECHARTS_DEFER = (
 def patch_perf(html):
     """echarts 改 defer + 載入 stub（首繪不被圖表庫卡住），建圖仍滑到才畫。"""
     changed = False
-    if LAZY_ECHARTS in html:               # 升級：移除舊 shim（邏輯已併入 stub）
-        html = html.replace(LAZY_ECHARTS, '')
-        changed = True
     if ECHARTS_TAG in html:                # 阻塞版 script → stub + defer
         repl = ECHARTS_STUB + ECHARTS_DEFER
         if PRECONNECT not in html:
@@ -695,18 +681,6 @@ _BAR_LINE = {                                     # 各分頁的線條 path
           '<path d="M17 8h2a1 1 0 0 1 1 1v9a2 2 0 0 1-2 2"/>'
           '<path d="M7 8h7M7 11.5h7M7 15h4"/>',
 }
-_BAR_FILL = {                                     # #75 實心版 path（只為重建遷移字串）
-    '📊': '<rect x="3.6" y="10" width="4.2" height="10" rx="1.4"/>'
-          '<rect x="9.9" y="4" width="4.2" height="16" rx="1.4"/>'
-          '<rect x="16.2" y="13.5" width="4.2" height="6.5" rx="1.4"/>',
-    '📈': '<circle cx="10.5" cy="10.5" r="7"/>'
-          '<path d="M15.9 15.9 21 21" fill="none" stroke="currentColor" '
-          'stroke-width="3" stroke-linecap="round"/>',
-    '🗣️': '<path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v8a1.5 1.5 0 0 1-1.5 '
-          '1.5H9l-4 4v-4H5.5A1.5 1.5 0 0 1 4 13.5z"/>',
-    '📰': '<path d="M4 5a1 1 0 0 1 1-1h11a1 1 0 0 1 1 1v13a2 2 0 0 0 2 2H6a2 2 0 0 1-2-2z"/>'
-          '<path d="M17 8h2a1 1 0 0 1 1 1v9a2 2 0 0 1-2 2"/>',
-}
 _SVG_LINE_OPEN = ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
                   'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"')
 
@@ -719,17 +693,6 @@ BAR_ICON_SVGS = {
 }
 # 升級遷移：把各頁已注入的舊版圖示還原回 emoji，再由 BAR_ICON_SVGS 注入新版。
 # 兩種舊變體：(a) #48 純線條（無 aria）；(b) #75 線條(.il)+實心(.if) 雙 SVG。
-OLD_BAR_SVGS = {
-    '<span class="ic">%s</span>' % e: [
-        '<span class="ic">' + _SVG_LINE_OPEN + '>' + p + '</svg></span>',
-        ('<span class="ic"><svg class="il" viewBox="0 0 24 24" fill="none" '
-         'stroke="currentColor" stroke-width="1.8" stroke-linecap="round" '
-         'stroke-linejoin="round">' + p + '</svg>'
-         '<svg class="if" viewBox="0 0 24 24" fill="currentColor">'
-         + _BAR_FILL[e] + '</svg></span>'),
-    ]
-    for e, p in _BAR_LINE.items()
-}
 # 分頁文字被隱藏 → 在 <a> 補 aria-label（只在還沒有 aria-label 時加，冪等）。
 TAB_ARIA = {'index': '進場', 'stocks': '個股', 'perspectives': '觀點', 'news': '消息'}
 TAB_ARIA_RE = re.compile(
@@ -759,9 +722,6 @@ def patch_barglass(html):
     if '<nav class="tabbar">' not in html:
         return html, False
     orig = html
-    for emoji, variants in OLD_BAR_SVGS.items():  # 0) 舊版 SVG（兩種變體）→ 還原回 emoji
-        for oldsvg in variants:
-            html = html.replace(oldsvg, emoji)
     for emoji, newsvg in BAR_ICON_SVGS.items():   # 1) emoji → 線條 SVG（aria-hidden）
         html = html.replace(emoji, newsvg)
     html = TAB_ARIA_RE.sub(                       # 2) icon-only 連結補 accessible name
@@ -803,12 +763,8 @@ TWCOLOR_RE = re.compile(r'<style id="twcolor">.*?</style>', re.S)
 GAUGE_AURORA = ("color:[[0.35,'#8b5cf6'],[0.6,'#4f86ff'],"
                 "[0.8,'#34b8e5'],[1,'#1fe0d0']]")
 GAUGE_PREV = (
-    "color:[[0.35,C.red],[0.45,'#f6862a'],[0.58,C.amber],"      # 引擎原色 紅→綠
+    "color:[[0.35,C.red],[0.45,'#f6862a'],[0.58,C.amber],"      # 舊引擎原色（安全網）
     "[0.70,'#7cc24a'],[1,C.green]]",
-    "color:[[0.35,'#8b97a8'],[0.55,'#9183e6'],"                 # #54 灰→紫→藍
-    "[0.75,'#7d95f2'],[1,'#5b9cff']]",
-    "color:[[0.35,'#8b7cf0'],[0.55,'#6a8efa'],"                 # 舊極光（#55，對比較小）
-    "[0.78,'#3bb6e8'],[1,'#22d3ee']]",
 )
 
 
@@ -1110,11 +1066,6 @@ KEYOF_RE = re.compile(r'function keyOf\(t\)\{[^}]*\}')
 # 獨立遷移：把先前各版（金黃版、極光版、三色版）整串換成五色版，冪等。
 PCOL_NEW = ('var PCOL={passive:"#06d6e0",chips:"#3d8bff",trend:"#5b6cff",'
             'macro:"#c462ff",value:"#ff5fb0"};')
-PCOL_PREV = (
-    'var PCOL={passive:"#38c5e0",macro:"#f5c531",trend:"#3b82f6"};',   # 最初金黃版
-    'var PCOL={passive:"#22d3ee",macro:"#8b7cf0",trend:"#5b9cff"};',   # 第一版極光
-    'var PCOL={passive:"#06d6e0",macro:"#c462ff",trend:"#5b6cff"};',   # 三色版（三方）
-)
 
 
 # 引擎只生三張立場卡；價值派、籌碼派由 patch 端補進同一個 .grid。
@@ -1148,25 +1099,6 @@ GRID5_STYLE = ('<style id="grid5">.grid .card:last-child:nth-child(odd)'
                '{grid-column:1/-1}</style>')
 
 
-# 取消人名（清X君…），三張引擎立場卡直接顯示「派別」。用 keyOf 相同的字標比對；
-# 已是派別名（含「派」）就跳過 → 冪等。
-_FACTION_BY_MARK = (("清", "被動指數派"), ("財經", "總經循環派"), ("股", "順勢紀律派"))
-_CARD_NAME_RE = re.compile(r'(<div class="name">)(.*?)(</div>)', re.S)
-
-
-def _to_faction_names(html):
-    """把三張引擎立場卡的人名換成派別名（被動指數派／總經循環派／順勢紀律派）。"""
-    def repl(m):
-        inner = m.group(2)
-        if "派" in inner:                       # 已是派別名 → 不動
-            return m.group(0)
-        for mark, faction in _FACTION_BY_MARK:
-            if mark in inner:
-                return m.group(1) + faction + m.group(3)
-        return m.group(0)
-    return _CARD_NAME_RE.sub(repl, html)
-
-
 def patch_ask(html):
     """觀點頁：立場卡片直接點選，提問用下拉選單，移除辯論。五派（含價值/籌碼）。"""
     changed = False
@@ -1184,11 +1116,6 @@ def patch_ask(html):
             changed = True
     # 只在觀點頁動手：別頁的指標卡也有 .name（且含「股」字），不可誤改
     if "三派立場" in html:
-        # 取消人名，三張引擎卡直接顯示派別（每次都套，冪等）
-        new = _to_faction_names(html)
-        if new != html:
-            html = new
-            changed = True
         # 補上價值派、籌碼派兩張卡（冪等：已補過就跳過）
         if "價值派" not in html:
             new = EXTRA_CARDS_RE.sub(lambda m: m.group(1) + EXTRA_CARDS + m.group(2),
@@ -1202,11 +1129,6 @@ def patch_ask(html):
             html = new
             changed = True
     is_persp = "五方立場" in html or "三方立場" in html
-    for prev in PCOL_PREV:                        # 既有面板的派系色 → 遷移成最新五色版
-        if prev in html and prev != PCOL_NEW:
-            html = html.replace(prev, PCOL_NEW, 1)
-            changed = True
-            break
 
     # 面板：引擎辯論段 → 換面板；舊面板 → 升級。只在還不是最新版時動。
     if 'data-v="ask17"' not in html:
@@ -1393,6 +1315,14 @@ def fix_manifest():
     return False
 
 
+# sw.js 預快取清單的正典（存在的檔才列入；來源不明的清單退化一律修回）
+SW_ASSETS = ["index.html", "stocks.html", "perspectives.html", "news.html",
+             "backtest.html", "rec_backtest.html", "threads.html",
+             "stock/index.html", "etf/index.html",
+             "universe.json", "taifex.json", "manifest.webmanifest",
+             "icon-192.png", "icon-512.png", "icon-180.png"]
+
+
 def fix_sw():
     """sw.js 快取版本改成「內容雜湊」：ASSETS 裡任何檔案變了，版本自動跟著變，
     手機 PWA 不必手動下拉重整就會在背景拿到新版。引擎每天把版本蓋回固定字串
@@ -1404,16 +1334,19 @@ def fix_sw():
     except Exception:                      # noqa: BLE001 — 缺檔就跳過
         return False
     m = re.search(r'const C = "mkt-[^"]*"', sw)
-    ma = re.search(r'const ASSETS = \[(.*?)\];', sw, re.S)
+    ma = re.search(r'const ASSETS = \[.*?\];', sw, re.S)
     if not m or not ma:
         return False
+    assets = [a for a in SW_ASSETS if os.path.exists(a)]
+    lit = "const ASSETS = [" + ", ".join('"%s"' % a for a in assets) + "];"
+    new = sw.replace(ma.group(0), lit, 1)
     h = hashlib.md5()
-    for a in re.findall(r'"([^"]+)"', ma.group(1)):
+    for a in assets:
         try:
             h.update(open(a, "rb").read())
         except Exception:                  # noqa: BLE001 — 缺檔用檔名頂替，維持穩定
             h.update(a.encode())
-    new = sw.replace(m.group(0), 'const C = "mkt-h%s"' % h.hexdigest()[:8], 1)
+    new = new.replace(m.group(0), 'const C = "mkt-h%s"' % h.hexdigest()[:8], 1)
     if new != sw:
         with open("sw.js", "w", encoding="utf-8") as fh:
             fh.write(new)

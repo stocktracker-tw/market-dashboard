@@ -470,6 +470,7 @@ def patch_topglass(html):
 LIQUID = (
     '<style id="liquidglass">'
     # 底層：body 讓出背景（html 已是 #0a1430），光暈鋪在內容後面
+    'html{background:#0a1430}'
     'body{background:transparent!important}'
     'body::before{content:"";position:fixed;inset:-12% -8%;z-index:-1;pointer-events:none;'
     'background:'
@@ -522,7 +523,12 @@ def patch_canonical(html, fname):
     """每頁注入 rel=canonical（index 用根網址）；已存在則正規化成現行網址。"""
     if '</head>' not in html:
         return html, False
-    url = BASE_URL if fname == 'index.html' else BASE_URL + fname
+    if fname == 'index.html':
+        url = BASE_URL
+    elif fname.endswith('/index.html'):
+        url = BASE_URL + fname[:-len('index.html')]   # 目錄式：/stock/、/etf/
+    else:
+        url = BASE_URL + fname
     tag = '<link rel="canonical" href="' + url + '">'
     if tag in html:                            # 已是現行網址 → 不動（避免位置震盪）
         return html, False
@@ -1251,7 +1257,7 @@ def patch(html, fname):
     changed = False
 
     # 1) favicon：沒有就補在 apple-touch-icon 連結前面
-    if 'rel="icon" href="favicon' not in html:
+    if 'rel="icon"' not in html:
         m = APPLE_RE.search(html)
         if m:
             html = html[:m.start()] + FAVICON + html[m.start():]
@@ -1287,7 +1293,7 @@ def patch(html, fname):
     # 2) 標題加品牌前綴（已加過則略過）
     def repl(m):
         t = m.group(1).strip()
-        if not t or t.startswith(BRAND):
+        if not t or BRAND in t:
             return m.group(0)
         return f"<title>{BRAND} — {t}</title>"
 
@@ -1443,7 +1449,8 @@ def fix_sw():
 
 def main():
     touched = []
-    for f in sorted(glob.glob("*.html")):
+    for f in (sorted(glob.glob("*.html"))
+              + sorted(glob.glob("stock/*.html")) + sorted(glob.glob("etf/*.html"))):
         s = open(f, encoding="utf-8").read()
         # 只處理使用者頁面（有 apple-touch-icon 的那幾頁）
         if APPLE_RE.search(s) is None:

@@ -178,6 +178,10 @@ def assess(result: Dict, indicators: List[Dict], regime: Optional[Dict],
 
     # 各派選股（同一個股票池、三種選法）
     pk = picks or {}
+    hot = pk.get("hot_themes") or []
+    if hot:
+        out[0]["take"] += "今日資金聚焦題材：" + "、".join(
+            "%s（均漲 %+.0f%%）" % (t["theme"], t["mom"] * 100) for t in hot) + "。"
     out[0]["picks"] = pk.get("trend") or None
     out[1]["picks"] = pk.get("value") or None
     out[2]["picks"] = pk.get("chips") or None

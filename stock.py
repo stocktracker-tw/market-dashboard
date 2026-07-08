@@ -657,6 +657,47 @@ def recommend(env, shared, universe, n=None):
     return full[:n]
 
 
+def theme_heat(shared, universe, top=3):
+    """今日題材熱度：對 config.THEMES 每個題材算成員的平均 20 日動能＋法人合計買超。
+
+    題材表只負責「命名」；熱度完全由當天資料決定——成員平均漲、法人在買
+    的題材才會被選股引用。成員在池內不足 2 檔的題材不計（單檔不成題材）。
+    回傳 [{"theme","mom","net5","n"}]，依熱度排序取前 top 名（動能 ≤+2% 的不算熱）。
+    """
+    if not shared or not universe:
+        return []
+    stocks = (shared.get("valuation") or {}).get("stocks", {})
+    net5 = shared.get("net5") or {}
+    phist = shared.get("pricehist") or {}
+    in_pool = {x["code"] for x in universe}
+
+    def _mom(code):
+        closes = list(phist.get(code) or [])
+        px = (stocks.get(code) or {}).get("close")
+        if px:
+            closes = closes + [px]
+        if len(closes) < 11:
+            return None
+        look = min(20, len(closes) - 1)
+        return closes[-1] / closes[-1 - look] - 1.0
+
+    out = []
+    for theme, codes in getattr(cfg, "THEMES", {}).items():
+        members = [str(c) for c in codes if str(c) in in_pool]
+        moms = [m for m in (_mom(c) for c in members) if m is not None]
+        if len(moms) < 2:
+            continue
+        avg_mom = sum(moms) / len(moms)
+        tot_net = sum((net5.get(c, 0) or 0) for c in members)
+        if avg_mom <= 0.02:
+            continue                       # 題材成員平均沒在漲就不算熱
+        heat = avg_mom * 100 + min(tot_net / 1000 / 5000, 6)   # 動能為主、法人買超封頂加分
+        out.append({"theme": theme, "mom": avg_mom, "net5": tot_net,
+                    "n": len(moms), "_heat": heat})
+    out.sort(key=lambda t: -t["_heat"])
+    return out[:top]
+
+
 def faction_picks(shared, universe, n=3):
     """五派選股（觀點頁用）：同一個股票池，三種選法各取前 n 檔（互不重複）。
 
@@ -694,7 +735,11 @@ def faction_picks(shared, universe, n=3):
         return "法人5日%+.0f張" % ((net5.get(code, 0) or 0) / 1000)
 
     out = {}
-    # 1) 順勢動能榜——順勢派自己的紀律：別追末端妖股、要有真法人背書
+    # 1) 順勢動能榜——順勢派自己的紀律：別追末端妖股、要有真法人背書。
+    #    「跟題材」：熱門題材（theme_heat）成員加熱度分，優先站上風口的動能股。
+    hot = theme_heat(shared, universe)
+    hot_names = [t["theme"] for t in hot]
+    tmap = _theme_map()
     cand = []
     for code, x in rows.items():
         if not _base_ok(code):
@@ -704,17 +749,21 @@ def faction_picks(shared, universe, n=3):
         m, d20 = _mom(code)
         if m is None or not (0.08 <= m <= 0.50) or (d20 is not None and d20 < 0):
             continue                      # 20 日 +8%~+50%：太弱不是動能、太瘋是漲停妖股末端
-        cand.append((m, code, d20))
+        my_hot = next((t for t in tmap.get(code, []) if t in hot_names), None)
+        rank = m + (0.12 if my_hot else 0.0)   # 風口題材成員 ≈ 讓 12 個百分點的先手
+        cand.append((rank, m, code, d20, my_hot))
     cand.sort(reverse=True)
     picks = []
-    for m, code, d20 in cand[:n]:
+    for _, m, code, d20, my_hot in cand[:n]:
         taken.add(code)
-        why = "20日%+.0f%%" % (m * 100)
-        if d20 is not None:
-            why += "・站上月線" if d20 >= 0 else ""
+        why = ("🔥%s・" % my_hot) if my_hot else ""
+        why += "20日%+.0f%%" % (m * 100)
+        if d20 is not None and d20 >= 0:
+            why += "・站上月線"
         picks.append({"code": code, "name": rows[code]["name"],
                       "why": why + "・" + _fmt_net(code)})
     out["trend"] = picks
+    out["hot_themes"] = [{"theme": t["theme"], "mom": t["mom"], "n": t["n"]} for t in hot]
     # 2) 價值便宜榜
     cand = [(x.get("val") or 0, code) for code, x in rows.items()
             if _base_ok(code) and (x.get("val") or 0) >= 60]   # 真便宜才上榜

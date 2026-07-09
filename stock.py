@@ -744,17 +744,29 @@ def faction_picks(shared, universe, n=3):
     for code, x in rows.items():
         if not _base_ok(code):
             continue
-        if (net5.get(code, 0) or 0) < 300_000:
-            continue                      # 法人 5 日至少 +300 張（>0 但只有幾張不算背書）
-        m, d20 = _mom(code)
-        if m is None or not (0.08 <= m <= 0.50) or (d20 is not None and d20 < 0):
-            continue                      # 20 日 +8%~+50%：太弱不是動能、太瘋是漲停妖股末端
         my_hot = next((t for t in tmap.get(code, []) if t in hot_names), None)
-        rank = m + (0.12 if my_hot else 0.0)   # 風口題材成員 ≈ 讓 12 個百分點的先手
-        cand.append((rank, m, code, d20, my_hot))
+        # 風口題材成員門檻放寬（+5%、200張）：早期還沒噴的也看得到；
+        # 非題材股維持嚴門檻（+8%、300張）。妖股上限與月線紀律一律不放。
+        net_floor = 200_000 if my_hot else 300_000
+        mom_floor = 0.05 if my_hot else 0.08
+        if (net5.get(code, 0) or 0) < net_floor:
+            continue
+        m, d20 = _mom(code)
+        if m is None or not (mom_floor <= m <= 0.50) or (d20 is not None and d20 < 0):
+            continue
+        cand.append((m, code, d20, my_hot))
     cand.sort(reverse=True)
+    # 保留名額制：三席至少兩席給熱門題材（有合格者才給，不硬塞）
+    hot_cand = [c for c in cand if c[3]]
+    picks_rows = list(hot_cand[:min(2, n)])
+    for c in cand:
+        if len(picks_rows) >= n:
+            break
+        if c not in picks_rows:
+            picks_rows.append(c)
+    picks_rows.sort(reverse=True)          # 版面仍按動能高→低呈現
     picks = []
-    for _, m, code, d20, my_hot in cand[:n]:
+    for m, code, d20, my_hot in picks_rows:
         taken.add(code)
         why = ("🔥%s・" % my_hot) if my_hot else ""
         why += "20日%+.0f%%" % (m * 100)

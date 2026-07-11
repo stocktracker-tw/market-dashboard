@@ -498,35 +498,25 @@ def render(result: Dict, indicators: List[Dict], score_history: List, meta: Dict
                      'background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:13px;'
                      'color:#9ec1ff;font-size:13.5px;text-decoration:none">📊 策略回測：主動 vs 固定定期定額 →</a>')
 
-    # 多派觀點已獨立成「🗣️ 觀點」分頁，這裡只放入口
-    if perspectives and len(perspectives) > 1:
-        parts.append('<div class="section-title">市場觀點・問五方</div>')
-        rows = "".join(
-            '<div style="display:flex;align-items:baseline;gap:8px;padding:3px 0">'
-            '<span class="dot" style="background:var(--%s);flex:none;align-self:center"></span>'
-            '<b style="flex:none;font-size:13px">%s</b>'
-            '<span style="color:var(--muted);font-size:12.5px">%s</span></div>'
-            % (pp.get("lean_light", "amber"), _esc(pp["name"]), _esc(pp["lean"]))
-            for pp in perspectives[1:])
-        leans = [pp.get("lean_light") for pp in perspectives[1:]]
-        n_red, n_green = leans.count("red"), leans.count("green")
-        cons = ("三派罕見同偏空——分歧才是常態，這值得注意" if n_red >= 2 else
-                "三派偏多居多——但別忘了它們平常互相反對" if n_green >= 2 else
-                "三派立場分歧（常態）——正解取決於你信哪一套")
-        env = perspectives[0].get("env_line") or {}
+    # 觀點＝盤後碎念分頁，這裡放入口：大環境一行＋今天第一句
+    if perspectives and perspectives[0].get("monologue"):
+        meta0 = perspectives[0]
+        parts.append('<div class="section-title">盤後碎念</div>')
+        env = meta0.get("env_line") or {}
         env_row = ('<div style="display:flex;align-items:baseline;gap:8px;padding:3px 0;'
-                   'border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:4px">'
+                   'border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:6px">'
                    '<span class="dot" style="background:var(--%s);flex:none;align-self:center"></span>'
                    '<b style="flex:none;font-size:13px">🌐 大環境</b>'
                    '<span style="color:var(--muted);font-size:12.5px">%s</span></div>'
                    % (env.get("light", "amber"), _esc(env.get("lean", "")))) if env else ''
+        first = meta0["monologue"][0]
         parts.append('<div class="card" style="grid-template-columns:1fr"><div class="note" style="grid-column:1/3">'
-                     + env_row + rows +
-                     '<div style="font-size:12px;color:var(--muted);margin-top:6px">%s</div>'
+                     + env_row +
+                     '<div style="font-size:14px;line-height:1.8;color:var(--text)">「%s」</div>'
                      '<a href="perspectives.html" style="display:inline-block;margin-top:8px">'
-                     '聽今天的盤後碎念（含各路選股）→</a>'
-                     '<br><span style="color:var(--muted);font-size:11.5px">⚓ 被動派永遠的答案：照原定定額買 0050、別擇時。以公開投資流派為框架・非投資建議</span>'
-                     '</div></div>' % cons)
+                     '聽完整的盤後碎念（含風口與名單）→</a>'
+                     '<br><span style="color:var(--muted);font-size:11.5px">機器照當日數據生成・非投資建議</span>'
+                     '</div></div>' % _esc(first))
 
     # AI 噴發 / 泡沫 情境面板
     if regime:

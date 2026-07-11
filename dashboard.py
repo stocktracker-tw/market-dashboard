@@ -524,7 +524,7 @@ def render(result: Dict, indicators: List[Dict], score_history: List, meta: Dict
                      + env_row + rows +
                      '<div style="font-size:12px;color:var(--muted);margin-top:6px">%s</div>'
                      '<a href="perspectives.html" style="display:inline-block;margin-top:8px">'
-                     '三派完整說法＋各派選股 →</a>'
+                     '聽今天的盤後碎念（含各路選股）→</a>'
                      '<br><span style="color:var(--muted);font-size:11.5px">⚓ 被動派永遠的答案：照原定定額買 0050、別擇時。以公開投資流派為框架・非投資建議</span>'
                      '</div></div>' % cons)
 
@@ -664,9 +664,29 @@ def render_perspectives_page(perspectives: List, meta: Dict) -> str:
     import os
     from config import REFRESH_SECONDS
     from ask_panel import ASK_PANEL, GRID5_STYLE
+    mono = (perspectives[0].get("monologue") if perspectives else None) or []
     p: List[str] = [_HEAD.replace("__REFRESH__", str(REFRESH_SECONDS))]
     p.append(nav("debate", include_css=True))
     p.append('<div class="wrap">')
+    if mono:
+        p.append('<h1>🗣️ 盤後碎念 <span style="font-size:14px;color:var(--muted)">一個人把今天講完</span></h1>')
+        p.append('<div class="sub">資料時間：%s　｜　機器照當日數據生成・口語風格・<b>非投資建議</b></div>'
+                 % _esc(meta.get("generated_at", "")))
+        p.append('<div class="card" style="grid-template-columns:1fr">')
+        icons = ["📊", "🧾", "🌐", "💰", "🔥", "🛒", "🏦", "🧘", "⚠️"]
+        for i, para in enumerate(mono):
+            p.append('<div class="note" style="grid-column:1/3;font-size:15.5px;'
+                     'line-height:1.95;color:var(--text);padding:7px 0%s">%s %s</div>'
+                     % (";border-top:1px solid rgba(255,255,255,.07)" if i else "",
+                        icons[i % len(icons)], _esc(para)))
+        p.append('</div>')
+        p.append('</div></body></html>')
+        html = with_pwa("".join(p))
+        import config as cfg
+        os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
+        with open(os.path.join(cfg.OUTPUT_DIR, "perspectives.html"), "w", encoding="utf-8") as f:
+            f.write(html)
+        return "perspectives.html"
     p.append('<h1>🗣️ 市場觀點・問三派 <span style="font-size:14px;color:var(--muted)">同一份數據・三派解讀</span></h1>')
     p.append('<div class="sub">資料時間：%s　｜　以公開投資流派為「框架」推演・<b>非本人發言・非投資建議</b></div>'
              % _esc(meta.get("generated_at", "")))

@@ -186,6 +186,66 @@ def assess(result: Dict, indicators: List[Dict], regime: Optional[Dict],
     out[1]["picks"] = pk.get("value") or None
     out[2]["picks"] = pk.get("chips") or None
 
+    # 盤後碎念（單一主講人模式）：把今天全部講完，口語、直白、不掛名。
+    mono = []
+    pct_txt = ""
+    if result.get("calibrated"):
+        pct_txt = "，贏過歷史上 %.0f%% 的日子" % result.get("composite", 50)
+    band_quip = {
+        "積極加碼區": "數據難得這麼齊，該上的時候不要慫。",
+        "加碼區": "偏多，但偏多不是叫你歐印，是多扣一點的意思。",
+        "正常定額區": "不上不下，最無聊但也最不會出事的位置，照表操課就好。",
+        "減碼觀望區": "數據偏弱，手癢想接刀的先想想上次接刀的下場。",
+        "保守防禦區": "這種位置逞英雄沒獎品，銀彈留著，活著最重要。",
+    }.get(result.get("band", ""), "照表操課就好。")
+    mono.append("今天大盤 %s 分%s。%s"
+                % (("%.0f" % comp) if comp is not None else "—", pct_txt, band_quip))
+    attr = result.get("attribution")
+    if attr and attr.get("parts"):
+        mono.append("分數會動主要是%s在拉（%+.1f），不用自己腦補劇情，數字都寫在首頁。"
+                    % (attr["parts"][0][0], attr["parts"][0][1]))
+    if phase:
+        cyc_quip = {"過熱": "景氣燈號在高檔發燙，這種時候大家最敢作夢，也最容易畢業。",
+                    "滯脹": "又悶又貴的階段，現金流是唯一的朋友。",
+                    "復甦": "循環從谷底翻上來，這段其實才是最該貪心的時候。"}.get(
+                    phase, "循環位置不上不下，看流動性臉色。")
+        mono.append("總經那邊：%s（%s）。%s" % (phase, pos or "—", cyc_quip))
+    chips_line = []
+    if tx_inst is not None:
+        chips_line.append("外資期貨淨部位 {:+,} 口".format(int(tx_inst)))
+    if margin:
+        chips_line.append("融資 %s" % _disp(margin))
+    ptt_line = _ind(indicators, "散戶情緒")
+    if ptt_line:
+        chips_line.append("PTT %s" % _disp(ptt_line))
+    if chips_line:
+        watch = "散戶在跟大戶對作，歷史上這劇本結局都差不多。" if (
+            margin_chasing and tx_inst is not None and tx_inst < 0) else "籌碼面自己盯，錢不會說謊。"
+        mono.append("籌碼實況：%s。%s" % ("、".join(chips_line), watch))
+    hot = (picks or {}).get("hot_themes") or []
+    tr = (picks or {}).get("trend") or []
+    if hot or tr:
+        seg = ""
+        if hot:
+            seg += "現在錢在追%s。" % "、".join(
+                "%s（均漲 %+.0f%%）" % (t["theme"], t["mom"] * 100) for t in hot)
+        if tr:
+            seg += "盯的名單：%s。" % "、".join(
+                "%s %s（%s）" % (k["name"], k["code"], k["why"]) for k in tr)
+        seg += "要跟可以，部位算好、跌破月線就出，別到時候上來哭。"
+        mono.append("風口：" + seg)
+    va = (picks or {}).get("value") or []
+    ch = (picks or {}).get("chips") or []
+    if va:
+        mono.append("翻便宜貨的：%s。便宜是安全邊際不是保證上漲，抱得住再買。"
+                    % "、".join("%s %s（%s）" % (k["name"], k["code"], k["why"]) for k in va))
+    if ch:
+        mono.append("法人在掃的：%s。跟單可以，但人家跑的時候不會通知你。"
+                    % "、".join("%s %s（%s）" % (k["name"], k["code"], k["why"]) for k in ch))
+    mono.append("老規矩：不歐印、不空手、留銀彈。做不到這三件事的，"
+                "隔壁無腦定期定額 0050 其實就贏過八成的人——包括很多自以為在操作的。")
+    mono.append("以上是碎念不是明牌，全部都是機器照數據生的，賠錢不要來找我。非投資建議。")
+
     # 元素 0 = 摘要（頁面目前不渲染辯論；欄位保留給其他模組引用）
     band = result.get("band", "")
     cscore = ("%.0f" % comp) if comp is not None else "—"
@@ -195,4 +255,4 @@ def assess(result: Dict, indicators: List[Dict], regime: Optional[Dict],
                  % (out[0]["lean"], out[1]["lean"], out[2]["lean"], env_line["lean"],
                     cscore, band))
     return [{"synthesis": synthesis, "env_line": env_line,
-             "anchor_line": anchor_line}] + out
+             "anchor_line": anchor_line, "monologue": mono}] + out

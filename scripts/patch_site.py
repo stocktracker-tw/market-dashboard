@@ -446,6 +446,8 @@ LIQUID = (
     '#dtAdd{background:rgba(224,152,40,.18)!important;color:#8a5f14!important;'
     'border-color:rgba(224,152,40,.5)!important}'
     '.searchwrap{background:rgba(245,248,251,.92)!important}'
+    '.srow:hover{background:#eaf1f8!important}'
+    '.srow{color:#17293a}'
     # 玻璃面板：卡片與 hero（半透明漸層＋細高光邊＋頂緣鏡面反光＋柔和落影）
     '.card,.hero{background:linear-gradient(180deg,#ffffff,#fbfdff)!important;'
     'border:1px solid #dde6ef!important;'

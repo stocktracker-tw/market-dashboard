@@ -936,7 +936,7 @@ input:focus{border-color:#2478c8}
 def _write_single_html(r):
     from dashboard import _esc
     html = ('<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="utf-8">'
-            '<meta name="viewport" content="width=device-width,initial-scale=1">'
+            '<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">'
             '<title>個股 %s</title>%s</head><body><div class="wrap">'
             '<h1>個股進場分數</h1><div class="muted">%s</div>%s'
             '<div class="muted">非投資建議。<a href="index.html">← 回大盤儀表板</a></div>'
@@ -1241,7 +1241,7 @@ def render_stocks_page(recommendations, watchlist, universe):
             % (_esc(gen), sections))
 
     html = ('<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="utf-8">'
-            '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">'
+            '<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">'
             '<meta http-equiv="refresh" content="%d">'
             '<title>個股進場分數</title>%s</head><body>%s<div class="wrap wide">%s</div>%s%s</body></html>'
             % (getattr(cfg, "STOCKS_REFRESH_SECONDS", 3600), _PAGE_CSS, nav("stocks", include_css=True), body,

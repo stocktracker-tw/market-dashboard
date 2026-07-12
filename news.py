@@ -187,7 +187,7 @@ def render_news_page(data: Dict, briefing_html: str = None) -> str:
     import os
     from dashboard import nav, with_pwa
     parts = ['<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="utf-8">',
-             '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">',
+             '<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">',
              '<meta http-equiv="refresh" content="%d">' % getattr(cfg, "REFRESH_SECONDS", 1800),
              '<title>市場消息</title>', _CSS, '</head><body>', nav("news", include_css=True),
              '<div class="wrap">', '<h1>📰 市場消息</h1>',

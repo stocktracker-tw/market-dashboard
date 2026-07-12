@@ -83,7 +83,7 @@ def render_threads_page():
                 % (title, pid, esc(text), pid))
 
     parts = ['<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">',
-             '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">',
+             '<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">',
              '<title>今日 Threads 貼文</title>', _CSS, '</head><body><div class="wrap">',
              '<h1>📱 今日 Threads 貼文</h1>',
              '<div class="muted">每天資料更新後自動產生・%s ・複製貼上即可</div>' % esc(gen)]

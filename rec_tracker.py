@@ -238,7 +238,7 @@ def render_page(sim: Dict, history_rows: List[Dict] = None, generated_at: str = 
         return "color:#28c76f" if v >= 0 else "color:#ea5455"
 
     parts = ['<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="utf-8">',
-             '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">',
+             '<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">',
              '<meta http-equiv="refresh" content="%d">' % REFRESH_SECONDS,
              '<title>個股推薦回測</title></head><body>',
              nav("stocks", include_css=True),

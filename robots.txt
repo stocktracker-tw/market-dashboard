@@ -1,4 +1,3 @@
 User-agent: *
 Allow: /
-
 Sitemap: https://stocktracker-tw.github.io/market-dashboard/sitemap.xml

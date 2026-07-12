@@ -256,7 +256,7 @@ input{{width:120px;padding:7px 10px;font-size:14px;background:rgba(255,255,255,.
 .cta{{display:inline-block;margin-top:4px;padding:10px 16px;background:#1f6feb;color:#fff;text-decoration:none;border-radius:10px;font-weight:600}}
 .warn{{background:rgba(234,84,85,.12);border:1px solid rgba(234,84,85,.4);color:#ffb3b3;padding:8px 12px;border-radius:8px;font-size:12.5px;margin:16px 0}}
 .foot{{margin-top:24px;padding-top:14px;border-top:1px solid #222936;color:#5b6d80;font-size:12px}}
-b{{color:#cfe0ff}}
+b{{color:#1d5c9e}}
 </style></head><body><div class="wrap">
 <div class="bc"><a href="../">Stock Tracker</a> ／ <a href="./">ETF 定期定額</a> ／ {name}</div>
 <h1>{name}（{code}）定期定額進場時機</h1>

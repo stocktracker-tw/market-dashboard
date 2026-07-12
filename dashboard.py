@@ -23,8 +23,8 @@ _HEAD = """<!DOCTYPE html>
 <script>window.echarts||document.write('<script src="https://unpkg.com/echarts@5.5.0/dist/echarts.min.js"><\\/script>');</script>
 <style>
 :root{
-  --bg:#0e1116; --panel:#171b24; --panel2:#1e2430; --line:#2a3142;
-  --text:#e7ebf3; --muted:#aab4c6; --green:#34d07f; --amber:#f9b43a; --red:#ef5d5d; --accent:#54a4e0; --gray:#6b7280;
+  --bg:#f5f8fb; --panel:#ffffff; --panel2:#eef3f8; --line:#dbe4ee;
+  --text:#17293a; --muted:#5b6d80; --green:#1f9d55; --amber:#c98a1e; --red:#d63838; --accent:#2478c8; --gray:#6b7280;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);
@@ -76,7 +76,7 @@ html{scroll-behavior:smooth}
 .navbar{position:sticky;top:0;z-index:50;background:rgba(11,14,19,.92);backdrop-filter:blur(6px);
   border-bottom:1px solid #222936}
 .navbar .inner{max-width:1320px;margin:0 auto;padding:9px 16px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.navbar .brand{font-weight:800;color:#e7ebf3;text-decoration:none;margin-right:10px}
+.navbar .brand{font-weight:800;color:#17293a;text-decoration:none;margin-right:10px}
 .navbar a.tab{text-decoration:none;padding:6px 13px;border-radius:8px;font-size:14px;color:#aeb8c8}
 .navbar a.tab:hover{background:#1a2030}
 .navbar a.tab.on{background:#1f6feb;color:#fff}
@@ -94,17 +94,17 @@ const fmt=v=>(v>0?'+':'')+v.toFixed(1);
 // 綜合分數儀表
 (function(){
   const el=document.getElementById('gauge'); if(!el)return;
-  if(typeof echarts==='undefined'){el.innerHTML='<div style="padding:40px 10px;color:#aab4c6;font-size:13px;text-align:center">圖表元件載入失敗（離線或網路受阻），分數與文字不受影響。</div>';return;}
+  if(typeof echarts==='undefined'){el.innerHTML='<div style="padding:40px 10px;color:#5b6d80;font-size:13px;text-align:center">圖表元件載入失敗（離線或網路受阻），分數與文字不受影響。</div>';return;}
   const g=echarts.init(el,null,{renderer:'canvas'});
   g.setOption({series:[{type:'gauge',min:0,max:100,radius:'100%',center:['50%','62%'],
     startAngle:210,endAngle:-30,
-    axisLine:{lineStyle:{width:16,color:[[0.35,'#e8a83c'],[0.6,'#3d84d6'],[0.8,'#54a4e0'],[1,'#6cc0f0']]}},
-    pointer:{width:5,length:'62%',itemStyle:{color:'#e7ebf3'}},
+    axisLine:{lineStyle:{width:16,color:[[0.35,'#c98a1e'],[0.6,'#2f7cc4'],[0.8,'#2478c8'],[1,'#1a9bdf']]}},
+    pointer:{width:5,length:'62%',itemStyle:{color:'#17293a'}},
     axisTick:{show:false},splitLine:{length:14,lineStyle:{color:'#39414f'}},
-    axisLabel:{color:'#8590a3',fontSize:10,distance:-30},
+    axisLabel:{color:'#7a8a99',fontSize:10,distance:-30},
     progress:{show:false},
     detail:{valueAnimation:true,fontSize:40,fontWeight:'bold',offsetCenter:[0,'38%'],
-      color:'#e7ebf3',formatter:'{value}'},
+      color:'#17293a',formatter:'{value}'},
     title:{show:false},
     data:[{value:DASH.composite}]}]});
   window.addEventListener('resize',()=>g.resize());
@@ -117,7 +117,7 @@ const fmt=v=>(v>0?'+':'')+v.toFixed(1);
   h.setOption({grid:{left:4,right:4,top:6,bottom:4},xAxis:{type:'category',data:xs,show:false},
     yAxis:{type:'value',min:0,max:100,show:false},
     tooltip:{trigger:'axis',formatter:p=>p[0].axisValue+'：'+p[0].data},
-    series:[{type:'line',data:ys,smooth:true,symbol:'none',lineStyle:{color:C.accent||'#54a4e0',width:2},
+    series:[{type:'line',data:ys,smooth:true,symbol:'none',lineStyle:{color:C.accent||'#2478c8',width:2},
       areaStyle:{color:'rgba(91,156,255,.15)'}}]});
   window.addEventListener('resize',()=>h.resize());
 })();
@@ -149,7 +149,7 @@ _OG_DESC = ("幾十項指標 → 一個 0–100 進場分數。法人 vs 散戶�
 _OG_BASE = "https://%s.github.io/%s" % (getattr(cfg, "GITHUB_USER", "stocktracker-tw"),
                                         getattr(cfg, "GITHUB_REPO", "market-dashboard"))
 PWA_HEAD = ('<link rel="manifest" href="manifest.webmanifest">'
-            '<meta name="theme-color" content="#0a1a2a">'
+            '<meta name="theme-color" content="#f5f8fb">'
             '<link rel="apple-touch-icon" href="apple-icon-v9.png">'
             '<meta name="apple-mobile-web-app-capable" content="yes">'
             '<meta name="mobile-web-app-capable" content="yes">'
@@ -273,20 +273,20 @@ _NAV_CSS = """<style>
 # Apple Liquid Glass（深色，盡力逼近）：強霧面 vibrancy + 頂緣鏡面高光 + 折射亮邊 + 連續大圓角。
 GLASS_CSS = """<style>
 :root{color-scheme:dark}
-html{background:#0a1a2a}
-body{background:transparent;color:#f2f5fa}
+html{background:#f5f8fb}
+body{background:transparent;color:#17293a}
 body::before{content:"";position:fixed;inset:-12%;z-index:-1;pointer-events:none;
  background:
-  radial-gradient(1500px 660px at 50% -14%, rgba(61,132,214,.42), transparent 62%),
-  radial-gradient(820px 640px at 98% 4%, rgba(108,192,240,.24), transparent 56%),
-  radial-gradient(760px 720px at 80% 55%, rgba(232,168,60,.12), transparent 55%),
-  radial-gradient(900px 820px at 24% 116%, rgba(40,96,160,.30), transparent 60%),
-  linear-gradient(180deg,#12304a,#081420 40%,#050a10)}
+  radial-gradient(1500px 660px at 50% -14%, rgba(61,132,214,.14), transparent 62%),
+  radial-gradient(820px 640px at 98% 4%, rgba(108,192,240,.12), transparent 56%),
+  radial-gradient(760px 720px at 80% 55%, rgba(232,168,60,.07), transparent 55%),
+  radial-gradient(900px 820px at 24% 116%, rgba(40,96,160,.10), transparent 60%),
+  linear-gradient(180deg,#eaf2fa,#f5f8fb 40%,#f5f8fb)}
 .card,.box,.pcard,.hero,.brief{position:relative;
- background:linear-gradient(180deg, rgba(255,255,255,.085), rgba(255,255,255,.028))!important;
- -webkit-backdrop-filter:blur(30px) saturate(1.9);backdrop-filter:blur(30px) saturate(1.9);
- border:1px solid rgba(255,255,255,.08)!important;border-radius:24px!important;
- box-shadow:0 16px 46px rgba(0,0,0,.5)!important}
+ background:linear-gradient(180deg,#ffffff,#fbfdff)!important;
+ -webkit-backdrop-filter:blur(30px) saturate(1.15);backdrop-filter:blur(30px) saturate(1.15);
+ border:1px solid #dde6ef!important;border-radius:24px!important;
+ box-shadow:0 10px 26px rgba(30,60,100,.08),inset 0 1px 0 #fff
 .hero{border-radius:30px!important}
 /* 底部浮動分頁列：同款玻璃 + 邊緣高光 */
 .tabbar{background:linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.05))!important;
@@ -304,10 +304,10 @@ body::before{content:"";position:fixed;inset:-12%;z-index:-1;pointer-events:none
 .navbar{background:linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.025))!important;
  -webkit-backdrop-filter:blur(28px) saturate(1.9);backdrop-filter:blur(28px) saturate(1.9);
  border-bottom:1px solid rgba(255,255,255,.08)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.28)}
-.navbar .brand{color:#f2f5fa}.navbar a.tab{color:#cfd8e6}
+.navbar .brand{color:#17293a}.navbar a.tab{color:#cfd8e6}
 .navbar a.tab.on{background:rgba(120,170,255,.92)!important;color:#04070d!important;box-shadow:0 3px 16px rgba(120,170,255,.45)}
 input{background:rgba(255,255,255,.06)!important;border:1px solid rgba(255,255,255,.12)!important;
- -webkit-backdrop-filter:blur(18px) saturate(1.6);backdrop-filter:blur(18px) saturate(1.6);border-radius:16px!important;color:#f2f5fa}
+ -webkit-backdrop-filter:blur(18px) saturate(1.6);backdrop-filter:blur(18px) saturate(1.6);border-radius:16px!important;color:#17293a}
 .searchwrap{background:transparent!important}
 .badge{box-shadow:0 3px 16px rgba(0,0,0,.32)}
 /* 進階：SVG 位移折射（支援的瀏覽器才套用，否則自動退回上面的模糊） */
@@ -367,7 +367,7 @@ def render(result: Dict, indicators: List[Dict], score_history: List, meta: Dict
     band_color = {"積極加碼區": "green", "加碼區": "green", "正常定額區": "amber",
                   "減碼觀望區": "red", "保守防禦區": "red"}.get(result["band"], "amber")
     parts.append('<div class="hero"><div id="gauge"></div><div class="verdict">')
-    parts.append('<span class="badge" style="background:var(--%s);color:#0e1116">%s</span>'
+    parts.append('<span class="badge" style="background:var(--%s);color:#ffffff">%s</span>'
                  % (band_color, _esc(result["band"])))
     parts.append('<h2>進場分數 %.1f</h2>' % result["composite"])
     parts.append('<p>%s</p>' % _esc(result["action"]))
@@ -441,7 +441,7 @@ def render(result: Dict, indicators: List[Dict], score_history: List, meta: Dict
         _bt = None
     if _bt:
         parts.append('<div class="section-title">策略回測：主動 vs 固定定期定額 '
-                     '<a href="backtest.html" style="font-size:12px;color:#54a4e0;font-weight:400;margin-left:8px">完整報告 →</a></div>')
+                     '<a href="backtest.html" style="font-size:12px;color:#2478c8;font-weight:400;margin-left:8px">完整報告 →</a></div>')
         parts.append('<div class="grid">')
         for sym, blk in _bt.get("symbols", {}).items():
             best_irr = max((r["irr"] for r in blk["rows"].values() if r["irr"] is not None), default=None)
@@ -482,12 +482,12 @@ def render(result: Dict, indicators: List[Dict], score_history: List, meta: Dict
                          'Object.keys(BT).forEach(function(id){var el=document.getElementById(id);if(!el)return;'
                          'var d=BT[id];var c=echarts.init(el);'
                          'c.setOption({grid:{left:46,right:14,top:34,bottom:28},'
-                         'legend:{data:["固定定額","主動"],textStyle:{color:"#cdd5e3"},top:4},'
+                         'legend:{data:["固定定額","主動"],textStyle:{color:"#3f5468"},top:4},'
                          'tooltip:{trigger:"axis"},'
-                         'xAxis:{type:"category",data:d.labels,axisLabel:{color:"#8590a3",fontSize:10}},'
-                         'yAxis:{type:"value",scale:true,axisLabel:{color:"#8590a3",fontSize:10,formatter:function(v){return v.toFixed(2);}}},'
-                         'series:[{name:"固定定額",type:"line",data:d.fixed,smooth:true,symbol:"none",lineStyle:{color:"#94a0b4",width:2}},'
-                         '{name:"主動",type:"line",data:d.active,smooth:true,symbol:"none",lineStyle:{color:"#54a4e0",width:2.5}}]});'
+                         'xAxis:{type:"category",data:d.labels,axisLabel:{color:"#7a8a99",fontSize:10}},'
+                         'yAxis:{type:"value",scale:true,axisLabel:{color:"#7a8a99",fontSize:10,formatter:function(v){return v.toFixed(2);}}},'
+                         'series:[{name:"固定定額",type:"line",data:d.fixed,smooth:true,symbol:"none",lineStyle:{color:"#5f7183",width:2}},'
+                         '{name:"主動",type:"line",data:d.active,smooth:true,symbol:"none",lineStyle:{color:"#2478c8",width:2.5}}]});'
                          'setTimeout(function(){c.resize();},60);'
                          'window.addEventListener("resize",function(){c.resize();});});}'
                          'if(document.readyState==="complete"){init();}else{window.addEventListener("load",init);}'
@@ -496,7 +496,7 @@ def render(result: Dict, indicators: List[Dict], score_history: List, meta: Dict
         # JSON 還沒產生時的 fallback
         parts.append('<a href="backtest.html" style="display:inline-block;margin:2px 0 4px;padding:9px 16px;'
                      'background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:13px;'
-                     'color:#9ec1ff;font-size:13.5px;text-decoration:none">📊 策略回測：主動 vs 固定定期定額 →</a>')
+                     'color:#2478c8;font-size:13.5px;text-decoration:none">📊 策略回測：主動 vs 固定定期定額 →</a>')
 
     # 觀點＝盤後碎念分頁，這裡放入口：大環境一行＋今天第一句
     if perspectives and perspectives[0].get("monologue"):

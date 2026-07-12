@@ -164,18 +164,18 @@ def assess(shared=None, twii_close=None) -> Optional[Dict]:
 
 
 _CSS = """<style>
-body{margin:0;background:#0e1116;color:#e7ebf3;font-family:"Segoe UI","Microsoft JhengHei",system-ui,sans-serif;line-height:1.6}
+body{margin:0;background:#f5f8fb;color:#17293a;font-family:"Segoe UI","Microsoft JhengHei",system-ui,sans-serif;line-height:1.6}
 .wrap{max-width:860px;margin:0 auto;padding:26px 20px 70px}
-h1{font-size:23px;margin:0 0 2px}.muted{color:#94a0b4;font-size:13px}a{color:#5b9cff;text-decoration:none}
+h1{font-size:23px;margin:0 0 2px}.muted{color:#5f7183;font-size:13px}a{color:#5b9cff;text-decoration:none}
 h2{font-size:16px;margin:22px 0 10px;padding-left:10px;border-left:3px solid #5b9cff}
-.box{background:#171b24;border:1px solid #2a3142;border-radius:12px;padding:12px 16px;margin-bottom:10px}
+.box{background:#ffffff;border:1px solid #dbe4ee;border-radius:12px;padding:12px 16px;margin-bottom:10px}
 .nrow{padding:11px 2px;border-bottom:1px solid #222936}
-.nt{font-size:15px}.src{color:#94a0b4;font-size:12px}
+.nt{font-size:15px}.src{color:#5f7183;font-size:12px}
 .chip{display:inline-block;font-size:12px;padding:2px 9px;border-radius:7px;margin:5px 6px 0 0;background:#1e2a44}
 .green{color:#28c76f}.amber{color:#f6a821}.red{color:#ea5455}
 .warn{background:rgba(246,168,33,.10);border:1px solid rgba(246,168,33,.35);color:#ffd98a;
   padding:9px 13px;border-radius:9px;font-size:12.5px;margin-bottom:12px}
-.brief{background:#141b27;border:1px solid #2a3142;border-radius:12px;padding:14px 18px;white-space:pre-wrap;font-size:14px}
+.brief{background:#141b27;border:1px solid #dbe4ee;border-radius:12px;padding:14px 18px;white-space:pre-wrap;font-size:14px}
 </style>"""
 
 

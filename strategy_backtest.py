@@ -272,7 +272,7 @@ def score_validation(sig):
     overall = sum(r for _, r in obs) / n * 100
     mx = max(abs(a) for _, _, a in rows) or 1.0
     parts = ['<div class="card"><h2>🎯 分數有效性體檢：分數高的日子，之後真的比較會漲嗎？</h2>',
-             '<div style="font-size:12.5px;color:#94a0b4;margin-bottom:10px">'
+             '<div style="font-size:12.5px;color:#5f7183;margin-bottom:10px">'
              '把每天的 raw 分數按高低分五組，看各組「未來 %d 個交易日」台股加權的平均報酬。'
              '若分數有效，越高的組報酬應越好。全樣本平均 %+.1f%%（n=%d）。</div>' % (H, overall, n)]
     for label, cnt, avg in rows:
@@ -280,14 +280,14 @@ def score_validation(sig):
         color = "#ea5455" if avg >= 0 else "#28c76f"
         parts.append(
             '<div style="display:flex;align-items:center;gap:8px;margin:5px 0;font-size:12.5px">'
-            '<span style="flex:none;width:86px;color:#94a0b4">分數 %s</span>'
-            '<span style="flex:none;width:52px;color:#5f6b80">n=%d</span>'
+            '<span style="flex:none;width:86px;color:#5f7183">分數 %s</span>'
+            '<span style="flex:none;width:52px;color:#8795a3">n=%d</span>'
             '<span style="flex:1;height:14px;position:relative">'
             '<span style="position:absolute;left:0;top:0;bottom:0;width:%.0f%%;'
             'background:%s;border-radius:4px;opacity:.75"></span></span>'
             '<b style="flex:none;width:64px;text-align:right;color:%s">%+.2f%%</b></div>'
             % (label, cnt, w, color, color, avg))
-    parts.append('<div style="font-size:11.5px;color:#5f6b80;margin-top:8px">'
+    parts.append('<div style="font-size:11.5px;color:#8795a3;margin-top:8px">'
                  '注意：分數歷史仍在累積（前 60 日為回測補值、含輕微後見之明）；'
                  '樣本涵蓋期間短、屬同一市場環境，統計僅供方向參考。</div></div>')
     return "".join(parts)
@@ -357,7 +357,7 @@ def pillar_ic_card(pillar_hist, sig):
             cells.append((ic, len(pairs)))
         rows.append((nm + caveat.get(pk, ""), pk == "composite", cells))
     parts = ['<div class="card"><h2>🧭 支柱預測力（IC）：哪根柱子真的會預測？</h2>',
-             '<div style="font-size:12.5px;color:#94a0b4;margin-bottom:10px">'
+             '<div style="font-size:12.5px;color:#5f7183;margin-bottom:10px">'
              '把每月各支柱分數與台股加權「之後 1／3 個月」報酬做等級相關（Spearman IC，'
              '-1〜+1，越正代表分數越高之後越漲）。單一時間序列樣本 n≈80，'
              '雜訊帶約 ±0.11（1σ≈1/√n）——<b>|IC| 要 ≳ 0.2 才算明顯跳出雜訊</b>；'
@@ -366,7 +366,7 @@ def pillar_ic_card(pillar_hist, sig):
         bar_cells = []
         for ic, n in cells:
             if ic is None:
-                bar_cells.append('<span style="flex:1;color:#5f6b80;font-size:12px">樣本不足</span>')
+                bar_cells.append('<span style="flex:1;color:#8795a3;font-size:12px">樣本不足</span>')
                 continue
             w = min(100, abs(ic) * 250)
             color = "#ea5455" if ic >= 0 else "#28c76f"
@@ -376,16 +376,16 @@ def pillar_ic_card(pillar_hist, sig):
                 '<span style="position:absolute;left:0;top:0;bottom:0;width:%.0f%%;'
                 'background:%s;border-radius:4px;opacity:.75"></span></span>'
                 '<b style="flex:none;width:56px;text-align:right;color:%s">%+.2f</b>'
-                '<span style="flex:none;color:#5f6b80;font-size:11px">n=%d</span></span>'
+                '<span style="flex:none;color:#8795a3;font-size:11px">n=%d</span></span>'
                 % (w, color, color, ic, n))
         weight = ';font-weight:700' if is_comp else ''
         parts.append('<div style="display:flex;align-items:center;gap:12px;margin:6px 0;font-size:12.5px">'
-                     '<span style="flex:none;width:120px;color:#cdd5e3%s">%s</span>%s</div>'
+                     '<span style="flex:none;width:120px;color:#3f5468%s">%s</span>%s</div>'
                      % (weight, nm, "".join(bar_cells)))
-    parts.append('<div style="display:flex;gap:12px;margin:2px 0 0;font-size:11px;color:#5f6b80">'
+    parts.append('<div style="display:flex;gap:12px;margin:2px 0 0;font-size:11px;color:#8795a3">'
                  '<span style="width:120px;flex:none"></span>'
                  '<span style="flex:1">↑ 未來 1 個月</span><span style="flex:1">↑ 未來 3 個月</span></div>')
-    parts.append('<div style="font-size:11.5px;color:#5f6b80;margin-top:8px">'
+    parts.append('<div style="font-size:11.5px;color:#8795a3;margin-top:8px">'
                  '※ 籌碼／估值支柱缺 10 年史料（無法人/融資/本益比），歷史重算只含其可回測子集'
                  '（量能、距高點回檔），IC 僅代表該子集。'
                  '† 總經支柱以「當月」CPI/景氣信號計分，實務上這些數據下月才公布，'
@@ -422,24 +422,24 @@ def indicator_report_card(ind_hist, ind_names, sig):
         return None
     rows.sort(key=lambda r: -abs(r[0]))
     parts = ['<div class="card"><h2>📋 指標成績單：誰在做事、誰在划水？</h2>',
-             '<div style="font-size:12.5px;color:#94a0b4;margin-bottom:10px">'
+             '<div style="font-size:12.5px;color:#5f7183;margin-bottom:10px">'
              '各指標月度分數 vs 台股加權未來 3 個月報酬的 Spearman IC，按辨識力排序。'
              '雜訊帶約 ±0.11——<b>長期趴在雜訊帶裡的指標是刪除候選</b>（讓數據決定去留，'
              '而不是捨不得）。僅列可歷史重算的指標；正 IC＝分數高之後漲。</div>']
     mx = max(abs(r[0]) for r in rows) or 1.0
     for ic, n, ikey in rows:
         color = "#ea5455" if ic >= 0 else "#28c76f"
-        noise = ' <span style="color:#5f6b80;font-size:10.5px">趴在雜訊帶</span>' if abs(ic) < 0.11 else ""
+        noise = ' <span style="color:#8795a3;font-size:10.5px">趴在雜訊帶</span>' if abs(ic) < 0.11 else ""
         parts.append(
             '<div style="display:flex;align-items:center;gap:10px;margin:4px 0;font-size:12px">'
-            '<span style="flex:none;width:190px;color:#cdd5e3">%s%s</span>'
+            '<span style="flex:none;width:190px;color:#3f5468">%s%s</span>'
             '<span style="flex:1;height:11px;position:relative">'
             '<span style="position:absolute;left:0;top:0;bottom:0;width:%.0f%%;'
             'background:%s;border-radius:4px;opacity:.7"></span></span>'
             '<b style="flex:none;width:52px;text-align:right;color:%s">%+.2f</b>'
-            '<span style="flex:none;width:40px;color:#5f6b80;font-size:10.5px">n=%d</span></div>'
+            '<span style="flex:none;width:40px;color:#8795a3;font-size:10.5px">n=%d</span></div>'
             % (ind_names.get(ikey, ikey), noise, abs(ic) / mx * 100, color, color, ic, n))
-    parts.append('<div style="font-size:11.5px;color:#5f6b80;margin-top:8px">'
+    parts.append('<div style="font-size:11.5px;color:#8795a3;margin-top:8px">'
                  '注意：單一時間序列、月資料、同一市場環境；總經類含輕微 look-ahead。'
                  '刪指標前先看它是否在別的環境有價值（如恐慌類平時無用、崩盤時救命）。</div></div>')
     return "".join(parts)
@@ -455,21 +455,21 @@ def render_html(results, master, validation=None):
 <title>策略回測：主動 vs 固定定期定額</title>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
 <style>
-body{margin:0;background:#0e1116;color:#e7ebf3;font-family:"Segoe UI","Microsoft JhengHei",system-ui,sans-serif;line-height:1.6}
+body{margin:0;background:#f5f8fb;color:#17293a;font-family:"Segoe UI","Microsoft JhengHei",system-ui,sans-serif;line-height:1.6}
 .wrap{max-width:980px;margin:0 auto;padding:24px 18px 60px}
-h1{font-size:22px;margin:0 0 4px}.sub{color:#94a0b4;font-size:13px;margin-bottom:18px}
+h1{font-size:22px;margin:0 0 4px}.sub{color:#5f7183;font-size:13px;margin-bottom:18px}
 a{color:#5b9cff}
-.card{background:#171b24;border:1px solid #2a3142;border-radius:14px;padding:16px 18px;margin-bottom:18px}
+.card{background:#ffffff;border:1px solid #dbe4ee;border-radius:14px;padding:16px 18px;margin-bottom:18px}
 h2{font-size:17px;margin:0 0 10px}
 table{width:100%;border-collapse:collapse;font-size:13.5px}
 th,td{padding:8px 10px;text-align:right;border-bottom:1px solid #222936}
 th:first-child,td:first-child{text-align:left}
-thead th{color:#94a0b4;font-weight:600}
+thead th{color:#5f7183;font-weight:600}
 .best{color:#28c76f;font-weight:700}
 .chart{height:420px;margin-top:16px}
 .note{background:rgba(246,168,33,.10);border:1px solid rgba(246,168,33,.35);color:#ffd98a;
   padding:10px 14px;border-radius:10px;font-size:12.5px;margin-bottom:18px}
-.foot{margin-top:24px;padding-top:14px;border-top:1px solid #2a3142;color:#94a0b4;font-size:12px}
+.foot{margin-top:24px;padding-top:14px;border-top:1px solid #dbe4ee;color:#5f7183;font-size:12px}
 </style></head><body>""")
     from dashboard import nav
     parts.append(nav("index", include_css=True))   # 回測＝大盤子頁，分頁列高亮「大盤」
@@ -486,7 +486,7 @@ thead th{color:#94a0b4;font-weight:600}
         parts.append(validation)
 
     for sym, blk in results.items():
-        parts.append('<div class="card"><h2>%s <span style="color:#94a0b4;font-size:13px">%s</span></h2>'
+        parts.append('<div class="card"><h2>%s <span style="color:#5f7183;font-size:13px">%s</span></h2>'
                      % (blk["label"], sym))
         # 找出 IRR 最佳列
         best_irr = max((r["irr"] for r in blk["rows"].values() if r["irr"] is not None), default=None)
@@ -500,7 +500,7 @@ thead th{color:#94a0b4;font-weight:600}
                             cls, irr_txt, r["maxdd"] * 100))
         parts.append("</tbody></table>")
         parts.append('<div class="chart" id="ch-%s"></div>' % _safe(sym))
-        parts.append('<div style="font-size:11.5px;color:#94a0b4;margin-top:4px">'
+        parts.append('<div style="font-size:11.5px;color:#5f7183;margin-top:4px">'
                      '上圖＝每元投入的帳戶價值（帳戶市值÷已投入金額，兩條都從 1.0 出發，越高＝每塊錢越有效率）。</div>')
         parts.append("</div>")
         chart_data[sym] = {
@@ -520,11 +520,11 @@ Object.keys(CH).forEach(function(sym){
   var el=document.getElementById(id); if(!el)return;
   var d=CH[sym]; var c=echarts.init(el);
   c.setOption({grid:{left:44,right:12,top:18,bottom:24},
-    legend:{data:['固定定額','主動'],textStyle:{color:'#cdd5e3'},top:0},
+    legend:{data:['固定定額','主動'],textStyle:{color:'#3f5468'},top:0},
     tooltip:{trigger:'axis'},
-    xAxis:{type:'category',data:d.labels,axisLabel:{color:'#8590a3',fontSize:10}},
-    yAxis:{type:'value',scale:true,axisLabel:{color:'#8590a3',fontSize:10}},
-    series:[{name:'固定定額',type:'line',data:d.fixed,smooth:true,symbol:'none',lineStyle:{color:'#94a0b4',width:2}},
+    xAxis:{type:'category',data:d.labels,axisLabel:{color:'#7a8a99',fontSize:10}},
+    yAxis:{type:'value',scale:true,axisLabel:{color:'#7a8a99',fontSize:10}},
+    series:[{name:'固定定額',type:'line',data:d.fixed,smooth:true,symbol:'none',lineStyle:{color:'#5f7183',width:2}},
             {name:'主動',type:'line',data:d.active,smooth:true,symbol:'none',lineStyle:{color:C.accent,width:2}}]});
   window.addEventListener('resize',function(){c.resize();});
 });

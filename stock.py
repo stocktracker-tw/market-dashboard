@@ -866,7 +866,7 @@ def _card_html(r, esc):
                      % (ex["light"], esc(ex["status"]), ex["score"],
                         esc("、".join(ex["signals"])), esc(ex["stop"])))
     tag = _tag_text(r.get("industry", ""), r.get("themes", []))
-    tag_html = ('<div style="margin:2px 0 8px"><span style="background:#1e2a44;color:#9ec1ff;'
+    tag_html = ('<div style="margin:2px 0 8px"><span style="background:#1e2a44;color:#2478c8;'
                 'font-size:11.5px;padding:2px 8px;border-radius:6px">%s</span></div>' % esc(tag)) if tag else ""
     flag_html = ('<div style="margin:2px 0 8px"><span style="background:#3a2f12;color:#f6c764;'
                  'font-size:11.5px;padding:2px 8px;border-radius:6px;border:1px solid #5a4a1e">%s%s</span></div>'
@@ -880,32 +880,32 @@ def _card_html(r, esc):
 
 
 _PAGE_CSS = """<style>
-body{margin:0;background:#0e1116;color:#e7ebf3;font-family:"Segoe UI","Microsoft JhengHei",system-ui,sans-serif;line-height:1.6}
+body{margin:0;background:#f5f8fb;color:#17293a;font-family:"Segoe UI","Microsoft JhengHei",system-ui,sans-serif;line-height:1.6}
 .wrap{max-width:680px;margin:0 auto;padding:26px 20px 70px}
 .wrap.wide{max-width:1320px}
-h1{font-size:25px;margin:0 0 3px}.muted{color:#94a0b4;font-size:13.5px}
+h1{font-size:25px;margin:0 0 3px}.muted{color:#5f7183;font-size:13.5px}
 .cardgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:16px;margin-bottom:8px}
 @media(max-width:560px){.cardgrid{grid-template-columns:1fr}.wrap{padding:20px 14px 60px}}
-.card{background:#171b24;border:1px solid #2a3142;border-radius:16px;padding:18px 22px}
+.card{background:#ffffff;border:1px solid #dbe4ee;border-radius:16px;padding:18px 22px}
 h2{font-size:18px;margin:0;display:flex;align-items:center;gap:8px}
 h2 .score{margin-left:auto;font-size:32px;font-weight:800}
 .row{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #222936;font-size:14.5px}
 .green{color:#28c76f}.amber{color:#f6a821}.red{color:#ea5455}a{color:#5b9cff}
 .searchwrap{position:sticky;top:0;z-index:6;background:#04060a;padding:12px 0 8px}
-input{width:100%;box-sizing:border-box;padding:13px 15px;border-radius:12px;border:1px solid #2a3142;
-  background:#11161f;color:#e7ebf3;font-size:16px;outline:none}
+input{width:100%;box-sizing:border-box;padding:13px 15px;border-radius:12px;border:1px solid #dbe4ee;
+  background:#11161f;color:#17293a;font-size:16px;outline:none}
 input:focus{border-color:#5b9cff}
 .sitem{border-bottom:1px solid #222936}
 .srow{display:flex;align-items:center;gap:14px;padding:11px 2px;cursor:pointer}
 .srow:hover{background:#141925}
-.srow .nm{flex:1;min-width:0;font-size:15px}.srow .mini{color:#94a0b4;font-size:12px}
+.srow .nm{flex:1;min-width:0;font-size:15px}.srow .mini{color:#5f7183;font-size:12px}
 .srow .sc{font-weight:700;font-size:20px;width:52px;text-align:right}
 .srow .ar{color:#6b7686;width:14px;text-align:center}
 .sdet{padding:2px 6px 14px;font-size:13.5px}
-.sdet .dl{padding:4px 0;color:#cdd5e3}.sdet .muted{font-size:12.5px}
+.sdet .dl{padding:4px 0;color:#3f5468}.sdet .muted{font-size:12.5px}
 .sdet .ana{padding:6px 0;color:#e7ecf6;line-height:1.55}
 .mk{display:inline-block;font-size:11px;padding:1px 7px;border-radius:6px;vertical-align:1px;font-weight:600}
-.mk.tse{background:rgba(91,156,255,.18);color:#9ec1ff}
+.mk.tse{background:rgba(91,156,255,.18);color:#2478c8}
 .mk.otc{background:rgba(246,168,33,.18);color:#f6c764}
 .green{color:#28c76f}.amber{color:#f6a821}.red{color:#ea5455}
 .wladd{display:flex;gap:8px;margin:6px 0 10px}
@@ -986,7 +986,7 @@ function detail(x){
 }
 function tog(el){var d=el.nextElementSibling;if(!d)return;var open=d.style.display!=='none';d.style.display=open?'none':'block';var a=el.querySelector('.ar');if(a)a.textContent=open?'▸':'▾';}
 function rowHTML(x,extra){
-  var tag=x.t?' <span style="color:#9ec1ff">['+esc(x.t)+']</span>':(x.i?' <span class="muted">'+esc(x.i)+'</span>':'');
+  var tag=x.t?' <span style="color:#2478c8">['+esc(x.t)+']</span>':(x.i?' <span class="muted">'+esc(x.i)+'</span>':'');
   var fg=x.fg?' <span style="font-size:11px;color:#f6c764;border:1px solid #5a4a1e;border-radius:5px;padding:0 4px">'+esc(x.fg)+'</span>':'';
   return '<div class="sitem"><div class="srow"><div class="ar">▸</div>'+
     '<div class="nm"><b>'+x.c+'</b> '+mkt(x)+' '+esc(x.n)+tag+fg+
@@ -1084,19 +1084,19 @@ def _embed_rec_backtest(s, esc):
             else:
                 verdict, vc = "整體與大盤相當", "#f6a821"
         else:
-            avg_alpha = None; verdict, vc = "資料不足", "#94a0b4"
+            avg_alpha = None; verdict, vc = "資料不足", "#5f7183"
 
         def wpct(w):
             return "—" if w is None else ("%.0f%%" % (w * 100))
 
         parts.append('<div class="card" style="border:1.5px solid %s;margin-bottom:12px">' % vc)
-        parts.append('<div style="font-size:13px;color:#94a0b4">綜合績效（歷史模擬・Proxy）</div>')
+        parts.append('<div style="font-size:13px;color:#5f7183">綜合績效（歷史模擬・Proxy）</div>')
         parts.append('<div style="font-size:26px;font-weight:800;margin:4px 0;color:%s">%s</div>' % (vc, verdict))
         if avg_alpha is not None:
             parts.append('<div style="font-size:15px;font-weight:600;%s">平均超額報酬 %s（推薦股 vs 0050）</div>'
                          % (color(avg_alpha), pct(avg_alpha)))
         parts.append('<table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:10px">'
-                     '<thead><tr style="color:#94a0b4">'
+                     '<thead><tr style="color:#5f7183">'
                      '<th style="text-align:left;padding:5px 4px">持有期</th>'
                      '<th style="text-align:right">推薦股平均</th>'
                      '<th style="text-align:right">0050 同期</th>'
@@ -1106,7 +1106,7 @@ def _embed_rec_backtest(s, esc):
             parts.append('<tr style="border-top:1px solid #222936">'
                          '<td style="padding:5px 4px">%s</td>'
                          '<td style="text-align:right;%s">%s</td>'
-                         '<td style="text-align:right;color:#94a0b4">%s</td>'
+                         '<td style="text-align:right;color:#5f7183">%s</td>'
                          '<td style="text-align:right;font-weight:700;%s">%s</td>'
                          '<td style="text-align:right">%s</td></tr>'
                          % (label, color(av), pct(av), pct(br), color(al), pct(al), wpct(wr)))
@@ -1124,7 +1124,7 @@ def _embed_rec_backtest(s, esc):
         parts.append('<div class="card" style="margin-bottom:14px"><h2 style="font-size:15px;margin-bottom:8px">'
                      '推薦個股模擬明細（今日推薦的 %d 檔）</h2>' % n)
         parts.append('<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">'
-                     '<thead><tr style="color:#94a0b4;border-bottom:1px solid #2a3142">'
+                     '<thead><tr style="color:#5f7183;border-bottom:1px solid #dbe4ee">'
                      '<th style="text-align:left;padding:6px 4px">代碼</th>'
                      '<th style="text-align:left">名稱</th>'
                      '<th style="text-align:right">今日分數</th>'
@@ -1139,7 +1139,7 @@ def _embed_rec_backtest(s, esc):
                          '<td style="text-align:right">%.1f</td>'
                          '<td style="text-align:right;%s">%s</td>'
                          '<td style="text-align:right;%s">%s</td>'
-                         '<td style="color:#94a0b4;padding-left:8px">%s</td></tr>'
+                         '<td style="color:#5f7183;padding-left:8px">%s</td></tr>'
                          % (esc(r["code"]), esc(r["name"]), r["score"],
                             color(v3), pct(v3), color(v6), pct(v6), esc(r.get("themes",""))))
         parts.append('</tbody></table></div></div>')
@@ -1151,7 +1151,7 @@ def _embed_rec_backtest(s, esc):
         parts.append('<div class="card"><h2 style="font-size:15px;margin-bottom:8px">'
                      '即時追蹤（已滿 20 交易日的真實報酬・%d 筆）</h2>' % len(tracked))
         parts.append('<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">'
-                     '<thead><tr style="color:#94a0b4;border-bottom:1px solid #2a3142">'
+                     '<thead><tr style="color:#5f7183;border-bottom:1px solid #dbe4ee">'
                      '<th style="text-align:left;padding:6px 4px">推薦日</th>'
                      '<th style="text-align:left">代碼</th>'
                      '<th style="text-align:left">名稱</th>'
@@ -1162,22 +1162,22 @@ def _embed_rec_backtest(s, esc):
         for t in tracked:
             r20 = t.get("ret20") or 0; b20 = t.get("bench20") or 0; alpha = t.get("alpha20") or 0
             parts.append('<tr style="border-bottom:1px solid rgba(255,255,255,.05)">'
-                         '<td style="padding:6px 4px;color:#94a0b4">%s</td>'
+                         '<td style="padding:6px 4px;color:#5f7183">%s</td>'
                          '<td style="font-weight:700">%s</td>'
                          '<td>%s</td>'
                          '<td style="text-align:right">%s</td>'
                          '<td style="text-align:right;%s">%+.1f%%</td>'
-                         '<td style="text-align:right;color:#94a0b4">%+.1f%%</td>'
+                         '<td style="text-align:right;color:#5f7183">%+.1f%%</td>'
                          '<td style="text-align:right;%s">%+.1f%%</td></tr>'
                          % (esc(t.get("date","")), esc(t.get("code","")), esc(t.get("name","")),
                             esc(str(t.get("score",""))), color(r20), r20*100,
                             b20*100, color(alpha), alpha*100))
         parts.append('</tbody></table></div></div>')
     elif n_hist > 0:
-        parts.append('<div class="card" style="font-size:13px;color:#94a0b4">'
+        parts.append('<div class="card" style="font-size:13px;color:#5f7183">'
                      '⏳ 已累積 %d 筆推薦紀錄；約 4 週後滿 20 個交易日的會在此顯示實際報酬。</div>' % n_hist)
     else:
-        parts.append('<div class="card" style="font-size:13px;color:#94a0b4">'
+        parts.append('<div class="card" style="font-size:13px;color:#5f7183">'
                      '⏳ 即時追蹤剛啟動；累積 ~4 週後此區會顯示真實報酬。</div>')
 
     return "".join(parts)

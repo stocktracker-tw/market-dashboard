@@ -275,6 +275,9 @@ GLASS_CSS = """<style>
 :root{color-scheme:dark}
 html{background:#f5f8fb}
 body{background:transparent;color:#17293a}
+/* 鎖住水平溢出：內容過寬（如寬表格）會把版面撐開，固定定位的分頁列跟著縮小位移 */
+html,body{max-width:100vw;overflow-x:hidden;overflow-x:clip}
+@media(max-width:700px){.wrap table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}}
 body::before{content:"";position:fixed;inset:-12%;z-index:-1;pointer-events:none;
  background:
   radial-gradient(1500px 660px at 50% -14%, rgba(61,132,214,.14), transparent 62%),

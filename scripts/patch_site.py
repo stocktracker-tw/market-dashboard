@@ -431,6 +431,9 @@ LIQUID = (
     # 鎖住水平溢出：內容過寬（如回測頁寬表格）會把版面撐開，
     # 固定定位的分頁列在手機上跟著縮小位移 → 各頁 bar 位置不一致
     'html,body{max-width:100vw;overflow-x:hidden;overflow-x:clip}'
+    # 網頁版（非 PWA）iOS Safari 無視 user-scalable=no：touch-action 擋雙擊縮放，
+    # gesturestart 攔截（見 zoomlock script）擋捏縮 → 頁寬真正鎖死、bar 不飄
+    'html,body{touch-action:pan-x pan-y}'
     '@media(max-width:700px){.wrap table{display:block;overflow-x:auto;'
     '-webkit-overflow-scrolling:touch;max-width:100%}}'
     'body::before{content:"";position:fixed;inset:-12% -8%;z-index:-1;pointer-events:none;'
@@ -475,6 +478,23 @@ def patch_liquid(html):
     html = LIQUID_RE.sub('', html)
     html = html.replace('</body>', LIQUID + '</body>', 1)
     return html, (html != orig)
+
+
+# --- 縮放鎖（網頁版）---------------------------------------------------------
+# iOS Safari 瀏覽器模式無視 user-scalable=no，捏縮會讓 fixed 分頁列位移且保持。
+# gesturestart/gesturechange 是 iOS 專屬事件，preventDefault 可實際擋下捏縮；
+# 搭配 LIQUID 的 touch-action:pan-x pan-y（擋雙擊縮放）。id 守門冪等。
+ZOOMLOCK = ('<script id="zoomlock">(function(){if(window.__zoomlock)return;'
+            'window.__zoomlock=1;var f=function(e){e.preventDefault()};'
+            "document.addEventListener('gesturestart',f,{passive:false});"
+            "document.addEventListener('gesturechange',f,{passive:false});"
+            '})();</script>')
+
+
+def patch_zoomlock(html):
+    if '</body>' not in html or 'id="zoomlock"' in html:
+        return html, False
+    return html.replace('</body>', ZOOMLOCK + '</body>', 1), True
 
 
 # --- canonical + 缺漏的 meta description ------------------------------------
@@ -1058,6 +1078,10 @@ def patch(html, fname):
     # 1d2) 全站 Liquid Glass 材質（底層極光光暈 + 卡片玻璃化）
     html, lq = patch_liquid(html)
     changed = changed or lq
+
+    # 1d3) 縮放鎖：網頁版 iOS Safari 捏縮讓 bar 飄，事件層實際擋下
+    html, zl = patch_zoomlock(html)
+    changed = changed or zl
 
     # 1e-3) 定期定額元件拆除（產品定位改「觀察大盤」：已部署頁就地移除）
     _CALC_RE = re.compile(r'<div id="calc".*?非投資建議</div></div>', re.S)

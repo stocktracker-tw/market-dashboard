@@ -161,9 +161,9 @@ def _drawdown(yh, key, name) -> Optional[Dict]:
     score = A.piecewise(dd, [(-0.40, 97), (-0.25, 90), (-0.15, 80),
                              (-0.08, 66), (-0.03, 52), (0.0, 40)])
     note = ("距 52 週高點回檔 %.1f%%。" % (dd * 100)) + (
-        "接近高點、追高風險較大。" if dd > -0.03 else
-        "明顯回檔，分批進場價值浮現。" if dd > -0.15 else
-        "深度修正，中長線相對低檔。")
+        "貼著歷史高點，這裡進場叫接棒不叫進場。" if dd > -0.03 else
+        "回檔有感，想分批的人開始有位置可以站了。" if dd > -0.15 else
+        "跌很深。恐慌的人在賣、有紀律的人在列清單。")
     return _ind("dd_" + key, name, "valuation",
                 "%.1f%%" % (dd * 100), score, note, series=s[-120:], weight=0.8)
 
@@ -201,8 +201,8 @@ def _yield_curve(ust) -> Optional[Dict]:
     score = A.piecewise(sp, [(-1.0, 35), (-0.5, 42), (0.0, 50),
                              (0.5, 58), (1.0, 62), (2.0, 58)])
     note = ("美債 10Y-2Y 利差 %+.2f%%。" % sp) + (
-        "曲線倒掛＝市場預期衰退，宜保留銀彈、分批為宜。" if sp < 0 else
-        "曲線正常，景氣訊號中性偏穩。")
+        "曲線倒掛，債市在講衰退故事——不用照單全收，但銀彈留厚一點。" if sp < 0 else
+        "曲線正常，債市沒在演，這項可以先放著。")
     if ust.get("_cached"):
         note += "（採前次快取）"
     series = [v for _, v in ust.get("spread_series", [])]
@@ -306,7 +306,7 @@ def _trend_quality(yh, key, name, weight=1.5) -> Optional[Dict]:
     if not subs:
         return None
     score = A.clamp(sum(subs) / len(subs) + bonus, 5, 95)
-    note = ("長期趨勢品質：%s。分數高＝趨勢健康(順勢加碼較安全)、低＝趨勢轉弱(別接刀)。"
+    note = ("長期趨勢品質：%s。趨勢在，你才有資格談加碼；趨勢壞了還凹，就是在幫市場付學費。"
             "此面向不採逆勢，純看趨勢結構。" % "、".join(parts))
     return _ind("tq_" + key, name, "trend", "、".join(parts[:3]) or "—", score, note,
                 series=s[-120:], weight=weight)
@@ -360,7 +360,7 @@ def _volatility(yh, key, name) -> Optional[Dict]:
         return None
     atr_pct = a / cl * 100
     score = A.piecewise(atr_pct, [(0.5, 46), (1.0, 50), (1.8, 60), (2.6, 70), (4.0, 80)])
-    note = ("ATR(14) 波動度約 %.2f%%。高波動常見於急跌/恐慌末段(逆勢可留意分批)、低波動代表平靜。"
+    note = ("ATR(14) 波動度約 %.2f%%。市場開始亂甩的時候部位要小；風平浪靜不是壞事，是讓你睡覺的。"
             % atr_pct)
     return _ind("atr_" + key, name, "trend", "ATR %.2f%%" % atr_pct, score, note, weight=0.4)
 
@@ -425,8 +425,8 @@ def _institutional(hist) -> Optional[Dict]:
     net5_yi = net5 / 1e8
     score = A.clamp(50 + (net5_yi / 2000) * 30, 15, 85)
     series = [(((r.get("foreign") or 0) + (r.get("invtrust") or 0)) / 1e8) for r in rows[-60:]]
-    note = ("外資＋投信近 %d 個交易日合計 %+.0f 億。法人＝相對聰明的資金，持續買超偏多。"
-            % (len(win), net5_yi))
+    note = ("外資＋投信近 %d 個交易日合計 %+.0f 億。錢不會說謊：法人連續買就是有人知道些什麼，"
+            "連續賣的時候也一樣。" % (len(win), net5_yi))
     if len(rows) < 5:
         note += "（歷史累積中，視窗 %d 日）" % len(rows)
     return _ind("inst", "法人買賣超（外資＋投信）", "chips",
@@ -447,7 +447,7 @@ def _margin(hist) -> Optional[Dict]:
     score = 50 if chg is None else A.clamp(50 - (chg / 0.05) * 35, 15, 85)
     series = [r["margin_balance"] / 1e5 for r in rows[-60:]]
     note = ("融資餘額 %.0f 億" % bal_yi) + (
-        "（近%d日 %+.1f%%）。融資＝散戶槓桿；快速增加＝散戶追高(偏空)，下降＝去槓桿/投降(偏多)。"
+        "（近%d日 %+.1f%%）。融資衝高＝散戶借錢追行情，歷史上這群人集體興奮的點位都很精準——精準地買在山頂。"
         % (min(5, len(rows) - 1), (chg or 0) * 100) if chg is not None else "（歷史累積中）。")
     disp = "%.0f 億" % bal_yi + ("（近5日 %+.1f%%）" % (chg * 100) if chg is not None else "")
     return _ind("margin", "融資餘額（散戶槓桿）", "chips", disp, score, note,
@@ -495,8 +495,8 @@ def _volume(turnover, yh) -> Optional[Dict]:
             avg = sum(vals) / len(vals)
             ratio = today / avg if avg else 1
             score = A.clamp(55 - (ratio - 1) * 30, 35, 68)
-            note = ("今日成交值 %.0f 億，為近月均量 %.0f%%。爆量常見於轉折，量縮代表觀望。"
-                    % (today / 1e8, ratio * 100))
+            note = ("今日成交值 %.0f 億，為近月均量 %.0f%%。爆量＝有人在大進大出，轉折常挑這種日子；"
+                    "量縮＝大家都在等，你也可以等。" % (today / 1e8, ratio * 100))
             return _ind("volume", "成交量能", "chips",
                         "%.0f 億（均量 %.0f%%）" % (today / 1e8, ratio * 100), score, note,
                         series=[v / 1e8 for v in vals[-60:]], weight=0.5)

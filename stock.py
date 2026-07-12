@@ -897,7 +897,7 @@ input{width:100%;box-sizing:border-box;padding:13px 15px;border-radius:12px;bord
 input:focus{border-color:#2478c8}
 .sitem{border-bottom:1px solid #222936}
 .srow{display:flex;align-items:center;gap:14px;padding:11px 2px;cursor:pointer}
-.srow:hover{background:#141925}
+.srow:hover{background:#eaf1f8}
 .srow .nm{flex:1;min-width:0;font-size:15px}.srow .mini{color:#5f7183;font-size:12px}
 .srow .sc{font-weight:700;font-size:20px;width:52px;text-align:right}
 .srow .ar{color:#6b7686;width:14px;text-align:center}

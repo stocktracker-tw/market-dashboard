@@ -622,12 +622,34 @@ def compute_lite(code, env, shared):
 
 
 def recommend(env, shared, universe, n=None):
-    """自動選股：從全市場挑『進場分數最高、且法人買超』的中大型股，回傳完整評分(含趨勢/離場)。"""
+    """自動選股（順勢版）：動能為主、風口題材加成、法人買超背書；
+    綜合分只當底——便宜不是上榜理由，會漲＋有人抬轎才是。
+    保留名額制：榜上至少一半給「熱門題材＋正動能」的合格者（有才給，不硬塞）。"""
     n = n or getattr(cfg, "STOCK_TOP_N", 8)
     stocks = (shared.get("valuation") or {}).get("stocks", {})
     margin = shared.get("margin") or {}
     industry = shared.get("industry") or {}
     require_theme = getattr(cfg, "STOCK_TOP_REQUIRE_THEME", True)
+    phist = shared.get("pricehist") or {}
+    hot = theme_heat(shared, universe)
+    hot_names = [t["theme"] for t in hot]
+    tmap = _theme_map()
+
+    def _mom20(code):
+        closes = list(phist.get(code) or [])
+        px = (stocks.get(code) or {}).get("close")
+        if px:
+            closes = closes + [px]
+        if len(closes) < 11:
+            return None
+        look = min(20, len(closes) - 1)
+        return closes[-1] / closes[-1 - look] - 1.0
+
+    def _rankkey(score, m, my_hot):
+        # 動能為主（%×100）、風口 +12、綜合分打三折當底；
+        # 妖股末端（20日 >+50%）動能歸零計——追不動的不追
+        mm = 0.0 if m is None else (m if m <= 0.50 else 0.0)
+        return mm * 100 + (12 if my_hot else 0) + score * 0.30
 
     def pool(theme_filter):
         out = []
@@ -642,21 +664,36 @@ def recommend(env, shared, universe, n=None):
                 _, _, has = _tags(code, industry.get(code, ""))
                 if not has:
                     continue
-            out.append((x["score"], code))
+            m = _mom20(code)
+            my_hot = next((t for t in tmap.get(code, []) if t in hot_names), None)
+            out.append((_rankkey(x["score"], m, my_hot), code, my_hot, m))
         return out
 
     cand = pool(require_theme)
     if not cand and require_theme:        # 題材篩完沒東西就放寬，避免空清單
         cand = pool(False)
     cand.sort(reverse=True)
+    hotmeta = {}
     full = []
-    for _, code in cand[:max(n * 2, 16)]:
+    for _, code, my_hot, m in cand[:max(n * 2, 16)]:
         r = compute(code, env=env, shared=shared)
         if r:
+            r["hot_theme"] = my_hot
+            r["mom20"] = m
+            r["_rk"] = _rankkey(r["score"], m, my_hot)
             full.append(r)
         time.sleep(0.15)
-    full.sort(key=lambda r: r["score"], reverse=True)
-    return full[:n]
+    full.sort(key=lambda r: r["_rk"], reverse=True)
+    # 保留名額：前 n 席至少 n//2 席給「風口題材＋20日正動能≥+5%」合格者
+    riders = [r for r in full if r.get("hot_theme") and (r.get("mom20") or 0) >= 0.05]
+    picks = riders[:n // 2]
+    for r in full:
+        if len(picks) >= n:
+            break
+        if r not in picks:
+            picks.append(r)
+    picks.sort(key=lambda r: r["_rk"], reverse=True)
+    return picks[:n]
 
 
 def theme_heat(shared, universe, top=3):
@@ -868,6 +905,10 @@ def _card_html(r, esc):
                      % (ex["light"], esc(ex["status"]), ex["score"],
                         esc("、".join(ex["signals"])), esc(ex["stop"])))
     tag = _tag_text(r.get("industry", ""), r.get("themes", []))
+    if r.get("hot_theme"):
+        _m = r.get("mom20")
+        tag = ("🔥%s 風口%s" % (r["hot_theme"], ("・20日%+.0f%%" % (_m * 100)) if _m is not None else "")) + \
+              (("｜" + tag) if tag else "")
     tag_html = ('<div style="margin:2px 0 8px"><span style="background:#1e2a44;color:#2478c8;'
                 'font-size:11.5px;padding:2px 8px;border-radius:6px">%s</span></div>' % esc(tag)) if tag else ""
     flag_html = ('<div style="margin:2px 0 8px"><span style="background:#3a2f12;color:#f6c764;'
@@ -1217,7 +1258,7 @@ def render_stocks_page(recommendations, watchlist, universe):
                      '<div id="res"><div class="muted" style="padding:6px 0 10px">'
                      '輸入代碼或名稱即時查全市場（輕量分：環境＋籌碼＋估值＋技術，📢標示近期法說/重訊）</div></div>' % len(uni))
     if recommendations:
-        sections += _hdr("🔥 最推薦潛力股", "分數高＋法人真金白銀在買的（非投資建議，賠錢不要找我）")
+        sections += _hdr("🔥 最推薦潛力股", "風口題材＋動能優先、法人真金白銀在買的（非投資建議，賠錢不要找我）")
         sections += _grid(recommendations)
 
     # 📊 推薦回測（直接內嵌，不用點進去）
@@ -1236,8 +1277,8 @@ def render_stocks_page(recommendations, watchlist, universe):
 
     body = ('<h1>個股進場分數 <span class="muted">推薦 + 自選 + 搜尋</span></h1>'
             '<div class="muted">分數越高＝越值得分批進場（同一套邏輯）・%s</div>%s'
-            '<div class="muted" style="margin-top:14px">推薦＝每天從全市場自動挑「進場分數最高＋法人買超」'
-            '的中大型股，依本工具邏輯排序，<b>非投資建議</b>。輕量分(搜尋用)＝環境＋籌碼＋估值＋技術(今日K線/收盤位置/漲跌，均線隨每日累積)，📢標示近期法說會/重訊。</div>'
+            '<div class="muted" style="margin-top:14px">推薦＝每天從全市場自動挑「風口題材＋20日動能＋法人買超」'
+            '的中大型股（動能為主、綜合分當底，榜上至少一半保留給熱門題材），<b>非投資建議</b>。輕量分(搜尋用)＝環境＋籌碼＋估值＋技術(今日K線/收盤位置/漲跌，均線隨每日累積)，📢標示近期法說會/重訊。</div>'
             % (_esc(gen), sections))
 
     html = ('<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="utf-8">'

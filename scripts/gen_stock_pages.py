@@ -107,12 +107,12 @@ def page(x):
 <style>
 :root{{color-scheme:dark}}
 *{{box-sizing:border-box}}
-body{{margin:0;background:#0a1430;color:#f2f5fa;font-family:"Segoe UI","Microsoft JhengHei",system-ui,sans-serif;line-height:1.6}}
+body{{margin:0;background:#f5f8fb;color:#17293a;font-family:"Segoe UI","Microsoft JhengHei",system-ui,sans-serif;line-height:1.6}}
 .wrap{{max-width:760px;margin:0 auto;padding:22px 18px 60px}}
-a{{color:#5b9cff}}
-.bc{{font-size:13px;color:#aab4c6;margin-bottom:10px}}
+a{{color:#2478c8}}
+.bc{{font-size:13px;color:#5b6d80;margin-bottom:10px}}
 h1{{font-size:24px;margin:0 0 2px}}
-.meta{{color:#aab4c6;font-size:13px;margin-bottom:18px}}
+.meta{{color:#5b6d80;font-size:13px;margin-bottom:18px}}
 .hero{{background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.025));border:1px solid rgba(255,255,255,.1);border-radius:18px;padding:18px 20px;margin-bottom:18px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}}
 .score{{font-size:52px;font-weight:800;line-height:1}}
 .badge{{display:inline-block;padding:4px 12px;border-radius:999px;font-weight:700;font-size:14px;background:#1e2a44}}
@@ -123,10 +123,10 @@ h1{{font-size:24px;margin:0 0 2px}}
 .sh{{display:flex;justify-content:space-between;font-size:13.5px;margin-bottom:4px}}
 .bar{{height:8px;background:#1e2430;border-radius:6px;overflow:hidden}}
 .bar>i{{display:block;height:100%;border-radius:6px}}
-.d{{font-size:12px;color:#aab4c6;margin-top:4px}}
+.d{{font-size:12px;color:#5b6d80;margin-top:4px}}
 .cta{{display:inline-block;margin-top:6px;padding:10px 16px;background:#1f6feb;color:#fff;text-decoration:none;border-radius:10px;font-weight:600}}
 .warn{{background:rgba(234,84,85,.12);border:1px solid rgba(234,84,85,.4);color:#ffb3b3;padding:8px 12px;border-radius:8px;font-size:12.5px;margin:18px 0}}
-.foot{{margin-top:24px;padding-top:14px;border-top:1px solid #222936;color:#aab4c6;font-size:12px}}
+.foot{{margin-top:24px;padding-top:14px;border-top:1px solid #222936;color:#5b6d80;font-size:12px}}
 </style></head><body><div class="wrap">
 <div class="bc"><a href="../">Stock Tracker</a> ／ <a href="../stocks.html">個股</a> ／ {name}</div>
 <h1>{name}（{code}）進場分數</h1>
@@ -134,7 +134,7 @@ h1{{font-size:24px;margin:0 0 2px}}
 
 <div class="hero"><div class="score">{sc}</div><div>
 <span class="badge">{e(zlabel)}</span>
-<div style="font-size:13px;color:#aab4c6;margin-top:8px;max-width:380px">{summary}</div>
+<div style="font-size:13px;color:#5b6d80;margin-top:8px;max-width:380px">{summary}</div>
 </div></div>
 
 <div class="card"><div class="h">四面向評分</div>
@@ -177,16 +177,16 @@ def hub(rows):
 <meta property="og:url" content="{BASE}/stock/">
 <meta property="og:image" content="{BASE}/cover.png">
 <style>
-:root{{color-scheme:dark}}body{{margin:0;background:#0a1430;color:#f2f5fa;font-family:"Segoe UI","Microsoft JhengHei",system-ui,sans-serif;line-height:1.6}}
-.wrap{{max-width:760px;margin:0 auto;padding:22px 18px 60px}}a{{color:#5b9cff}}
-h1{{font-size:23px}}.meta{{color:#aab4c6;font-size:13px;margin-bottom:16px}}
+:root{{color-scheme:dark}}body{{margin:0;background:#f5f8fb;color:#17293a;font-family:"Segoe UI","Microsoft JhengHei",system-ui,sans-serif;line-height:1.6}}
+.wrap{{max-width:760px;margin:0 auto;padding:22px 18px 60px}}a{{color:#2478c8}}
+h1{{font-size:23px}}.meta{{color:#5b6d80;font-size:13px;margin-bottom:16px}}
 ul{{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(2,1fr);gap:8px}}
 @media(max-width:560px){{ul{{grid-template-columns:1fr}}}}
 li{{display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);border-radius:10px;padding:9px 13px}}
-li a{{text-decoration:none;font-weight:600}}.s{{font-weight:800;color:#aab4c6}}
-.foot{{margin-top:22px;padding-top:14px;border-top:1px solid #222936;color:#aab4c6;font-size:12px}}
+li a{{text-decoration:none;font-weight:600}}.s{{font-weight:800;color:#5b6d80}}
+.foot{{margin-top:22px;padding-top:14px;border-top:1px solid #222936;color:#5b6d80;font-size:12px}}
 </style></head><body><div class="wrap">
-<div style="font-size:13px;color:#aab4c6"><a href="../">Stock Tracker</a> ／ 熱門個股</div>
+<div style="font-size:13px;color:#5b6d80"><a href="../">Stock Tracker</a> ／ 熱門個股</div>
 <h1>熱門台股進場分數一覽</h1>
 <div class="meta">每日更新・依代碼排序・非投資建議　｜　更新 {TODAY}</div>
 <ul>{items}</ul>
@@ -243,19 +243,19 @@ def etf_page(meta, sc):
 <script type="application/ld+json">{{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{{"@type":"Question","name":"{name}（{code}）現在適合定期定額嗎？","acceptedAnswer":{{"@type":"Answer","text":"{e(desc)}"}}}}]}}</script>
 <style>
 :root{{color-scheme:dark}}*{{box-sizing:border-box}}
-body{{margin:0;background:#0a1430;color:#f2f5fa;font-family:"Segoe UI","Microsoft JhengHei",system-ui,sans-serif;line-height:1.6}}
-.wrap{{max-width:760px;margin:0 auto;padding:22px 18px 60px}}a{{color:#5b9cff}}
-.bc{{font-size:13px;color:#aab4c6;margin-bottom:10px}}
-h1{{font-size:23px;margin:0 0 2px}}.meta{{color:#aab4c6;font-size:13px;margin-bottom:18px}}
+body{{margin:0;background:#f5f8fb;color:#17293a;font-family:"Segoe UI","Microsoft JhengHei",system-ui,sans-serif;line-height:1.6}}
+.wrap{{max-width:760px;margin:0 auto;padding:22px 18px 60px}}a{{color:#2478c8}}
+.bc{{font-size:13px;color:#5b6d80;margin-bottom:10px}}
+h1{{font-size:23px;margin:0 0 2px}}.meta{{color:#5b6d80;font-size:13px;margin-bottom:18px}}
 .hero{{background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.025));border:1px solid rgba(255,255,255,.1);border-radius:18px;padding:18px 20px;margin-bottom:16px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}}
 .score{{font-size:52px;font-weight:800;line-height:1}}
 .badge{{display:inline-block;padding:4px 12px;border-radius:999px;font-weight:700;font-size:14px;background:#1e2a44}}
 .card{{background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:14px 16px;margin-bottom:14px}}
 .card .h{{font-weight:700;font-size:14px;margin-bottom:8px}}.card .t{{font-size:13.5px;color:#cdd6e6}}
-input{{width:120px;padding:7px 10px;font-size:14px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:10px;color:#f2f5fa}}
+input{{width:120px;padding:7px 10px;font-size:14px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:10px;color:#17293a}}
 .cta{{display:inline-block;margin-top:4px;padding:10px 16px;background:#1f6feb;color:#fff;text-decoration:none;border-radius:10px;font-weight:600}}
 .warn{{background:rgba(234,84,85,.12);border:1px solid rgba(234,84,85,.4);color:#ffb3b3;padding:8px 12px;border-radius:8px;font-size:12.5px;margin:16px 0}}
-.foot{{margin-top:24px;padding-top:14px;border-top:1px solid #222936;color:#aab4c6;font-size:12px}}
+.foot{{margin-top:24px;padding-top:14px;border-top:1px solid #222936;color:#5b6d80;font-size:12px}}
 b{{color:#cfe0ff}}
 </style></head><body><div class="wrap">
 <div class="bc"><a href="../">Stock Tracker</a> ／ <a href="./">ETF 定期定額</a> ／ {name}</div>
@@ -269,7 +269,7 @@ b{{color:#cfe0ff}}
 
 <div class="card"><div class="h">💡 這個月該扣多少？</div>
 <div>平常每月定額 <input id="b" type="number" inputmode="numeric" placeholder="例 5000"> 元　→　今天建議 <b id="o" style="font-size:16px">—</b></div>
-<div style="margin-top:6px;color:#aab4c6;font-size:11.5px">今日倍數 {mult:g}x（分數高多扣、低少扣）。{'' if broad else '高股息 ETF 僅供環境參考。'}</div>
+<div style="margin-top:6px;color:#5b6d80;font-size:11.5px">今日倍數 {mult:g}x（分數高多扣、低少扣）。{'' if broad else '高股息 ETF 僅供環境參考。'}</div>
 <script>(function(){{var b=document.getElementById("b"),o=document.getElementById("o"),M={mult:g};
 try{{var s=localStorage.getItem("etfBase");if(s)b.value=s;}}catch(e){{}}
 function f(){{var v=parseFloat(b.value)||0;o.textContent=v?Math.round(v*M).toLocaleString()+" 元":"—";try{{localStorage.setItem("etfBase",b.value);}}catch(e){{}}}}
@@ -309,17 +309,17 @@ def etf_hub(sc):
 <meta property="og:url" content="{BASE}/etf/">
 <meta property="og:image" content="{BASE}/cover.png">
 <style>
-:root{{color-scheme:dark}}body{{margin:0;background:#0a1430;color:#f2f5fa;font-family:"Segoe UI","Microsoft JhengHei",system-ui,sans-serif;line-height:1.6}}
-.wrap{{max-width:760px;margin:0 auto;padding:22px 18px 60px}}a{{color:#5b9cff}}
-h1{{font-size:23px}}.meta{{color:#aab4c6;font-size:13px;margin-bottom:14px}}
+:root{{color-scheme:dark}}body{{margin:0;background:#f5f8fb;color:#17293a;font-family:"Segoe UI","Microsoft JhengHei",system-ui,sans-serif;line-height:1.6}}
+.wrap{{max-width:760px;margin:0 auto;padding:22px 18px 60px}}a{{color:#2478c8}}
+h1{{font-size:23px}}.meta{{color:#5b6d80;font-size:13px;margin-bottom:14px}}
 .now{{background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.025));border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:14px 16px;margin-bottom:16px;font-size:14px}}
 ul{{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(2,1fr);gap:8px}}
 @media(max-width:560px){{ul{{grid-template-columns:1fr}}}}
 li{{display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);border-radius:10px;padding:9px 13px}}
-li a{{text-decoration:none;font-weight:600}}.k{{font-size:11px;color:#aab4c6}}
-.foot{{margin-top:22px;padding-top:14px;border-top:1px solid #222936;color:#aab4c6;font-size:12px}}
+li a{{text-decoration:none;font-weight:600}}.k{{font-size:11px;color:#5b6d80}}
+.foot{{margin-top:22px;padding-top:14px;border-top:1px solid #222936;color:#5b6d80;font-size:12px}}
 </style></head><body><div class="wrap">
-<div style="font-size:13px;color:#aab4c6"><a href="../">Stock Tracker</a> ／ ETF 定期定額</div>
+<div style="font-size:13px;color:#5b6d80"><a href="../">Stock Tracker</a> ／ ETF 定期定額</div>
 <h1>ETF 定期定額進場時機</h1>
 <div class="meta">用每日台股大盤進場分數，判斷熱門 ETF 該多扣還是少扣・更新 {TODAY}</div>
 <div class="now">📊 今天台股大盤進場分數 <b style="font-size:18px">{sc if sc is not None else "—"}</b>（{e(zlabel)}）

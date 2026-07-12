@@ -135,11 +135,11 @@ def badge_html(score, basis):
     phrase = band_phrase(score)
     return (
         '<div id="premarket" style="margin:8px 0 2px;padding:7px 11px;'
-        'border-radius:10px;background:rgba(120,140,170,.14);'
-        'border:1px solid rgba(140,160,190,.28);font-size:12.5px;'
-        'line-height:1.5;color:#c4d0e0">'
+        'border-radius:10px;background:rgba(47,124,196,.08);'
+        'border:1px solid #d8e2ec;font-size:12.5px;'
+        'line-height:1.5;color:#3f5468">'
         f'📡 盤前預估 <b>{score}</b>・非正式 — {phrase}。<br>'
-        f'<span style="color:#9fb0c4">依隔夜行情估算（{basis}），'
+        f'<span style="color:#5f7183">依隔夜行情估算（{basis}），'
         '收盤後更新正式分數。</span></div>'
     )
 

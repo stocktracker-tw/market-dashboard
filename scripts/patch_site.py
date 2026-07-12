@@ -29,10 +29,10 @@ HOWTO_BOX = (
     'rgba(255,255,255,.1);border-radius:16px;padding:14px 16px">'
     '<summary style="cursor:pointer;font-weight:700;font-size:14px">'
     '❓ 這個分數是什麼？我該怎麼用？</summary>'
-    '<div style="font-size:13px;color:#aab4c6;margin-top:10px;line-height:1.7">'
+    '<div style="font-size:13px;color:#5b6d80;margin-top:10px;line-height:1.7">'
     '幾十個指標壓成一個 0–100 分，就管一件事：<br>'
-    '· <b style="color:#34d07f">分數高</b>＝數據站你這邊，這個月<b>多扣一點</b><br>'
-    '· <b style="color:#ef5d5d">分數低</b>＝別逞英雄，<b>少扣、留銀彈</b><br>'
+    '· <b style="color:#1f9d55">分數高</b>＝數據站你這邊，這個月<b>多扣一點</b><br>'
+    '· <b style="color:#d63838">分數低</b>＝別逞英雄，<b>少扣、留銀彈</b><br>'
     '· <b>45–58＝中性</b>，照表操課，把手機關掉<br>'
     '重點：它<b>不是</b>報明牌，是管住你的手——「這個月該<b>貪還是慫</b>」。'
     '⚠️ 非投資建議</div></details>'
@@ -226,10 +226,10 @@ def _taifex_card(d):
         if val is None:
             return ""
         if signed:
-            c = "#6cc0f0" if val > 0 else "#e8a83c" if val < 0 else "#3d84d6"
+            c = "#1a9bdf" if val > 0 else "#c98a1e" if val < 0 else "#2f7cc4"
             txt = "{:+,.0f}".format(val)
         else:
-            c = "#3d84d6"
+            c = "#2f7cc4"
             txt = "{:,.2f}".format(val)
         return ('<div style="min-width:130px">'
                 '<div style="font-size:12px;color:#94a0b4">' + label + '</div>'
@@ -279,7 +279,7 @@ def patch_taifex(html):
 CALC_ANCHOR = '（相對平常每月定額金額）</span></div>'
 CALC_BOX = (
     '<div id="calc" style="margin-top:12px;padding:12px 14px;background:rgba(255,255,255,'
-    '.05);border:1px solid rgba(255,255,255,.1);border-radius:14px;font-size:13px">'
+    '.05);border:1px solid #dde6ef;border-radius:14px;font-size:13px">'
     '<div style="margin-bottom:8px;font-weight:600">💡 我這個月該扣多少？</div>'
     '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">平常每月定額 '
     '<input id="calcBase" type="number" inputmode="numeric" placeholder="例 10000" '
@@ -393,13 +393,14 @@ def patch_seo(html):
 # 藍），瀏覽器頂部列就跟頁面「分成兩截不同色」。對齊成頁面根底色 → 連成一片。
 THEMECOLOR_OLD = '<meta name="theme-color" content="#0f2148">'
 THEMECOLOR_PREV2 = '<meta name="theme-color" content="#0a1430">'
-THEMECOLOR_NEW = '<meta name="theme-color" content="#0a1a2a">'
+THEMECOLOR_PREV3 = '<meta name="theme-color" content="#0a1a2a">'
+THEMECOLOR_NEW = '<meta name="theme-color" content="#f5f8fb">'
 
 
 def patch_themecolor(html):
     """theme-color 對齊頁面根底色 #0a1a2a（消除頂部狀態列與頁面的色差）。"""
     changed = False
-    for prev in (THEMECOLOR_OLD, THEMECOLOR_PREV2):
+    for prev in (THEMECOLOR_OLD, THEMECOLOR_PREV2, THEMECOLOR_PREV3):
         if prev in html:
             html = html.replace(prev, THEMECOLOR_NEW)
             changed = True
@@ -431,12 +432,12 @@ TOPGLASS = (
     '<style id="topglass">'
     '.topglass{position:fixed;top:0;left:0;right:0;z-index:95;pointer-events:none;'
     'height:env(safe-area-inset-top,0px);'
-    'background:linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,.015));'
-    'border-bottom:1px solid rgba(255,255,255,.08);'
+    'background:linear-gradient(180deg,rgba(255,255,255,.88),rgba(255,255,255,.6));'
+    'border-bottom:1px solid rgba(30,60,100,.10);'
     '-webkit-backdrop-filter:blur(18px) saturate(1.6);'
     'backdrop-filter:blur(18px) saturate(1.6)}'
     '@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px)))'
-    '{.topglass{background:#0a1a2a}}'
+    '{.topglass{background:#f5f8fb}}'
     '</style><div class="topglass" aria-hidden="true"></div>'
 )
 TOPGLASS_RE = re.compile(r'<style id="topglass">.*?</div>', re.S)
@@ -460,25 +461,26 @@ def patch_topglass(html):
 LIQUID = (
     '<style id="liquidglass">'
     # 底層：body 讓出背景（html 已是 #0a1430），光暈鋪在內容後面
-    'html{background:#0a1a2a}'
-    'body{background:transparent!important}'
+    'html{background:#f5f8fb}'
+    'body{background:transparent!important;color:#17293a}'
     'body::before{content:"";position:fixed;inset:-12% -8%;z-index:-1;pointer-events:none;'
     'background:'
-    'radial-gradient(50% 42% at 16% 6%,rgba(108,192,240,.15),transparent 70%),'
-    'radial-gradient(46% 38% at 88% 14%,rgba(61,132,214,.14),transparent 70%),'
-    'radial-gradient(54% 46% at 55% 98%,rgba(232,168,60,.07),transparent 72%),'
-    'radial-gradient(34% 30% at 42% 48%,rgba(40,96,160,.08),transparent 70%)}'
+    'radial-gradient(50% 42% at 16% 6%,rgba(108,192,240,.12),transparent 70%),'
+    'radial-gradient(46% 38% at 88% 14%,rgba(61,132,214,.10),transparent 70%),'
+    'radial-gradient(54% 46% at 55% 98%,rgba(232,168,60,.06),transparent 72%),'
+    'radial-gradient(34% 30% at 42% 48%,rgba(40,96,160,.06),transparent 70%)}'
+    ':root{--bg:#f5f8fb;--panel:#ffffff;--panel2:#eef3f8;--line:#dbe4ee;'
+    '--text:#17293a;--muted:#5b6d80;--green:#1f9d55;--amber:#c98a1e;'
+    '--red:#d63838;--accent:#2478c8;--gray:#8795a3}'
     # 玻璃面板：卡片與 hero（半透明漸層＋細高光邊＋頂緣鏡面反光＋柔和落影）
-    '.card,.hero{background:linear-gradient(180deg,rgba(255,255,255,.075),'
-    'rgba(255,255,255,.028))!important;'
-    'border:1px solid rgba(255,255,255,.13)!important;'
-    'box-shadow:0 12px 30px rgba(3,8,26,.35),'
-    'inset 0 1px 0 rgba(255,255,255,.13)!important}'
+    '.card,.hero{background:linear-gradient(180deg,#ffffff,#fbfdff)!important;'
+    'border:1px solid #dde6ef!important;'
+    'box-shadow:0 10px 26px rgba(30,60,100,.08),'
+    'inset 0 1px 0 #ffffff!important}'
     '.card{border-radius:16px!important}'
     # 次要面板（消息頁的大盤框/新聞列/簡報）：更淡一階的玻璃
-    '.box,.nrow,.brief{background:linear-gradient(180deg,rgba(255,255,255,.055),'
-    'rgba(255,255,255,.018))!important;'
-    'border:1px solid rgba(255,255,255,.10)!important;border-radius:14px!important}'
+    '.box,.nrow,.brief{background:#ffffff!important;'
+    'border:1px solid #e2e9f2!important;border-radius:14px!important}'
     '</style>'
 )
 LIQUID_RE = re.compile(r'<style id="liquidglass">.*?</style>', re.S)
@@ -559,7 +561,7 @@ ETFLINK_ANCHOR = '把分數變成具體金額。⚠️ 非投資建議</div></di
 ETFLINK_HTML = (
     '<a href="etf/" style="display:block;margin:10px 0 0;padding:10px 14px;'
     'background:rgba(52,208,127,.1);border:1px solid rgba(52,208,127,.3);'
-    'border-radius:12px;color:#bfe8d2;text-decoration:none;font-size:13px">'
+    'border-radius:12px;color:#166b3f;text-decoration:none;font-size:13px">'
     '📦 想用在 0050 / 0056 等 ETF 定期定額？看 ETF 專頁 →</a>'
 )
 
@@ -580,21 +582,21 @@ def patch_etflink(html):
 DCATRACK = (
     '<!--dcatrack--><div id="dcatrack" style="margin:10px 0 8px;padding:12px 14px;'
     'border-radius:14px;background:linear-gradient(180deg,rgba(255,255,255,.06),'
-    'rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.11)">'
+    'rgba(255,255,255,.02));border:1px solid #dde6ef">'
     '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;'
     'justify-content:space-between">'
     '<div style="font-weight:600;font-size:13px">📒 定額計畫追蹤 '
-    '<span style="color:#8b96a8;font-weight:400;font-size:11px">只存在本機瀏覽器</span></div>'
-    '<button id="dtAdd" style="background:rgba(232,168,60,.20);color:#ffd9a0;'
+    '<span style="color:#64768a;font-weight:400;font-size:11px">只存在本機瀏覽器</span></div>'
+    '<button id="dtAdd" style="background:rgba(232,168,60,.20);color:#8a5f14;'
     'border:1px solid rgba(232,168,60,.45);border-radius:10px;padding:7px 12px;'
     'font-size:12.5px;font-family:inherit;cursor:pointer">＋ 記一筆今天的扣款</button></div>'
     '<div id="dtList" style="margin-top:4px"></div>'
-    '<div id="dtSum" style="font-size:12px;color:#aab4c6;margin-top:8px;line-height:1.6"></div>'
+    '<div id="dtSum" style="font-size:12px;color:#5b6d80;margin-top:8px;line-height:1.6"></div>'
     '<style>#dcatrack .dtRow{display:flex;gap:10px;align-items:center;font-size:12.5px;'
-    'padding:5px 0;border-bottom:1px solid rgba(255,255,255,.06)}'
-    '#dcatrack .dtRow .dtD{color:#8b96a8}#dcatrack .dtRow b{margin-left:auto}'
-    '#dcatrack .dtDel{color:#8b96a8;cursor:pointer;padding:0 6px}'
-    '#dcatrack .dtDel:hover{color:#ef5d5d}</style>'
+    'padding:5px 0;border-bottom:1px solid #e8eef5}'
+    '#dcatrack .dtRow .dtD{color:#64768a}#dcatrack .dtRow b{margin-left:auto}'
+    '#dcatrack .dtDel{color:#64768a;cursor:pointer;padding:0 6px}'
+    '#dcatrack .dtDel:hover{color:#d63838}</style>'
     '<script>(function(){'
     'var K="dcalog",KB="dcabase";'
     'function load(){try{return JSON.parse(localStorage.getItem(K))||[]}catch(e){return[]}}'
@@ -705,16 +707,17 @@ BAR_STYLE = (
     '.tabbar a.tab span:not(.ic){display:none!important}'
     '.tabbar a.tab{flex-direction:row!important;justify-content:center!important;'
     'padding:15px 4px!important;gap:0!important}'
-    '.tabbar a.tab .ic{color:#fff!important;opacity:.65;transition:opacity .18s,transform .18s}'
+    '.tabbar a.tab .ic{color:#51606f!important;opacity:.8;transition:opacity .18s,transform .18s}'
     '.tabbar a.tab .ic svg{width:26px;height:26px;display:block}'
     # liquid glass 不變；選中＝線條圖示上紫色（不填實心、不做背景）
     '.tabbar a.tab.on .ic,.tabbar a.tab.hl .ic'
-    '{color:#e8a83c!important;opacity:1;transform:translateY(-1px);filter:none!important}'
+    '{color:#c98a1e!important;opacity:1;transform:translateY(-1px);filter:none!important}'
     '.tabbar a.tab.on{background:transparent!important}'   # 不要背景膠囊（引擎粉紅 tint 也關掉）
     '.tabbar .thumb{background:transparent!important}'     # 不要滑動背景塊
     '.tabbar{width:min(324px,calc(100vw - 52px))!important;'
-    'background:linear-gradient(180deg,rgba(255,255,255,.085),rgba(255,255,255,.02))!important;'
-    'border:1px solid rgba(255,255,255,.16)!important}'
+    'box-shadow:0 10px 30px rgba(30,60,100,.14)!important;'
+    'background:linear-gradient(180deg,rgba(255,255,255,.9),rgba(255,255,255,.72))!important;'
+    'border:1px solid #d8e2ec!important}'
     '</style>'
 )
 BAR_STYLE_RE = re.compile(r'<style id="barglass">.*?</style>', re.S)
@@ -748,28 +751,30 @@ def patch_tabpill(html):
 #   1) 漲跌/報酬（bare .green/.red，只用在 +x%／報酬）→ 台股慣例 紅漲綠跌
 #      （引擎沿用美股式：+ 標 green、− 標 red；這裡把顏色對調過來）。
 #   2) 進場分數（.score.green/.amber/.red）→ 沿一條冷色漸進帶取點：
-#      低=靛紫 #8b7cf0 → 中=藍 #5b9cff → 高=青 #22d3ee（避開紅綠，不與漲跌打架）。
+#      低=靛紫 #8b7cf0 → 中=藍 #2478c8 → 高=青 #22d3ee（避開紅綠，不與漲跌打架）。
 #   3) index 主儀表(echarts)漸層 → 用同一條色帶（紫→藍→青）。
 # 註：四大支柱等級條/徽章用 var(--green/red)，屬「品質」非「漲跌」，不動。
 TWCOLOR_STYLE = (
     '<style id="twcolor">'
-    '.green{color:#ea5455!important}'         # 標 green 的是「漲/+」→ 紅
-    '.red{color:#28c76f!important}'           # 標 red 的是「跌/−」→ 綠
+    '.green{color:#d63838!important}'         # 標 green 的是「漲/+」→ 紅
+    '.red{color:#1f9d55!important}'           # 標 red 的是「跌/−」→ 綠
     '.score.green{color:#1fe0d0!important}'   # 高分 → 青（新色帶亮端）
     '.score.amber{color:#4f86ff!important}'   # 中分 → 藍（新色帶中段）
-    '.score.red{color:#e8a83c!important}'     # 低分 → 紫（新色帶暗端）
+    '.score.red{color:#c98a1e!important}'     # 低分 → 紫（新色帶暗端）
     '</style>'
 )
 TWCOLOR_RE = re.compile(r'<style id="twcolor">.*?</style>', re.S)
 # 主儀表漸層改用同一條「紫→藍→青」色帶。沿途會碰到舊版（引擎原色 / #54 灰紫藍），
 # 一律換成新色帶，並保持冪等（已是新色帶時不再變動）。
-GAUGE_AURORA = ("color:[[0.35,'#e8a83c'],[0.6,'#3d84d6'],"
-                "[0.8,'#54a4e0'],[1,'#6cc0f0']]")
+GAUGE_AURORA = ("color:[[0.35,'#d29024'],[0.6,'#2f7cc4'],"
+                "[0.8,'#2492d6'],[1,'#1a9bdf']]")
 GAUGE_PREV = (
     "color:[[0.35,C.red],[0.45,'#f6862a'],[0.58,C.amber],"      # 舊引擎原色（安全網）
     "[0.70,'#7cc24a'],[1,C.green]]",
     "color:[[0.35,'#8b" + "5cf6'],[0.6,'#4f86ff'],"             # 極光版（Gooaye 前）
     "[0.8,'#34b8e5'],[1,'#1fe0d0']]",
+    "color:[[0.35,'#c98a1e'],[0.6,'#2f7cc4'],"                  # Gooaye 暗版
+    "[0.8,'#54a4e0'],[1,'#1a9bdf']]",
 )
 
 
@@ -795,13 +800,13 @@ def patch_twcolor(html):
 #   • 清單列 .sc.green/...（動態 JS）  ：搜尋後才產生，靜態補丁抓不到
 #   • .scoretxt / <h2> 主分數         ：純文字
 # 解法：注入 JS 用 setProperty(...,"important") 蓋過一切，挑「純數字 0–100」依值上色
-#   低→高 = 靛紫 #8b7cf0 → 藍 #5b9cff → 青 #22d3ee（真漸進、連續）。
+#   低→高 = 靛紫 #8b7cf0 → 藍 #2478c8 → 青 #22d3ee（真漸進、連續）。
 # 漲跌/報酬都帶 %、+/−，不是純數字 → 自動跳過，仍由 twcolor 管「紅漲綠跌」。
 # 「脆弱度」越高越糟 → 反向取色。動態清單用 MutationObserver 補（只看 childList，
 # 不看 attributes，故自身改色不會觸發回圈）。
 SCORECOLOR_JS = (
     '<script id="scorecolor">(function(){'
-    'var A=[[232,168,60],[61,132,214],[108,192,240]];'         # 紫→藍→青（加大對比）
+    'var A=[[210,144,36],[47,124,196],[26,155,223]];'         # 紫→藍→青（加大對比）
     'function h(n){return n.toString(16).padStart(2,"0");}'
     'function band(t){t=t<0?0:t>1?1:t;var s=t*2,i=s<1?0:1,f=s-i,a=A[i],b=A[i+1];'
     'return "#"+h(Math.round(a[0]+(b[0]-a[0])*f))+h(Math.round(a[1]+(b[1]-a[1])*f))'
@@ -831,7 +836,7 @@ SCORECOLOR_JS = (
     # 分級圖例方塊（0–35 保守…70–100 積極）：統一單一色（不再每級不同色）
     'document.querySelectorAll(\'span[style*="width:9px"][style*="height:9px"]\').forEach(function(sq){'
     'var m=((sq.parentNode&&sq.parentNode.textContent)||"").match(/(\\d+)\\s*[\\u2013-]\\s*(\\d+)/);'
-    'if(m)sq.style.setProperty("background","#3d84d6","important");});'
+    'if(m)sq.style.setProperty("background","#2f7cc4","important");});'
     # 建議行動狀態膠囊（積極/中性/保守）：依主分數上色，深色字維持
     'document.querySelectorAll(".badge").forEach(function(b){'
     'var p=(b.closest&&b.closest(".verdict"))||b.parentNode;'
@@ -840,21 +845,21 @@ SCORECOLOR_JS = (
     # 指標方向訊號（只在 index：底部有 .foot .legend）→ 偏多 青 / 中性 藍 / 偏空 紫
     'if(document.querySelector(".foot .legend")){'
     'document.querySelectorAll(".dot").forEach(function(d){var s=d.getAttribute("style")||"";'
-    'var c=/--green/.test(s)?"#6cc0f0":/--amber/.test(s)?"#3d84d6":/--red/.test(s)?"#e8a83c":null;'
+    'var c=/--green/.test(s)?"#1a9bdf":/--amber/.test(s)?"#2f7cc4":/--red/.test(s)?"#c98a1e":null;'
     'if(c)d.style.setProperty("background",c,"important");});'
     'document.querySelectorAll(".foot .legend span").forEach(function(sp){if(sp.querySelector("i"))return;'
-    'var t=sp.textContent||"",c=/偏多|加碼/.test(t)?"#6cc0f0":/偏空|保守/.test(t)?"#e8a83c":"#3d84d6";'
+    'var t=sp.textContent||"",c=/偏多|加碼/.test(t)?"#1a9bdf":/偏空|保守/.test(t)?"#c98a1e":"#2f7cc4";'
     'var ic=document.createElement("i");'
     'ic.style.cssText="display:inline-block;width:10px;height:10px;border-radius:50%;background:"'
     '+c+";margin-right:5px;vertical-align:-1px";'
     'sp.textContent="";sp.appendChild(ic);'
     'sp.appendChild(document.createTextNode(t.replace(/^[^\\u4e00-\\u9fff]+/,"")));});'
     'var hi=document.querySelector("b[style*=\'34d07f\']"),lo=document.querySelector("b[style*=\'ef5d5d\']");'
-    'if(hi)hi.style.setProperty("color","#6cc0f0","important");'
-    'if(lo)lo.style.setProperty("color","#e8a83c","important");}}'
+    'if(hi)hi.style.setProperty("color","#1a9bdf","important");'
+    'if(lo)lo.style.setProperty("color","#c98a1e","important");}}'
     'recolor();'
     # 內文 emoji 記號 🟢🟡🔴（如新聞「是否反映」）→ 換成冷色圓點（一次性）
-    '(function(){var E={"🟢":"#6cc0f0","🟡":"#3d84d6","🔴":"#e8a83c"};'
+    '(function(){var E={"🟢":"#1a9bdf","🟡":"#2f7cc4","🔴":"#c98a1e"};'
     'var w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,null),t,L=[];'
     'while(t=w.nextNode()){if(/[🟢🟡🔴]/u.test(t.nodeValue))L.push(t);}'
     'L.forEach(function(n){var f=document.createDocumentFragment();'
@@ -1019,20 +1024,20 @@ SEL.addEventListener("change",render);
 ASK_PANEL = (
     '<div class="section-title">🎤 換你問：點上面選一位，再選問題</div>'
     '<div id="askpanel" data-v="ask17" style="background:linear-gradient(180deg,'
-    'rgba(255,255,255,.06),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.1);'
+    'rgba(255,255,255,.06),rgba(255,255,255,.02));border:1px solid #dde6ef;'
     'border-radius:16px;padding:15px 16px;margin-bottom:14px">'
     '<div id="askhint" class="lbl">👆 點上面任一張立場卡片，再從下拉選問題</div>'
     '<select id="askq" class="asksel" disabled><option value="">先選一位…</option></select>'
     '<div id="askans"></div>'
-    '<div style="font-size:11px;color:#8b96a8;margin-top:13px">'
+    '<div style="font-size:11px;color:#64768a;margin-top:13px">'
     '以投資流派為框架推演・非本人發言・非投資建議</div></div>'
     '<style>'
-    '#askpanel .lbl{font-size:12.5px;color:#aab4c6;margin:0 0 10px}'
-    '#askpanel .asksel{width:100%;background:rgba(255,255,255,.07);color:#eaf0fa;'
+    '#askpanel .lbl{font-size:12.5px;color:#5b6d80;margin:0 0 10px}'
+    '#askpanel .asksel{width:100%;background:rgba(255,255,255,.07);color:#17293a;'
     'border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:11px 12px;'
     'font-size:14px;font-family:inherit;cursor:pointer}'
     '#askpanel .asksel:disabled{opacity:.5;cursor:not-allowed}'
-    '#askpanel .asksel option{background:#11203f;color:#eaf0fa}'
+    '#askpanel .asksel option{background:#11203f;color:#17293a}'
     '#askpanel .bubble{display:flex;gap:10px;align-items:flex-start;margin-top:13px}'
     '#askpanel .av{flex:none;width:40px;height:40px;border-radius:50%;'
     'display:flex;align-items:center;justify-content:center;color:#fff;'
@@ -1040,12 +1045,12 @@ ASK_PANEL = (
     'text-shadow:0 1px 3px rgba(0,0,0,.35);'
     'box-shadow:0 0 0 3px rgba(255,255,255,.06)}'
     '#askpanel .bub{border:1px solid;border-radius:4px 16px 16px 16px;'
-    'padding:14px 17px;font-size:16px;line-height:1.85;color:#eaf3ff;'
+    'padding:14px 17px;font-size:16px;line-height:1.85;color:#17293a;'
     '-webkit-backdrop-filter:blur(18px) saturate(1.6);'
     'backdrop-filter:blur(18px) saturate(1.6);'
     'box-shadow:0 8px 26px rgba(0,0,0,.35),inset 0 1px 0.5px rgba(255,255,255,.18)}'
     '#askpanel .bn{font-weight:700;font-size:13px;margin-bottom:5px}'
-    '.card.askpick{cursor:pointer}.card.askpick:focus-visible{outline:2px solid #e8a83c;outline-offset:2px}'
+    '.card.askpick{cursor:pointer}.card.askpick:focus-visible{outline:2px solid #c98a1e;outline-offset:2px}'
     '</style>'
     '<script>(function(){' + _ASK_DATA + _ASK_JS + '})();</script>'
 )
@@ -1324,9 +1329,10 @@ def fix_manifest():
     若引擎重產 manifest 把它改回 #0f2148，這裡自動修回。"""
     try:
         raw = open("manifest.webmanifest", encoding="utf-8").read()
-        new = raw.replace('"theme_color": "#0f2148"', '"theme_color": "#0a1a2a"')
-        new = new.replace('"theme_color": "#0a1430"', '"theme_color": "#0a1a2a"')
-        new = new.replace('"background_color": "#0a1430"', '"background_color": "#0a1a2a"')
+        for _oc in ("#0f2148", "#0a1430", "#0a1a2a"):
+            raw = raw.replace('"theme_color": "%s"' % _oc, '"theme_color": "#f5f8fb"')
+            raw = raw.replace('"background_color": "%s"' % _oc, '"background_color": "#f5f8fb"')
+        new = raw
         if new != raw:
             with open("manifest.webmanifest", "w", encoding="utf-8") as fh:
                 fh.write(new)

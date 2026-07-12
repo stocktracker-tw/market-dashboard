@@ -226,10 +226,10 @@ def _taifex_card(d):
         if val is None:
             return ""
         if signed:
-            c = "#2dc5de" if val > 0 else "#8b5cf6" if val < 0 else "#4f87ff"
+            c = "#6cc0f0" if val > 0 else "#e8a83c" if val < 0 else "#3d84d6"
             txt = "{:+,.0f}".format(val)
         else:
-            c = "#4f87ff"
+            c = "#3d84d6"
             txt = "{:,.2f}".format(val)
         return ('<div style="min-width:130px">'
                 '<div style="font-size:12px;color:#94a0b4">' + label + '</div>'
@@ -392,14 +392,18 @@ def patch_seo(html):
 # 頁面根底色 html{background:#0a1430}；但引擎的 theme-color 設成 #0f2148（另一種
 # 藍），瀏覽器頂部列就跟頁面「分成兩截不同色」。對齊成頁面根底色 → 連成一片。
 THEMECOLOR_OLD = '<meta name="theme-color" content="#0f2148">'
-THEMECOLOR_NEW = '<meta name="theme-color" content="#0a1430">'
+THEMECOLOR_PREV2 = '<meta name="theme-color" content="#0a1430">'
+THEMECOLOR_NEW = '<meta name="theme-color" content="#0a1a2a">'
 
 
 def patch_themecolor(html):
-    """theme-color 對齊頁面根底色 #0a1430（消除頂部狀態列與頁面的色差）。"""
-    if THEMECOLOR_OLD not in html:
-        return html, False
-    return html.replace(THEMECOLOR_OLD, THEMECOLOR_NEW), True
+    """theme-color 對齊頁面根底色 #0a1a2a（消除頂部狀態列與頁面的色差）。"""
+    changed = False
+    for prev in (THEMECOLOR_OLD, THEMECOLOR_PREV2):
+        if prev in html:
+            html = html.replace(prev, THEMECOLOR_NEW)
+            changed = True
+    return html, changed
 
 
 # --- 5 級圖例門檻對齊引擎 ACTION_BANDS（減碼/正常界線 43→45）----------------
@@ -432,7 +436,7 @@ TOPGLASS = (
     '-webkit-backdrop-filter:blur(18px) saturate(1.6);'
     'backdrop-filter:blur(18px) saturate(1.6)}'
     '@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px)))'
-    '{.topglass{background:#0a1430}}'
+    '{.topglass{background:#0a1a2a}}'
     '</style><div class="topglass" aria-hidden="true"></div>'
 )
 TOPGLASS_RE = re.compile(r'<style id="topglass">.*?</div>', re.S)
@@ -456,14 +460,14 @@ def patch_topglass(html):
 LIQUID = (
     '<style id="liquidglass">'
     # 底層：body 讓出背景（html 已是 #0a1430），光暈鋪在內容後面
-    'html{background:#0a1430}'
+    'html{background:#0a1a2a}'
     'body{background:transparent!important}'
     'body::before{content:"";position:fixed;inset:-12% -8%;z-index:-1;pointer-events:none;'
     'background:'
-    'radial-gradient(50% 42% at 16% 6%,rgba(139,92,246,.16),transparent 70%),'
-    'radial-gradient(46% 38% at 88% 14%,rgba(79,134,255,.14),transparent 70%),'
-    'radial-gradient(54% 46% at 55% 98%,rgba(31,224,208,.10),transparent 72%),'
-    'radial-gradient(34% 30% at 42% 48%,rgba(99,102,241,.07),transparent 70%)}'
+    'radial-gradient(50% 42% at 16% 6%,rgba(108,192,240,.15),transparent 70%),'
+    'radial-gradient(46% 38% at 88% 14%,rgba(61,132,214,.14),transparent 70%),'
+    'radial-gradient(54% 46% at 55% 98%,rgba(232,168,60,.07),transparent 72%),'
+    'radial-gradient(34% 30% at 42% 48%,rgba(40,96,160,.08),transparent 70%)}'
     # 玻璃面板：卡片與 hero（半透明漸層＋細高光邊＋頂緣鏡面反光＋柔和落影）
     '.card,.hero{background:linear-gradient(180deg,rgba(255,255,255,.075),'
     'rgba(255,255,255,.028))!important;'
@@ -581,8 +585,8 @@ DCATRACK = (
     'justify-content:space-between">'
     '<div style="font-weight:600;font-size:13px">📒 定額計畫追蹤 '
     '<span style="color:#8b96a8;font-weight:400;font-size:11px">只存在本機瀏覽器</span></div>'
-    '<button id="dtAdd" style="background:rgba(139,92,246,.22);color:#d9ccff;'
-    'border:1px solid rgba(139,92,246,.45);border-radius:10px;padding:7px 12px;'
+    '<button id="dtAdd" style="background:rgba(232,168,60,.20);color:#ffd9a0;'
+    'border:1px solid rgba(232,168,60,.45);border-radius:10px;padding:7px 12px;'
     'font-size:12.5px;font-family:inherit;cursor:pointer">＋ 記一筆今天的扣款</button></div>'
     '<div id="dtList" style="margin-top:4px"></div>'
     '<div id="dtSum" style="font-size:12px;color:#aab4c6;margin-top:8px;line-height:1.6"></div>'
@@ -705,7 +709,7 @@ BAR_STYLE = (
     '.tabbar a.tab .ic svg{width:26px;height:26px;display:block}'
     # liquid glass 不變；選中＝線條圖示上紫色（不填實心、不做背景）
     '.tabbar a.tab.on .ic,.tabbar a.tab.hl .ic'
-    '{color:#8b5cf6!important;opacity:1;transform:translateY(-1px);filter:none!important}'
+    '{color:#e8a83c!important;opacity:1;transform:translateY(-1px);filter:none!important}'
     '.tabbar a.tab.on{background:transparent!important}'   # 不要背景膠囊（引擎粉紅 tint 也關掉）
     '.tabbar .thumb{background:transparent!important}'     # 不要滑動背景塊
     '.tabbar{width:min(324px,calc(100vw - 52px))!important;'
@@ -753,17 +757,19 @@ TWCOLOR_STYLE = (
     '.red{color:#28c76f!important}'           # 標 red 的是「跌/−」→ 綠
     '.score.green{color:#1fe0d0!important}'   # 高分 → 青（新色帶亮端）
     '.score.amber{color:#4f86ff!important}'   # 中分 → 藍（新色帶中段）
-    '.score.red{color:#8b5cf6!important}'     # 低分 → 紫（新色帶暗端）
+    '.score.red{color:#e8a83c!important}'     # 低分 → 紫（新色帶暗端）
     '</style>'
 )
 TWCOLOR_RE = re.compile(r'<style id="twcolor">.*?</style>', re.S)
 # 主儀表漸層改用同一條「紫→藍→青」色帶。沿途會碰到舊版（引擎原色 / #54 灰紫藍），
 # 一律換成新色帶，並保持冪等（已是新色帶時不再變動）。
-GAUGE_AURORA = ("color:[[0.35,'#8b5cf6'],[0.6,'#4f86ff'],"
-                "[0.8,'#34b8e5'],[1,'#1fe0d0']]")
+GAUGE_AURORA = ("color:[[0.35,'#e8a83c'],[0.6,'#3d84d6'],"
+                "[0.8,'#54a4e0'],[1,'#6cc0f0']]")
 GAUGE_PREV = (
     "color:[[0.35,C.red],[0.45,'#f6862a'],[0.58,C.amber],"      # 舊引擎原色（安全網）
     "[0.70,'#7cc24a'],[1,C.green]]",
+    "color:[[0.35,'#8b" + "5cf6'],[0.6,'#4f86ff'],"             # 極光版（Gooaye 前）
+    "[0.8,'#34b8e5'],[1,'#1fe0d0']]",
 )
 
 
@@ -795,7 +801,7 @@ def patch_twcolor(html):
 # 不看 attributes，故自身改色不會觸發回圈）。
 SCORECOLOR_JS = (
     '<script id="scorecolor">(function(){'
-    'var A=[[139,92,246],[79,134,255],[31,224,208]];'         # 紫→藍→青（加大對比）
+    'var A=[[232,168,60],[61,132,214],[108,192,240]];'         # 紫→藍→青（加大對比）
     'function h(n){return n.toString(16).padStart(2,"0");}'
     'function band(t){t=t<0?0:t>1?1:t;var s=t*2,i=s<1?0:1,f=s-i,a=A[i],b=A[i+1];'
     'return "#"+h(Math.round(a[0]+(b[0]-a[0])*f))+h(Math.round(a[1]+(b[1]-a[1])*f))'
@@ -825,7 +831,7 @@ SCORECOLOR_JS = (
     # 分級圖例方塊（0–35 保守…70–100 積極）：統一單一色（不再每級不同色）
     'document.querySelectorAll(\'span[style*="width:9px"][style*="height:9px"]\').forEach(function(sq){'
     'var m=((sq.parentNode&&sq.parentNode.textContent)||"").match(/(\\d+)\\s*[\\u2013-]\\s*(\\d+)/);'
-    'if(m)sq.style.setProperty("background","#5b9cff","important");});'
+    'if(m)sq.style.setProperty("background","#3d84d6","important");});'
     # 建議行動狀態膠囊（積極/中性/保守）：依主分數上色，深色字維持
     'document.querySelectorAll(".badge").forEach(function(b){'
     'var p=(b.closest&&b.closest(".verdict"))||b.parentNode;'
@@ -834,21 +840,21 @@ SCORECOLOR_JS = (
     # 指標方向訊號（只在 index：底部有 .foot .legend）→ 偏多 青 / 中性 藍 / 偏空 紫
     'if(document.querySelector(".foot .legend")){'
     'document.querySelectorAll(".dot").forEach(function(d){var s=d.getAttribute("style")||"";'
-    'var c=/--green/.test(s)?"#2dc5de":/--amber/.test(s)?"#4f87ff":/--red/.test(s)?"#8b5cf6":null;'
+    'var c=/--green/.test(s)?"#6cc0f0":/--amber/.test(s)?"#3d84d6":/--red/.test(s)?"#e8a83c":null;'
     'if(c)d.style.setProperty("background",c,"important");});'
     'document.querySelectorAll(".foot .legend span").forEach(function(sp){if(sp.querySelector("i"))return;'
-    'var t=sp.textContent||"",c=/偏多|加碼/.test(t)?"#2dc5de":/偏空|保守/.test(t)?"#8b5cf6":"#4f87ff";'
+    'var t=sp.textContent||"",c=/偏多|加碼/.test(t)?"#6cc0f0":/偏空|保守/.test(t)?"#e8a83c":"#3d84d6";'
     'var ic=document.createElement("i");'
     'ic.style.cssText="display:inline-block;width:10px;height:10px;border-radius:50%;background:"'
     '+c+";margin-right:5px;vertical-align:-1px";'
     'sp.textContent="";sp.appendChild(ic);'
     'sp.appendChild(document.createTextNode(t.replace(/^[^\\u4e00-\\u9fff]+/,"")));});'
     'var hi=document.querySelector("b[style*=\'34d07f\']"),lo=document.querySelector("b[style*=\'ef5d5d\']");'
-    'if(hi)hi.style.setProperty("color","#2dc5de","important");'
-    'if(lo)lo.style.setProperty("color","#8b5cf6","important");}}'
+    'if(hi)hi.style.setProperty("color","#6cc0f0","important");'
+    'if(lo)lo.style.setProperty("color","#e8a83c","important");}}'
     'recolor();'
     # 內文 emoji 記號 🟢🟡🔴（如新聞「是否反映」）→ 換成冷色圓點（一次性）
-    '(function(){var E={"🟢":"#2dc5de","🟡":"#4f87ff","🔴":"#8b5cf6"};'
+    '(function(){var E={"🟢":"#6cc0f0","🟡":"#3d84d6","🔴":"#e8a83c"};'
     'var w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,null),t,L=[];'
     'while(t=w.nextNode()){if(/[🟢🟡🔴]/u.test(t.nodeValue))L.push(t);}'
     'L.forEach(function(n){var f=document.createDocumentFragment();'
@@ -1039,7 +1045,7 @@ ASK_PANEL = (
     'backdrop-filter:blur(18px) saturate(1.6);'
     'box-shadow:0 8px 26px rgba(0,0,0,.35),inset 0 1px 0.5px rgba(255,255,255,.18)}'
     '#askpanel .bn{font-weight:700;font-size:13px;margin-bottom:5px}'
-    '.card.askpick{cursor:pointer}.card.askpick:focus-visible{outline:2px solid #8b5cf6;outline-offset:2px}'
+    '.card.askpick{cursor:pointer}.card.askpick:focus-visible{outline:2px solid #e8a83c;outline-offset:2px}'
     '</style>'
     '<script>(function(){' + _ASK_DATA + _ASK_JS + '})();</script>'
 )
@@ -1318,7 +1324,9 @@ def fix_manifest():
     若引擎重產 manifest 把它改回 #0f2148，這裡自動修回。"""
     try:
         raw = open("manifest.webmanifest", encoding="utf-8").read()
-        new = raw.replace('"theme_color": "#0f2148"', '"theme_color": "#0a1430"')
+        new = raw.replace('"theme_color": "#0f2148"', '"theme_color": "#0a1a2a"')
+        new = new.replace('"theme_color": "#0a1430"', '"theme_color": "#0a1a2a"')
+        new = new.replace('"background_color": "#0a1430"', '"background_color": "#0a1a2a"')
         if new != raw:
             with open("manifest.webmanifest", "w", encoding="utf-8") as fh:
                 fh.write(new)

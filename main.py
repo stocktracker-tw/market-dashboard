@@ -333,7 +333,7 @@ def run(open_browser=False):
 
     # 自選股清單 → 個股分頁（output/stocks.html）
     # recs/sres/universe 先給空值：個股段失敗時，後面的推薦追蹤（update_returns）照常跑
-    shared, sres, universe, recs = None, [], [], []
+    shared, sres, universe, recs, hot5 = None, [], [], [], []
     if getattr(cfg, "STOCK_WATCHLIST", None):
         try:
             import stock
@@ -342,8 +342,9 @@ def run(open_browser=False):
             sres = [r for r in sres if r]
             universe = stock.build_universe(result["composite"], shared)
             recs = stock.recommend(result["composite"], shared, universe)
+            hot5 = stock.theme_heat(shared, universe, top=5)   # 今日風口榜（頁面顯示用，取前5）
             if sres or universe or recs:
-                stock.render_stocks_page(recs, sres, universe)
+                stock.render_stocks_page(recs, sres, universe, hot=hot5)
                 top = "、".join("%s %.0f" % (r["code"], r["score"]) for r in recs[:5])
                 log("個股分頁：推薦 %d 檔（%s）、自選 %d、可搜尋 %d"
                     % (len(recs), top, len(sres), len(universe)))
@@ -456,7 +457,7 @@ def run(open_browser=False):
             if shared is not None and recs:
                 try:
                     import stock
-                    stock.render_stocks_page(recs, sres, universe)
+                    stock.render_stocks_page(recs, sres, universe, hot=hot5)
                     log("個股頁已重新產生（含回測內嵌）")
                 except Exception as ee:
                     log("個股頁重產失敗：%s" % str(ee)[:120])

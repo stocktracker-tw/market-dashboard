@@ -1226,7 +1226,7 @@ def _embed_rec_backtest(s, esc):
     return "".join(parts)
 
 
-def render_stocks_page(recommendations, watchlist, universe):
+def render_stocks_page(recommendations, watchlist, universe, hot=None):
     """產生 output/stocks.html：置頂最推薦潛力股 + 自選股完整卡片 + 全市場搜尋（輕量分）。"""
     from dashboard import _esc, nav, with_pwa
     recommendations = recommendations or []
@@ -1257,6 +1257,16 @@ def render_stocks_page(recommendations, watchlist, universe):
                      'autocomplete="off"></div>'
                      '<div id="res"><div class="muted" style="padding:6px 0 10px">'
                      '輸入代碼或名稱即時查全市場（輕量分：環境＋籌碼＋估值＋技術，📢標示近期法說/重訊）</div></div>' % len(uni))
+    if hot:
+        # 今日風口榜：讓「為什麼是這個題材上榜」攤在陽光下（熱度＝成員平均20日動能＋法人買超）
+        _hs = "｜".join("<b>%s</b> 20日%+.0f%%（%d檔・法人%+.0f千張）"
+                        % (_esc(t["theme"]), t["mom"] * 100, t["n"], t["net5"] / 1e6)
+                        for t in hot)
+        sections += ('<div class="card" style="padding:12px 18px;margin:14px 0 4px;font-size:13.5px">'
+                     '🔥 <b>今日風口</b>：%s'
+                     '<div class="muted" style="font-size:12px;margin-top:4px">'
+                     '熱度每天實算：題材成員平均 20 日動能＋法人合計買超，平均動能 ≤+2%% 不算熱。'
+                     '沒上榜的題材不是沒在追，是今天不夠熱。</div></div>' % _hs)
     if recommendations:
         sections += _hdr("🔥 最推薦潛力股", "風口題材＋動能優先、法人真金白銀在買的（非投資建議，賠錢不要找我）")
         sections += _grid(recommendations)

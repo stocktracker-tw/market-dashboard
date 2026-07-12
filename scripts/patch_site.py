@@ -1258,7 +1258,8 @@ SW_ASSETS = ["index.html", "stocks.html", "perspectives.html", "news.html",
              "backtest.html", "rec_backtest.html", "threads.html",
              "stock/index.html", "etf/index.html",
              "universe.json", "taifex.json", "manifest.webmanifest",
-             "icon-192.png", "icon-512.png", "icon-180.png"]
+             "icon-192.png", "icon-512.png", "icon-180.png",
+             "icon-192-maskable.png", "icon-512-maskable.png"]
 
 
 def fix_sw():

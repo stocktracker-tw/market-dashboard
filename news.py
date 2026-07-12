@@ -197,6 +197,14 @@ def render_news_page(data: Dict, briefing_html: str = None) -> str:
         parts.append('<h2>每日 AI 簡報（已多源查證真偽・非投資建議）</h2>')
         parts.append('<div class="brief">%s</div>' % briefing_html)
 
+    pod = data.get("podcast")
+    if pod:
+        parts.append('<a href="%s" target="_blank" rel="noopener" class="box" '
+                     'style="display:block;text-decoration:none">🎙️ 最新一集：%s'
+                     '<span class="muted" style="margin-left:8px;font-size:12px">%s・點了去聽，'
+                     '這裡不劇透</span></a>'
+                     % (_esc(pod.get("link") or "#"), _esc(pod.get("title") or ""),
+                        _esc(pod.get("date") or "")))
     parts.append('<h2>自動新聞監控</h2>')
     parts.append('<div class="warn">⚠️ 這區是機器抓的「標題」、<b>沒有判斷真偽</b>——新聞是拿來對照籌碼的，不是拿來當進場理由的；個股標籤旁是用「近期價格反應」'
                  '量化的『是否已反映』。真偽與合理性以上方 AI 簡報為準。非投資建議。</div>')

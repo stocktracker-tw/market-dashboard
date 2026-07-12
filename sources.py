@@ -824,3 +824,29 @@ def ptt_stock_sentiment(pages: int = 10):
         _cache_save("ptt", out)
         return out
     return _cache_load("ptt")
+
+
+# ---------------- Podcast 最新一集（消息頁導流盒） ----------------
+def podcast_latest():
+    """抓 config.PODCAST_RSS 的最新一集：{title, date, link}。
+
+    只取標題與連結（導流、不搬運內容）。失敗回快取，再沒有回 None。
+    """
+    url = getattr(cfg, "PODCAST_RSS", "")
+    if not url:
+        return None
+    r = _get(url, timeout=25)
+    if r is not None:
+        try:
+            root = ET.fromstring(r.content)
+            item = root.find("./channel/item")
+            title = (item.findtext("title") or "").strip()
+            link = (item.findtext("link") or "").strip()
+            pub = (item.findtext("pubDate") or "").strip()
+            if title:
+                out = {"title": title, "link": link, "date": pub[:16]}
+                _cache_save("podcast", out)
+                return out
+        except Exception:                      # noqa: BLE001 — 解析失敗走快取
+            pass
+    return _cache_load("podcast")

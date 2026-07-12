@@ -354,6 +354,10 @@ def run(open_browser=False):
         import news
         nd = news.assess(shared=shared, twii_close=(yh.get("twii") or {}).get("close"))
         if nd:
+            try:
+                nd["podcast"] = src.podcast_latest()
+            except Exception:                  # noqa: BLE001 — 導流盒非必要
+                nd["podcast"] = None
             news.render_news_page(nd, briefing_html=news._load_briefing())
             log("市場消息：%d 則標題" % len(nd["headlines"]))
     except Exception as e:

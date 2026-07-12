@@ -146,7 +146,11 @@ MELTUP_FLOOR = 1.0                 # 噴發期的定額倍數下限（MELTUP_AWA
 NEWS_ADJUST_ENABLED = True
 NEWS_ADJUST_CAP = 8                # 微調上限（±分）
 NEWS_ADJUST_MAX_AGE_DAYS = 5       # 超過天數線性衰退到 0
-BRIEFING_MAX_AGE_DAYS = 5          # 每日 AI 簡報超過幾天沒更新就自動不顯示（避免舊簡報被當成今天的）
+BRIEFING_MAX_AGE_DAYS = 5
+
+# 追蹤的 Podcast RSS（消息頁「最新一集」盒）。抓不到就用快取、再沒有就不顯示。
+# 換節目改這行即可（SoundOn 的 feed 格式：feeds.soundon.fm/podcasts/<id>.xml）。
+PODCAST_RSS = "https://feeds.soundon.fm/podcasts/954689a5-3096-43a4-a80b-7810b219cef3.xml"          # 每日 AI 簡報超過幾天沒更新就自動不顯示（避免舊簡報被當成今天的）
 
 # 10) 個股版進場分數（stock.py）：四個面向的權重（缺資料自動重新分配）。
 STOCK_WEIGHTS = {

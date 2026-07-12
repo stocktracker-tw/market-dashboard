@@ -434,6 +434,9 @@ LIQUID = (
     # 網頁版（非 PWA）iOS Safari 無視 user-scalable=no：touch-action 擋雙擊縮放，
     # gesturestart 攔截（見 zoomlock script）擋捏縮 → 頁寬真正鎖死、bar 不飄
     'html,body{touch-action:pan-x pan-y}'
+    # 桌面 Chrome（Windows 實體捲軸）：捲軸出現/消失使視窗寬度變動，
+    # left:50% 置中的分頁列左右跳。讓捲軸軌永遠佔位 → 寬度恆定
+    'html{overflow-y:scroll;scrollbar-gutter:stable}'
     '@media(max-width:700px){.wrap table{display:block;overflow-x:auto;'
     '-webkit-overflow-scrolling:touch;max-width:100%}}'
     'body::before{content:"";position:fixed;inset:-12% -8%;z-index:-1;pointer-events:none;'

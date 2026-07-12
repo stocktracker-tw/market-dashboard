@@ -30,11 +30,11 @@ HOWTO_BOX = (
     '<summary style="cursor:pointer;font-weight:700;font-size:14px">'
     '❓ 這個分數是什麼？我該怎麼用？</summary>'
     '<div style="font-size:13px;color:#aab4c6;margin-top:10px;line-height:1.7">'
-    '我把下面這些指標壓成一個 0–100 分：<br>'
-    '· <b style="color:#34d07f">分數高</b>＝數據偏多，這個月定期定額可以<b>比平常多扣一點</b><br>'
-    '· <b style="color:#ef5d5d">分數低</b>＝偏空，<b>少扣、留點銀彈</b>等更好的價位<br>'
-    '· <b>45–58＝中性</b>，維持原本節奏就好<br>'
-    '重點：這<b>不是</b>叫你買哪一支股票，而是幫你決定「這個月該<b>積極還是保守</b>」。'
+    '幾十個指標壓成一個 0–100 分，就管一件事：<br>'
+    '· <b style="color:#34d07f">分數高</b>＝數據站你這邊，這個月<b>多扣一點</b><br>'
+    '· <b style="color:#ef5d5d">分數低</b>＝別逞英雄，<b>少扣、留銀彈</b><br>'
+    '· <b>45–58＝中性</b>，照表操課，把手機關掉<br>'
+    '重點：它<b>不是</b>報明牌，是管住你的手——「這個月該<b>貪還是慫</b>」。'
     '⚠️ 非投資建議</div></details>'
 )
 SCORE_H2_RE = re.compile(r'(<h2>進場分數 )(\d+(?:\.\d+)?)(</h2>)')
@@ -613,8 +613,7 @@ DCATRACK = (
     'S.innerHTML="已記 <b>"+v.length+"</b> 筆｜聽分數共投入 <b>"+fmt(ta)+"</b> 元｜"'
     '+"若固定 1x："+fmt(tb)+" 元（分數讓你"+(d>=0?"多投 ":"少投 ")+fmt(Math.abs(d))+" 元"'
     '+"——低分省下的是子彈、高分多投的是布局）";'
-    '}else{S.textContent="每次照建議倍數扣款後，按上面按鈕記一筆。累積幾個月，'
-    '就能看到「聽分數的你」和「無腦定額的你」實際差在哪。";}'
+    '}else{S.textContent="每次照建議倍數扣完款就按一下記一筆。幾個月後你就知道：聽數據的你和憑感覺的你，到底誰在養誰。";}'
     'Array.prototype.forEach.call(L.querySelectorAll(".dtDel"),function(x){'
     'x.onclick=function(){var v2=load();v2.splice(+this.dataset.i,1);save(v2);render()};});}'
     'var btn=document.getElementById("dtAdd");'
@@ -1176,6 +1175,20 @@ def patch(html, fname):
     # 1d2) 全站 Liquid Glass 材質（底層極光光暈 + 卡片玻璃化）
     html, lq = patch_liquid(html)
     changed = changed or lq
+
+    # 1e-1) 已注入的 howto 盒舊文案 → 新聲線（id 守門不回改舊頁，就地遷移）
+    _HOWTO_MIG = (
+        ('我把下面這些指標壓成一個 0–100 分：<br>', '幾十個指標壓成一個 0–100 分，就管一件事：<br>'),
+        ('＝數據偏多，這個月定期定額可以<b>比平常多扣一點</b><br>', '＝數據站你這邊，這個月<b>多扣一點</b><br>'),
+        ('＝偏空，<b>少扣、留點銀彈</b>等更好的價位<br>', '＝別逞英雄，<b>少扣、留銀彈</b><br>'),
+        ('＝中性</b>，維持原本節奏就好<br>', '＝中性</b>，照表操課，把手機關掉<br>'),
+        ('重點：這<b>不是</b>叫你買哪一支股票，而是幫你決定「這個月該<b>積極還是保守</b>」。',
+         '重點：它<b>不是</b>報明牌，是管住你的手——「這個月該<b>貪還是慫</b>」。'),
+    )
+    for _o, _n in _HOWTO_MIG:
+        if _o in html:
+            html = html.replace(_o, _n)
+            changed = True
 
     # 1e0) 已注入的 howto 盒門檻字樣 43→45（模板早改了，但 id 守門不回改舊頁）
     if '· <b>43–58＝中性</b>' in html:

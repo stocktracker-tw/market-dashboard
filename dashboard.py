@@ -232,6 +232,14 @@ SWIPE_JS = """<script>
 })();
 </script>"""
 
+# 縮放鎖：網頁版 iOS Safari 無視 user-scalable=no，捏縮讓 fixed 分頁列位移且保持。
+# gesturestart/gesturechange preventDefault 實際擋下；補丁層有同款（id 守門互不重複）。
+ZOOM_JS = ('<script id="zoomlock">(function(){if(window.__zoomlock)return;'
+           'window.__zoomlock=1;var f=function(e){e.preventDefault()};'
+           "document.addEventListener('gesturestart',f,{passive:false});"
+           "document.addEventListener('gesturechange',f,{passive:false});"
+           '})();</script>')
+
 
 _NAV_CSS = """<style>
 /* iOS 26 風格：置中浮動的玻璃膠囊（外觀玻璃由 GLASS_CSS 提供） */
@@ -277,6 +285,7 @@ html{background:#f5f8fb}
 body{background:transparent;color:#17293a}
 /* 鎖住水平溢出：內容過寬（如寬表格）會把版面撐開，固定定位的分頁列跟著縮小位移 */
 html,body{max-width:100vw;overflow-x:hidden;overflow-x:clip}
+html,body{touch-action:pan-x pan-y}
 @media(max-width:700px){.wrap table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}}
 body::before{content:"";position:fixed;inset:-12%;z-index:-1;pointer-events:none;
  background:
@@ -346,7 +355,7 @@ def nav(active="", include_css=False):
     items = "".join('<a class="tab%s" href="%s"><span class="ic">%s</span><span>%s</span></a>'
                     % (" on" if k == active else "", href, ic, lb) for href, k, ic, lb in tabs)
     css = (_NAV_CSS + GLASS_CSS) if include_css else ""
-    return css + GLASS_SVG + '<nav class="tabbar">' + items + '</nav>' + SWIPE_JS
+    return css + GLASS_SVG + '<nav class="tabbar">' + items + '</nav>' + SWIPE_JS + ZOOM_JS
 
 
 def render(result: Dict, indicators: List[Dict], score_history: List, meta: Dict,

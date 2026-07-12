@@ -13,6 +13,10 @@ import analytics as A
 import config as cfg
 
 
+def _trend_style() -> bool:
+    return getattr(cfg, "SCORING_STYLE", "trend") == "trend"
+
+
 def band(score: float) -> str:
     if score >= cfg.LIGHT_GREEN_MIN:
         return "green"      # 偏向加碼
@@ -50,16 +54,27 @@ def _vix(yh) -> Optional[Dict]:
     if not s:
         return None
     v = s[-1]
-    score = A.piecewise(v, [(11, 22), (14, 42), (17, 55), (20, 64),
-                            (25, 76), (30, 86), (40, 96), (60, 99)])
-    if v < 14:
-        note = "市場靜到可疑——大家都覺得不會出事的時候，通常就快出事了。"
-    elif v < 20:
-        note = "波動正常，沒戲，先去忙別的。"
-    elif v < 30:
-        note = "開始有人尖叫了——恐慌是折扣的前奏，清單準備好。"
+    if _trend_style():
+        # 順勢式：平靜＝正常環境、亂流＝先站開、極端恐慌＝等企穩再說（不接刀）
+        score = A.piecewise(v, [(11, 52), (14, 58), (18, 56), (22, 44),
+                                (28, 30), (40, 15), (60, 8)])
+        if v < 20:
+            note = "波動正常，環境乾淨，該做的事照做。"
+        elif v < 30:
+            note = "開始亂流——這種時候先降部位站穩，別急著表態。"
+        else:
+            note = "全面亂流。刀還在掉的時候不接刀，等它插進地板再說。"
     else:
-        note = "遍地哀嚎。歷史上這種時候進場的人，一年後都不想承認自己當時有多害怕。"
+        score = A.piecewise(v, [(11, 22), (14, 42), (17, 55), (20, 64),
+                                (25, 76), (30, 86), (40, 96), (60, 99)])
+        if v < 14:
+            note = "市場靜到可疑——大家都覺得不會出事的時候，通常就快出事了。"
+        elif v < 20:
+            note = "波動正常，沒戲，先去忙別的。"
+        elif v < 30:
+            note = "開始有人尖叫了——恐慌是折扣的前奏，清單準備好。"
+        else:
+            note = "遍地哀嚎。歷史上這種時候進場的人，一年後都不想承認自己當時有多害怕。"
     return _ind("vix", "VIX 恐慌指數", "fear", "%.1f" % v, score, note,
                 series=s[-120:], weight=1.0)
 
@@ -72,10 +87,16 @@ def _vix_term(yh) -> Optional[Dict]:
     ratio = v[-1] / v3[-1] if v3[-1] else None
     if ratio is None:
         return None
-    score = A.piecewise(ratio, [(0.80, 30), (0.90, 42), (0.95, 52),
-                                (1.00, 64), (1.05, 80), (1.15, 92)])
-    note = ("期限結構倒掛（近月>遠月）＝急性恐慌、常見於急跌末段。"
-            if ratio >= 1 else "正常正價差（contango），市場無立即恐慌。")
+    if _trend_style():
+        score = A.piecewise(ratio, [(0.80, 60), (0.90, 62), (0.95, 56),
+                                    (1.00, 44), (1.05, 26), (1.15, 12)])
+        note = ("期限結構倒掛＝正在急跌的當下。順勢的紀律：亂流中先離場，"
+                "翻回正價差再回來。" if ratio >= 1 else "正常正價差，環境乾淨。")
+    else:
+        score = A.piecewise(ratio, [(0.80, 30), (0.90, 42), (0.95, 52),
+                                    (1.00, 64), (1.05, 80), (1.15, 92)])
+        note = ("期限結構倒掛（近月>遠月）＝急性恐慌、常見於急跌末段。"
+                if ratio >= 1 else "正常正價差（contango），市場無立即恐慌。")
     # 取兩條對齊的最後 120 天做比值序列
     n = min(len(v), len(v3), 120)
     series = [v[-n + i] / v3[-n + i] for i in range(n) if v3[-n + i]]
@@ -112,7 +133,12 @@ def _fear_greed(yh) -> Optional[Dict]:
     if not comps:
         return None
     greed = sum(comps.values()) / len(comps)
-    score = 100 - greed   # 進場機會 = 100 - 貪婪
+    if _trend_style():
+        # 倒 U：適度貪婪＝健康多頭；兩端極值都扣（極恐＝亂流、極貪＝末端）
+        score = A.piecewise(greed, [(10, 22), (25, 40), (45, 58), (65, 60),
+                                    (80, 46), (92, 30)])
+    else:
+        score = 100 - greed   # 進場機會 = 100 - 貪婪
     if greed < 25:
         label = "極度恐懼"
     elif greed < 45:
@@ -143,6 +169,8 @@ def _tw_valuation(val) -> Optional[Dict]:
     ys = A.piecewise(dy, [(2.0, 25), (2.5, 38), (3.0, 50), (3.5, 62), (4.0, 74), (5.0, 88)])
     ps = A.piecewise(pb, [(1.2, 88), (1.5, 70), (1.8, 54), (2.1, 40), (2.5, 26), (3.0, 18)])
     score = (ys + ps) / 2
+    if _trend_style():
+        score = 50 + (score - 50) * 0.35   # 便宜不是進場理由——壓扁影響力，只當背景
     note = ("全市場中位數估的：殖利率高、淨值比低＝便宜。"
             "目前估值%s。" % ("偏低（便宜）" if score >= 58 else "偏高（貴）" if score < 42 else "中性"))
     if val.get("_cached"):
@@ -158,12 +186,25 @@ def _drawdown(yh, key, name) -> Optional[Dict]:
     dd = A.drawdown_from_high(s, 252)
     if dd is None:
         return None
-    score = A.piecewise(dd, [(-0.40, 97), (-0.25, 90), (-0.15, 80),
-                             (-0.08, 66), (-0.03, 52), (0.0, 40)])
-    note = ("距 52 週高點回檔 %.1f%%。" % (dd * 100)) + (
-        "貼著歷史高點，這裡進場叫接棒不叫進場。" if dd > -0.03 else
-        "回檔有感，想分批的人開始有位置可以站了。" if dd > -0.15 else
-        "跌很深。恐慌的人在賣、有紀律的人在列清單。")
+    if _trend_style():
+        score = A.piecewise(dd, [(-0.40, 14), (-0.25, 24), (-0.15, 40),
+                                 (-0.08, 60), (-0.03, 58), (0.0, 55)])
+        ma20 = A.sma(s, 20)
+        stabilized = bool(ma20 and s[-1] > ma20)
+        if dd <= -0.15 and stabilized:
+            score += 14                     # 深跌但已站回月線＝企穩，加回
+        note = ("距 52 週高點回檔 %.1f%%。" % (dd * 100)) + (
+            "在高檔區沿著趨勢走，順風但別自以為天才。" if dd > -0.08 else
+            "健康回檔，趨勢沒壞，這種位置比追新高舒服。" if dd > -0.15 else
+            ("跌深但已站回月線——企穩了才叫機會。" if stabilized else
+             "刀還在掉。接刀不會讓你變英雄，只會讓你變統計數字。"))
+    else:
+        score = A.piecewise(dd, [(-0.40, 97), (-0.25, 90), (-0.15, 80),
+                                 (-0.08, 66), (-0.03, 52), (0.0, 40)])
+        note = ("距 52 週高點回檔 %.1f%%。" % (dd * 100)) + (
+            "貼著歷史高點，這裡進場叫接棒不叫進場。" if dd > -0.03 else
+            "回檔有感，想分批的人開始有位置可以站了。" if dd > -0.15 else
+            "跌很深。恐慌的人在賣、有紀律的人在列清單。")
     return _ind("dd_" + key, name, "valuation",
                 "%.1f%%" % (dd * 100), score, note, series=s[-120:], weight=0.8)
 
@@ -250,7 +291,10 @@ def _business_signal(ndc) -> Optional[Dict]:
     sc = float(ndc["score"])
     light = ndc.get("light") or ""
     # 分數越高＝景氣越熱＝越不適合追高；藍燈低分＝景氣低迷＝長線買點
-    score = A.piecewise(sc, [(9, 90), (16, 80), (22, 62), (31, 48), (37, 32), (45, 20)])
+    if _trend_style():
+        score = A.piecewise(sc, [(9, 38), (16, 44), (22, 52), (31, 56), (37, 54), (45, 46)])
+    else:
+        score = A.piecewise(sc, [(9, 90), (16, 80), (22, 62), (31, 48), (37, 32), (45, 20)])
     if "藍" in light:
         desc = "藍燈。體感最爛的時候，歷史上都是撿便宜區——雖然當下沒人敢按。"
     elif "綠" in light:

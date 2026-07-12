@@ -110,6 +110,14 @@ COMPOSITE_CONTRAST = 1.0
 #     history_score.csv 永遠存 raw，校準只在顯示層做（避免自我參照）。
 #     歷史樣本不足 CALIBRATION_MIN_DAYS 時自動退回 raw 顯示。
 #     門檻 80：現有歷史約 91 日（含回測補值）即可啟用；分佈樣本會隨每日累積更穩。
+# 4d) 分數算法風格：
+#   "trend"      ＝順勢結構（股癌式）：恐慌亂流＝先站開、深跌的刀＝別接（企穩才加回）、
+#                  便宜與景氣燈號只當背景；高分要靠趨勢健康＋籌碼站隊＋散戶沒瘋。
+#   "contrarian" ＝原逆勢抄底：恐慌/跌深/便宜＝加分。
+# 切換後 raw 分數水位會重新校準（歷史百分位自動適應，過渡期分數會漂），
+# 準不準由回測頁的體檢卡/IC 卡持續記錄——讓數據當裁判。
+SCORING_STYLE = "trend"
+
 COMPOSITE_CALIBRATION = True
 CALIBRATION_MIN_DAYS = 80
 

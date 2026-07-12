@@ -166,8 +166,8 @@ def assess(shared=None, twii_close=None) -> Optional[Dict]:
 _CSS = """<style>
 body{margin:0;background:#f5f8fb;color:#17293a;font-family:"Segoe UI","Microsoft JhengHei",system-ui,sans-serif;line-height:1.6}
 .wrap{max-width:860px;margin:0 auto;padding:26px 20px 70px}
-h1{font-size:23px;margin:0 0 2px}.muted{color:#5f7183;font-size:13px}a{color:#5b9cff;text-decoration:none}
-h2{font-size:16px;margin:22px 0 10px;padding-left:10px;border-left:3px solid #5b9cff}
+h1{font-size:23px;margin:0 0 2px}.muted{color:#5f7183;font-size:13px}a{color:#2478c8;text-decoration:none}
+h2{font-size:16px;margin:22px 0 10px;padding-left:10px;border-left:3px solid #2478c8}
 .box{background:#ffffff;border:1px solid #dbe4ee;border-radius:12px;padding:12px 16px;margin-bottom:10px}
 .nrow{padding:11px 2px;border-bottom:1px solid #222936}
 .nt{font-size:15px}.src{color:#5f7183;font-size:12px}

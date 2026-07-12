@@ -447,7 +447,7 @@ def indicator_report_card(ind_hist, ind_names, sig):
 
 # ---------------- HTML ----------------
 def render_html(results, master, validation=None):
-    C = {"green": "#28c76f", "amber": "#f6a821", "red": "#ea5455", "accent": "#5b9cff"}
+    C = {"green": "#28c76f", "amber": "#f6a821", "red": "#ea5455", "accent": "#2478c8"}
     chart_data = {}
     parts = []
     parts.append("""<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="utf-8">
@@ -458,7 +458,7 @@ def render_html(results, master, validation=None):
 body{margin:0;background:#f5f8fb;color:#17293a;font-family:"Segoe UI","Microsoft JhengHei",system-ui,sans-serif;line-height:1.6}
 .wrap{max-width:980px;margin:0 auto;padding:24px 18px 60px}
 h1{font-size:22px;margin:0 0 4px}.sub{color:#5f7183;font-size:13px;margin-bottom:18px}
-a{color:#5b9cff}
+a{color:#2478c8}
 .card{background:#ffffff;border:1px solid #dbe4ee;border-radius:14px;padding:16px 18px;margin-bottom:18px}
 h2{font-size:17px;margin:0 0 10px}
 table{width:100%;border-collapse:collapse;font-size:13.5px}

@@ -854,7 +854,7 @@ def _card_html(r, esc):
         '<span class="muted" style="font-size:12px">%s</span></div>'
         '<div class="%s" style="font-size:20px;font-weight:700">%.0f</div></div>'
         % (esc(l), w, esc(d), _band(s), s) for l, s, w, d in r["components"])
-    verdict = ('<div style="padding:8px 0;color:#5b9cff">★ %s</div>' % esc(r["chips_verdict"])) if r["chips_verdict"] else ""
+    verdict = ('<div style="padding:8px 0;color:#2478c8">★ %s</div>' % esc(r["chips_verdict"])) if r["chips_verdict"] else ""
     ex = r.get("exit")
     exit_html = ""
     if ex:
@@ -890,11 +890,11 @@ h1{font-size:25px;margin:0 0 3px}.muted{color:#5f7183;font-size:13.5px}
 h2{font-size:18px;margin:0;display:flex;align-items:center;gap:8px}
 h2 .score{margin-left:auto;font-size:32px;font-weight:800}
 .row{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #222936;font-size:14.5px}
-.green{color:#28c76f}.amber{color:#f6a821}.red{color:#ea5455}a{color:#5b9cff}
-.searchwrap{position:sticky;top:0;z-index:6;background:#04060a;padding:12px 0 8px}
+.green{color:#28c76f}.amber{color:#f6a821}.red{color:#ea5455}a{color:#2478c8}
+.searchwrap{position:sticky;top:0;z-index:6;background:rgba(245,248,251,.92);padding:12px 0 8px}
 input{width:100%;box-sizing:border-box;padding:13px 15px;border-radius:12px;border:1px solid #dbe4ee;
-  background:#11161f;color:#17293a;font-size:16px;outline:none}
-input:focus{border-color:#5b9cff}
+  background:#ffffff;color:#17293a;font-size:16px;outline:none}
+input:focus{border-color:#2478c8}
 .sitem{border-bottom:1px solid #222936}
 .srow{display:flex;align-items:center;gap:14px;padding:11px 2px;cursor:pointer}
 .srow:hover{background:#141925}
@@ -910,8 +910,8 @@ input:focus{border-color:#5b9cff}
 .green{color:#28c76f}.amber{color:#f6a821}.red{color:#ea5455}
 .wladd{display:flex;gap:8px;margin:6px 0 10px}
 .wladd input{flex:1;min-width:0;padding:10px 14px;border-radius:12px}
-.wladd button{padding:10px 18px;border-radius:12px;border:1px solid rgba(255,255,255,.16);
- background:rgba(255,120,200,.22);color:#fff;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap}
+.wladd button{padding:10px 18px;border-radius:12px;border:1px solid #cfdae6;
+ background:rgba(36,120,200,.14);color:#17293a;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap}
 .wlbtns{display:flex;gap:13px;align-items:center;margin-left:10px}
 .wlbtns span{cursor:pointer;color:#8893a6;font-size:14px;user-select:none}
 .wlbtns .wlx{color:#ea5455}
@@ -927,7 +927,7 @@ input:focus{border-color:#5b9cff}
  box-shadow:0 10px 26px rgba(0,0,0,.5), inset 0 1px .5px rgba(255,255,255,.6), 0 0 0 1px rgba(255,255,255,.18);
  transition:transform .16s, box-shadow .16s;-webkit-tap-highlight-color:transparent}
 .fab:active{transform:scale(.9)}
-.fab svg{width:26px;height:26px;display:block;filter:drop-shadow(0 2px 8px rgba(255,80,190,.55))}
+.fab svg{width:26px;height:26px;display:block;filter:drop-shadow(0 2px 8px rgba(224,152,40,.5))}
 </style>"""
 
 
@@ -974,7 +974,7 @@ function mkt(x){return x.m==='otc'?'<span class="mk otc">上櫃</span>':'<span c
 function detail(x){
   var d='<div class="sdet" style="display:none">';
   if(x.a)d+='<div class="ana"><b>分析：</b>'+esc(x.a)+'</div>';
-  d+='<div class="dl">收盤 '+cell(x.p)+'　'+mkt(x)+(x.b?'　<b class="'+band(x.s)+'">'+esc(x.b)+'</b>':'')+(x.d?'　<span style="color:#5b9cff">★ '+esc(x.d)+'</span>':'')+'</div>';
+  d+='<div class="dl">收盤 '+cell(x.p)+'　'+mkt(x)+(x.b?'　<b class="'+band(x.s)+'">'+esc(x.b)+'</b>':'')+(x.d?'　<span style="color:#2478c8">★ '+esc(x.d)+'</span>':'')+'</div>';
   if(x.t||x.i)d+='<div class="muted">'+(x.t?'題材：'+esc(x.t)+'　':'')+(x.i?'產業：'+esc(x.i):'')+'</div>';
   d+='<div class="muted">個股籌碼（'+cell(x.ch)+'）：'+esc(x.cd)+'</div>';
   d+='<div class="muted">個股估值（'+cell(x.v)+'）：'+esc(x.vd)+'</div>';

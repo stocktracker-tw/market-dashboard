@@ -108,6 +108,8 @@ def _record_prices(dayohlc, date_str, keep_days=90):
                     rows.append(r); seen.add((r[0], r[1]))
     added = 0
     for code, o in dayohlc.items():
+        if not isinstance(o, dict):
+            continue
         c = o.get("close")
         if c is None:
             continue

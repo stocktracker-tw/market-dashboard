@@ -653,6 +653,7 @@ def twse_stock_day_all() -> Dict:
         _cache_save("stockdayall", out)
     else:
         out = _cache_load("stockdayall") or {}
+        out.pop("_cached", None)   # 「代碼→資料」型快取：標記鍵會被當成假代碼迭代到
     return out
 
 
@@ -675,6 +676,7 @@ def tpex_stock_day_all() -> Dict:
         _cache_save("tpexdayall", out)
     else:
         out = _cache_load("tpexdayall") or {}
+        out.pop("_cached", None)
     return out
 
 
@@ -698,6 +700,7 @@ def twse_announcements() -> Dict:
         _cache_save("announce", out)
     else:
         out = _cache_load("announce") or {}
+        out.pop("_cached", None)
     return out
 
 

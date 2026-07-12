@@ -332,7 +332,8 @@ def run(open_browser=False):
                          for d, v in score_history]
 
     # 自選股清單 → 個股分頁（output/stocks.html）
-    shared = None
+    # recs/sres/universe 先給空值：個股段失敗時，後面的推薦追蹤（update_returns）照常跑
+    shared, sres, universe, recs = None, [], [], []
     if getattr(cfg, "STOCK_WATCHLIST", None):
         try:
             import stock
@@ -347,7 +348,11 @@ def run(open_browser=False):
                 log("個股分頁：推薦 %d 檔（%s）、自選 %d、可搜尋 %d"
                     % (len(recs), top, len(sres), len(universe)))
         except Exception as e:
-            log("個股分頁失敗（不影響大盤儀表板）：%s" % str(e)[:140])
+            import traceback
+            tb = traceback.extract_tb(e.__traceback__)
+            loc = ("（%s:%d）" % (os.path.basename(tb[-1].filename), tb[-1].lineno)) if tb else ""
+            log("個股分頁失敗（不影響大盤儀表板）：%s: %s%s"
+                % (type(e).__name__, str(e)[:120], loc))
 
     # 市場消息監控（①：抓標題＋是否已反映；不判真偽）
     nd = None

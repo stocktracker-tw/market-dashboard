@@ -198,7 +198,7 @@ def render_news_page(data: Dict, briefing_html: str = None) -> str:
         parts.append('<div class="brief">%s</div>' % briefing_html)
 
     parts.append('<h2>自動新聞監控</h2>')
-    parts.append('<div class="warn">⚠️ 本區只自動抓「標題」、<b>未判斷真偽</b>；個股標籤旁是用「近期價格反應」'
+    parts.append('<div class="warn">⚠️ 這區是機器抓的「標題」、<b>沒有判斷真偽</b>——新聞是拿來對照籌碼的，不是拿來當進場理由的；個股標籤旁是用「近期價格反應」'
                  '量化的『是否已反映』。真偽與合理性以上方 AI 簡報為準。非投資建議。</div>')
     if data.get("market"):
         parts.append('<div class="box">🌡️ 大盤：%s</div>' % _esc(data["market"]))

@@ -1215,7 +1215,7 @@ def render_stocks_page(recommendations, watchlist, universe):
                      '<div id="res"><div class="muted" style="padding:6px 0 10px">'
                      '輸入代碼或名稱即時查全市場（輕量分：環境＋籌碼＋估值＋技術，📢標示近期法說/重訊）</div></div>' % len(uni))
     if recommendations:
-        sections += _hdr("🔥 最推薦潛力股", "進場分數最高、且法人買超的中大型股（非投資建議）")
+        sections += _hdr("🔥 最推薦潛力股", "分數高＋法人真金白銀在買的（非投資建議，賠錢不要找我）")
         sections += _grid(recommendations)
 
     # 📊 推薦回測（直接內嵌，不用點進去）
@@ -1228,7 +1228,7 @@ def render_stocks_page(recommendations, watchlist, universe):
         sections += _embed_rec_backtest(summary, _esc)
 
     # ⭐ 自選股：改為使用者可自編（存在瀏覽器 localStorage），預設帶入 config.STOCK_WATCHLIST
-    sections += _hdr("⭐ 我的自選", "可自行加入／移除／排序，存在你的瀏覽器（換裝置不同步）")
+    sections += _hdr("⭐ 我的自選", "你自己的觀察名單，存在瀏覽器裡（換手機不同步，這是特性不是 bug）")
     sections += ('<div class="wladd"><input id="wlq" placeholder="輸入代碼加入（例 2330）" autocomplete="off">'
                  '<button id="wlbtn">加入</button></div><div id="wl"></div>')
 

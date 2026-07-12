@@ -53,13 +53,13 @@ def _vix(yh) -> Optional[Dict]:
     score = A.piecewise(v, [(11, 22), (14, 42), (17, 55), (20, 64),
                             (25, 76), (30, 86), (40, 96), (60, 99)])
     if v < 14:
-        note = "市場極度平靜，波動偏低（情緒偏貪婪，逆向偏空）。"
+        note = "市場靜到可疑——大家都覺得不會出事的時候，通常就快出事了。"
     elif v < 20:
-        note = "波動正常，情緒中性。"
+        note = "波動正常，沒戲，先去忙別的。"
     elif v < 30:
-        note = "恐慌升溫，開始出現分批加碼價值。"
+        note = "開始有人尖叫了——恐慌是折扣的前奏，清單準備好。"
     else:
-        note = "極度恐慌，歷史上常是中長線相對低點。"
+        note = "遍地哀嚎。歷史上這種時候進場的人，一年後都不想承認自己當時有多害怕。"
     return _ind("vix", "VIX 恐慌指數", "fear", "%.1f" % v, score, note,
                 series=s[-120:], weight=1.0)
 
@@ -143,7 +143,7 @@ def _tw_valuation(val) -> Optional[Dict]:
     ys = A.piecewise(dy, [(2.0, 25), (2.5, 38), (3.0, 50), (3.5, 62), (4.0, 74), (5.0, 88)])
     ps = A.piecewise(pb, [(1.2, 88), (1.5, 70), (1.8, 54), (2.1, 40), (2.5, 26), (3.0, 18)])
     score = (ys + ps) / 2
-    note = ("以全體上市股票中位數估算：殖利率越高、股價淨值比越低＝越便宜。"
+    note = ("全市場中位數估的：殖利率高、淨值比低＝便宜。"
             "目前估值%s。" % ("偏低（便宜）" if score >= 58 else "偏高（貴）" if score < 42 else "中性"))
     if val.get("_cached"):
         note += "（採前次快取）"
@@ -185,7 +185,7 @@ def _cpi(cpi) -> Optional[Dict]:
             score += 5
         elif series_vals[-1] > series_vals[-4]:
             score -= 5
-    note = ("美國 CPI 年增 %.1f%%（核心 %.1f%%）。通膨回落利於降息與股市；通膨高則壓抑評價。"
+    note = ("美國 CPI 年增 %.1f%%（核心 %.1f%%）。通膨降＝Fed 有藉口放水；通膨黏＝大家一起罰站。"
             % (yoy, core if core is not None else float("nan")))
     if cpi.get("_cached"):
         note += "（本次來源忙線，採前次快取）"
@@ -218,7 +218,7 @@ def _dxy(yh) -> Optional[Dict]:
     if chg is None:
         return None
     score = A.clamp(50 - (chg / 0.05) * 30, 20, 80)
-    note = ("美元指數 %.1f（近60日 %+.1f%%）。美元走強對台股與新興市場資金面不利，走弱則有利。"
+    note = ("美元指數 %.1f（近60日 %+.1f%%）。美元強＝熱錢回美國、台股被抽血；美元軟＝資金回來玩。"
             % (s[-1], chg * 100))
     return _ind("dxy", "美元指數 DXY", "macro",
                 "%.1f（60日 %+.1f%%）" % (s[-1], chg * 100), score, note,
@@ -237,7 +237,7 @@ def _copper_gold(yh) -> Optional[Dict]:
     ratio = ratio_series[-1]
     chg = A.pct_change(ratio_series, 60)
     score = A.clamp(50 + ((chg or 0) / 0.10) * 25, 30, 70)
-    note = ("銅金比 %.4f（近60日 %+.1f%%）。銅金比走升＝市場預期景氣擴張、風險偏好回升。"
+    note = ("銅金比 %.4f（近60日 %+.1f%%）。銅漲金跌＝實體經濟真的有人在下單；反過來＝全場切避險模式。"
             % (ratio, (chg or 0) * 100))
     return _ind("copper_gold", "銅金比（景氣領先）", "macro",
                 "%.4f（60日 %+.1f%%）" % (ratio, (chg or 0) * 100), score, note,
@@ -252,13 +252,13 @@ def _business_signal(ndc) -> Optional[Dict]:
     # 分數越高＝景氣越熱＝越不適合追高；藍燈低分＝景氣低迷＝長線買點
     score = A.piecewise(sc, [(9, 90), (16, 80), (22, 62), (31, 48), (37, 32), (45, 20)])
     if "藍" in light:
-        desc = "景氣低迷（藍燈），歷史上是中長線相對甜蜜的進場區。"
+        desc = "藍燈。體感最爛的時候，歷史上都是撿便宜區——雖然當下沒人敢按。"
     elif "綠" in light:
-        desc = "景氣穩定（綠燈），中性。"
+        desc = "綠燈，景氣平穩，無聊是好事。"
     elif "紅" in light:
-        desc = "景氣熱絡偏過熱（紅燈），追高風險升高、宜保守。"
+        desc = "紅燈發燙。大家最敢作夢的時候，通常也是最貴的時候。"
     else:
-        desc = "景氣轉向中（黃燈），留意動能變化。"
+        desc = "黃燈轉向中，方向沒出來前別急著表態。"
     ym = ndc["date"]
     ym_disp = "%s-%s" % (ym[:4], ym[4:]) if len(ym) == 6 else ym
     note = "國發會景氣對策信號 %s 分（%s燈，%s）。%s" % (round(sc), light, ym_disp, desc)
@@ -325,7 +325,7 @@ def _macd_ind(yh, key, name) -> Optional[Dict]:
     histn = (hist / s[-1] * 100) if s[-1] else 0.0       # 正規化為價格 %（跨標的可比）
     score = A.piecewise(histn, [(-1.0, 30), (-0.1, 45), (0, 52), (0.1, 60), (1.0, 72)])
     above = (ml is not None and ml >= 0)
-    note = ("MACD(12,26,9)：柱狀體%s，MACD 線%s零軸。動能順勢指標。"
+    note = ("MACD(12,26,9)：柱狀體%s，MACD 線%s零軸。動能指標：紅柱順風、黑柱頂風，別跟風向吵架。"
             % ("為正(動能轉強)" if hist > 0 else "為負(動能轉弱)", "在" if above else "低於"))
     return _ind("macd_" + key, name, "trend", "柱%s" % ("翻紅" if hist > 0 else "翻黑"),
                 score, note, weight=0.6)
@@ -339,11 +339,11 @@ def _bollinger(yh, key, name) -> Optional[Dict]:
     # 逆勢解讀：跌破下軌(%b<0)=超賣=進場機會高；突破上軌(%b>1)=超買=追高風險
     score = A.piecewise(pb, [(-0.2, 86), (0.0, 78), (0.2, 64), (0.5, 52), (0.8, 40), (1.0, 28), (1.2, 20)])
     if pb < 0.1:
-        desc = "貼近/跌破下軌＝短線超賣，逆勢分批價值浮現。"
+        desc = "殺到下軌外——短線殺過頭，想逆勢撿的人看這裡。"
     elif pb > 0.9:
-        desc = "貼近/突破上軌＝短線超買，追高風險升高。"
+        desc = "貼著上軌還想追？那叫接最後一棒。"
     else:
-        desc = "位於通道中段，中性。"
+        desc = "通道中段，沒戲。"
     note = "布林通道 %%b＝%.2f（0=下軌、0.5=中軌、1=上軌）。%s" % (pb, desc)
     return _ind("boll_" + key, name, "trend", "%%b %.2f" % pb, score, note, weight=0.5)
 
@@ -471,13 +471,13 @@ def _divergence(hist) -> Optional[Dict]:
     inst_txt = "買超" if net5_yi >= 0 else "賣超"
     retail_txt = "加碼" if margin_chg >= 0 else "減碼"
     if net5_yi >= 0 and margin_chg < 0:
-        regime = "聰明錢進場、散戶退場 → 偏多背離（最佳組合）"
+        regime = "聰明錢進、散戶逃 → 教科書級的偏多背離，這種牌面不多見"
     elif net5_yi < 0 and margin_chg > 0:
-        regime = "法人撤、散戶追高 → 偏空背離（最該警惕）"
+        regime = "法人在跑、散戶在接 → 歷史上這劇本的結局都一樣，別當接盤俠"
     elif net5_yi >= 0 and margin_chg >= 0:
-        regime = "法人與散戶同向買，多方但需防過熱"
+        regime = "法人散戶一起買，多方沒錯，但全場都上車的車開不快"
     else:
-        regime = "法人與散戶同向退，弱勢整理"
+        regime = "法人散戶一起縮，沒人想玩，等有人先動"
     note = "法人%s＋散戶%s：%s。" % (inst_txt, retail_txt, regime)
     series = [(((r.get("foreign") or 0) + (r.get("invtrust") or 0)) / 1e8) for r in rows_i[-60:]]
     return _ind("diverg", "★ 法人 vs 散戶 背離訊號", "chips",

@@ -94,8 +94,8 @@ def page(x):
 <link rel="canonical" href="{canon}">
 <meta name="description" content="{e(desc)}">
 <meta name="robots" content="index,follow">
-<link rel="icon" href="../favicon.ico?v=2">
-<link rel="icon" type="image/png" sizes="32x32" href="../favicon-32.png?v=2">
+<link rel="icon" href="../favicon-r.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="../favicon-32-r.png">
 <link rel="apple-touch-icon" href="../apple-icon-v9.png">
 <meta property="og:type" content="article">
 <meta property="og:title" content="{e(title)}">
@@ -170,7 +170,7 @@ def hub(rows):
 <title>熱門台股進場分數一覽 — Stock Tracker</title>
 <link rel="canonical" href="{BASE}/stock/">
 <meta name="description" content="{e(desc)}">
-<link rel="icon" href="../favicon.ico?v=2">
+<link rel="icon" href="../favicon-r.ico">
 <link rel="apple-touch-icon" href="../apple-icon-v9.png">
 <meta property="og:title" content="熱門台股進場分數一覽 — Stock Tracker">
 <meta property="og:description" content="{e(desc)}">
@@ -232,7 +232,7 @@ def etf_page(meta, sc):
 <link rel="canonical" href="{canon}">
 <meta name="description" content="{e(desc)}">
 <meta name="robots" content="index,follow">
-<link rel="icon" href="../favicon.ico?v=2">
+<link rel="icon" href="../favicon-r.ico">
 <link rel="apple-touch-icon" href="../apple-icon-v9.png">
 <meta property="og:type" content="article">
 <meta property="og:title" content="{e(title)}">
@@ -302,7 +302,7 @@ def etf_hub(sc):
 <title>ETF 定期定額進場時機（0050、0056…）— Stock Tracker</title>
 <link rel="canonical" href="{BASE}/etf/">
 <meta name="description" content="{e(desc)}">
-<link rel="icon" href="../favicon.ico?v=2">
+<link rel="icon" href="../favicon-r.ico">
 <link rel="apple-touch-icon" href="../apple-icon-v9.png">
 <meta property="og:title" content="ETF 定期定額進場時機 — Stock Tracker">
 <meta property="og:description" content="{e(desc)}">

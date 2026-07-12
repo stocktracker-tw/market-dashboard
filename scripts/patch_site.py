@@ -13,9 +13,9 @@ import json
 import os
 import re
 
-# 分頁圖示（帶 ?v= 以繞過頑固的 favicon 快取）
-FAVICON = ('<link rel="icon" href="favicon.ico?v=2">'
-           '<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=2">')
+# 分頁圖示（檔名帶 -r＝rounded 版；Chrome favicon 快取無視 ?v=，換版要換檔名）
+FAVICON = ('<link rel="icon" href="favicon-r.ico">'
+           '<link rel="icon" type="image/png" sizes="32x32" href="favicon-32-r.png">')
 BRAND = "Stock Tracker"
 
 APPLE_RE = re.compile(r'<link rel="apple-touch-icon"[^>]*>')
@@ -1135,9 +1135,12 @@ def patch(html, fname):
             html = html.replace(_tag, _VP_LOCK)
             changed = True
 
-    # 1e-6) favicon 圓角化換版：v=1 → v=2 讓瀏覽器重抓（圖檔已改透明圓角磚）
-    for _o, _n in (('favicon.ico?v=1', 'favicon.ico?v=2'),
-                   ('favicon-32.png?v=1', 'favicon-32.png?v=2')):
+    # 1e-6) favicon 圓角化換版：Chrome 的 favicon 快取無視 query string 換版，
+    # 直接換檔名（favicon-r.*）讓它視為全新圖示必定重抓
+    for _o, _n in (('favicon.ico?v=1', 'favicon-r.ico'),
+                   ('favicon.ico?v=2', 'favicon-r.ico'),
+                   ('favicon-32.png?v=1', 'favicon-32-r.png'),
+                   ('favicon-32.png?v=2', 'favicon-32-r.png')):
         if _o in html:
             html = html.replace(_o, _n)
             changed = True

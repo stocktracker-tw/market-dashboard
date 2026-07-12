@@ -151,7 +151,7 @@ h1{{font-size:24px;margin:0 0 2px}}
 
 <div class="card"><div class="h">什麼是「進場分數」？</div>
 <div class="t">把環境、籌碼、估值、技術四個面向壓成一個 0–100 分：分數高＝數據偏多，
-適合在定期定額時多投一點；分數低＝偏空，宜保守。<b>這不是預測會漲跌或叫你買賣個股</b>，
+＝恐慌便宜的機會日；分數低＝擁擠過熱，別當最後一棒。<b>這不是預測會漲跌或叫你買賣個股</b>，
 而是把市場數據量化成一個好懂的溫度計。完整互動工具與每日大盤分數見
 <a href="../">Stock Tracker 首頁</a>。</div></div>
 
@@ -217,11 +217,11 @@ def etf_page(meta, sc):
     mult = mult_of(sc) if sc is not None else 1.0
     if broad:
         frame = (f"{name}（{code}）追蹤的指數幾乎等於台股大盤，所以<b>今天的大盤進場分數"
-                 f" {sc}（{zlabel}）可直接用來判斷這檔的定期定額時機</b>。")
+                 f" {sc}（{zlabel}）可直接當這檔的大盤環境溫度計</b>。")
     else:
         frame = (f"{name}（{code}）是高股息／主題型 ETF，成分與大盤不同，"
                  f"以下大盤分數 {sc}（{zlabel}）<b>僅供「市場環境」參考</b>，不代表這檔本身。")
-    desc = (f"{name}（{code}）定期定額進場時機：今天台股大盤進場分數 {sc}（{zlabel}）。"
+    desc = (f"{name}（{code}）進場溫度：今天台股大盤進場分數 {sc}（{zlabel}）。"
             f"分數高＝環境偏多可多扣、低＝保守。每日更新・非投資建議。")
     title = f"{name}（{code}）定期定額進場時機 — Stock Tracker"
     canon = f"{BASE}/etf/{code}.html"

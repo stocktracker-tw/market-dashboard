@@ -1062,6 +1062,17 @@ def patch(html, fname):
         if new != html:
             html = new
             changed = True
+    import re as _re
+    new = _re.sub(r'\s*・\s*定額 [\d.]+x', '', html)
+    if new != html:
+        html = new
+        changed = True
+    for _o, _n in (("積極加碼區", "遍地黃金區"), ("正常定額區", "中性區"),
+                   ("減碼觀望區", "偏熱謹慎區"), ("保守防禦區", "過熱危險區"),
+                   ("加碼區", "機會偏多區")):
+        if _o in html:
+            html = html.replace(_o, _n)
+            changed = True
     for _o, _n in (("0–35 保守", "0–35 過熱"), ("35–45 減碼", "35–45 偏熱"),
                    ("45–58 正常定額", "45–58 中性"), ("58–70 加碼", "58–70 機會"),
                    ("70–100 積極加碼", "70–100 遍地黃金")):

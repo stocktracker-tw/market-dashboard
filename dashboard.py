@@ -99,7 +99,7 @@ const fmt=v=>(v>0?'+':'')+v.toFixed(1);
   g.setOption({series:[{type:'gauge',min:0,max:100,radius:'100%',center:['50%','62%'],
     startAngle:210,endAngle:-30,
     axisLine:{lineStyle:{width:16,color:[[0.35,'#c98a1e'],[0.6,'#2f7cc4'],[0.8,'#2478c8'],[1,'#1a9bdf']]}},
-    pointer:{width:5,length:'62%',itemStyle:{color:'#17293a'}},
+    pointer:{width:5,length:'62%',itemStyle:{color:'#2f7cc4'}},
     axisTick:{show:false},splitLine:{length:14,lineStyle:{color:'#39414f'}},
     axisLabel:{color:'#7a8a99',fontSize:10,distance:-30},
     progress:{show:false},

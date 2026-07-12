@@ -1094,6 +1094,17 @@ def patch(html, fname):
             html = html.replace(_o, _n)
             changed = True
 
+    # 1e-4) 引擎光化改版的 CSS 斷頭修復：dashboard.py 舊模板 .card 玻璃規則的
+    # box-shadow 值漏了收尾 }，整塊玻璃樣式從該處停止解析 → tabbar 膠囊圓角
+    # (border-radius:999px) 失效變長方形。補回 }（引擎端已根修，此為就地救援）。
+    _brk = ('box-shadow:0 10px 26px rgba(30,60,100,.08),inset 0 1px 0 #fff\n'
+            '.hero{border-radius:30px!important}')
+    _fix = ('box-shadow:0 10px 26px rgba(30,60,100,.08),inset 0 1px 0 #fff}\n'
+            '.hero{border-radius:30px!important}')
+    if _brk in html:
+        html = html.replace(_brk, _fix)
+        changed = True
+
     # 1e-1) 已注入的 howto 盒舊文案 → 新聲線（id 守門不回改舊頁，就地遷移）
     _HOWTO_MIG = (
         ('幾十個指標壓成一個 0–100 分，就管一件事：<br>',

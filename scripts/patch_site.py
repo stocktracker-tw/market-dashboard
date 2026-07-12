@@ -1159,6 +1159,28 @@ def patch(html, fname):
         html = html.replace(_brk, _fix)
         changed = True
 
+    # 1e-7) 個股頁深色時代殘色 → 淺色（「太淡/看不見」修正；引擎模板已同步）
+    for _o, _n in (
+        ('.sdet .ana{padding:6px 0;color:#e7ecf6;line-height:1.55}',      # 分析段近白字＝主因
+         '.sdet .ana{padding:6px 0;color:#17293a;line-height:1.55}'),
+        ('border-top:1px solid #222936">', 'border-top:1px solid #dbe4ee">'),
+        ('.row{display:flex;justify-content:space-between;gap:10px;padding:9px 0;'
+         'border-bottom:1px solid #222936;font-size:14.5px}',
+         '.row{display:flex;justify-content:space-between;gap:10px;padding:9px 0;'
+         'border-bottom:1px solid #e2e9f2;font-size:14.5px}'),
+        ('.sitem{border-bottom:1px solid #222936}', '.sitem{border-bottom:1px solid #dbe4ee}'),
+        ('background:#1e2a44;color:#2478c8;', 'background:rgba(36,120,200,.10);color:#1d5c9e;'),
+        ('background:#3a2f12;color:#f6c764;', 'background:rgba(224,152,40,.12);color:#8a5f14;'),
+        ('border:1px solid #5a4a1e">', 'border:1px solid rgba(224,152,40,.45)">'),
+        ('color:#f6c764">', 'color:#8a5f14">'),
+        ('color:#f6c764;border:1px solid #5a4a1e;', 'color:#8a5f14;border:1px solid rgba(224,152,40,.45);'),
+        ('.mk.otc{background:rgba(246,168,33,.18);color:#f6c764}',
+         '.mk.otc{background:rgba(246,168,33,.18);color:#8a5f14}'),
+    ):
+        if _o in html:
+            html = html.replace(_o, _n)
+            changed = True
+
     # 1e-1) 已注入的 howto 盒舊文案 → 新聲線（id 守門不回改舊頁，就地遷移）
     _HOWTO_MIG = (
         ('幾十個指標壓成一個 0–100 分，就管一件事：<br>',

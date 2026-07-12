@@ -897,7 +897,7 @@ def _card_html(r, esc):
     ex = r.get("exit")
     exit_html = ""
     if ex:
-        exit_html = ('<div style="margin-top:8px;padding-top:8px;border-top:1px solid #222936">'
+        exit_html = ('<div style="margin-top:8px;padding-top:8px;border-top:1px solid #dbe4ee">'
                      '<b>離場訊號：</b><span class="%s" style="font-weight:700">%s</span>'
                      ' <span class="muted">急迫度 %d/100</span>'
                      '<div class="muted" style="font-size:12px">%s</div>'
@@ -909,10 +909,10 @@ def _card_html(r, esc):
         _m = r.get("mom20")
         tag = ("🔥%s 風口%s" % (r["hot_theme"], ("・20日%+.0f%%" % (_m * 100)) if _m is not None else "")) + \
               (("｜" + tag) if tag else "")
-    tag_html = ('<div style="margin:2px 0 8px"><span style="background:#1e2a44;color:#2478c8;'
+    tag_html = ('<div style="margin:2px 0 8px"><span style="background:rgba(36,120,200,.10);color:#1d5c9e;'
                 'font-size:11.5px;padding:2px 8px;border-radius:6px">%s</span></div>' % esc(tag)) if tag else ""
-    flag_html = ('<div style="margin:2px 0 8px"><span style="background:#3a2f12;color:#f6c764;'
-                 'font-size:11.5px;padding:2px 8px;border-radius:6px;border:1px solid #5a4a1e">%s%s</span></div>'
+    flag_html = ('<div style="margin:2px 0 8px"><span style="background:rgba(224,152,40,.12);color:#8a5f14;'
+                 'font-size:11.5px;padding:2px 8px;border-radius:6px;border:1px solid rgba(224,152,40,.45)">%s%s</span></div>'
                  % (esc(r.get("flag", "")),
                     (" ｜ " + esc(r["flagtxt"])) if r.get("flagtxt") else "")) if r.get("flag") else ""
     return ('<div class="card"><h2>%s <span class="muted">%s ・ 收 %.2f</span>'
@@ -932,13 +932,13 @@ h1{font-size:25px;margin:0 0 3px}.muted{color:#5f7183;font-size:13.5px}
 .card{background:#ffffff;border:1px solid #dbe4ee;border-radius:16px;padding:18px 22px}
 h2{font-size:18px;margin:0;display:flex;align-items:center;gap:8px}
 h2 .score{margin-left:auto;font-size:32px;font-weight:800}
-.row{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #222936;font-size:14.5px}
+.row{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #e2e9f2;font-size:14.5px}
 .green{color:#28c76f}.amber{color:#f6a821}.red{color:#ea5455}a{color:#2478c8}
 .searchwrap{position:sticky;top:0;z-index:6;background:rgba(245,248,251,.92);padding:12px 0 8px}
 input{width:100%;box-sizing:border-box;padding:13px 15px;border-radius:12px;border:1px solid #dbe4ee;
   background:#ffffff;color:#17293a;font-size:16px;outline:none}
 input:focus{border-color:#2478c8}
-.sitem{border-bottom:1px solid #222936}
+.sitem{border-bottom:1px solid #dbe4ee}
 .srow{display:flex;align-items:center;gap:14px;padding:11px 2px;cursor:pointer}
 .srow:hover{background:#eaf1f8}
 .srow .nm{flex:1;min-width:0;font-size:15px}.srow .mini{color:#5f7183;font-size:12px}
@@ -946,10 +946,10 @@ input:focus{border-color:#2478c8}
 .srow .ar{color:#6b7686;width:14px;text-align:center}
 .sdet{padding:2px 6px 14px;font-size:13.5px}
 .sdet .dl{padding:4px 0;color:#3f5468}.sdet .muted{font-size:12.5px}
-.sdet .ana{padding:6px 0;color:#e7ecf6;line-height:1.55}
+.sdet .ana{padding:6px 0;color:#17293a;line-height:1.55}
 .mk{display:inline-block;font-size:11px;padding:1px 7px;border-radius:6px;vertical-align:1px;font-weight:600}
 .mk.tse{background:rgba(91,156,255,.18);color:#2478c8}
-.mk.otc{background:rgba(246,168,33,.18);color:#f6c764}
+.mk.otc{background:rgba(246,168,33,.18);color:#8a5f14}
 .green{color:#28c76f}.amber{color:#f6a821}.red{color:#ea5455}
 .wladd{display:flex;gap:8px;margin:6px 0 10px}
 .wladd input{flex:1;min-width:0;padding:10px 14px;border-radius:12px}
@@ -1023,14 +1023,14 @@ function detail(x){
   d+='<div class="muted">個股估值（'+cell(x.v)+'）：'+esc(x.vd)+'</div>';
   if(x.td)d+='<div class="muted">輕量技術（'+cell(x.tk)+'）：'+esc(x.td)+'</div>';
   d+='<div class="muted">大盤環境（'+cell(x.e)+'）：同個大背景，人人一樣</div>';
-  if(x.fg)d+='<div class="muted" style="color:#f6c764">'+esc(x.fg)+(x.ft?'：'+esc(x.ft):'')+'</div>';
+  if(x.fg)d+='<div class="muted" style="color:#8a5f14">'+esc(x.fg)+(x.ft?'：'+esc(x.ft):'')+'</div>';
   d+='<div class="muted" style="margin-top:5px;color:#7c8aa0">輕量分＝環境＋籌碼＋估值＋技術(今日K線/收盤位置/漲跌，均線隨每日累積)；完整趨勢與離場訊號請加進自選股，或本機跑 stock.py '+x.c+(x.m==='otc'?'（上櫃）':'')+'</div>';
   return d+'</div>';
 }
 function tog(el){var d=el.nextElementSibling;if(!d)return;var open=d.style.display!=='none';d.style.display=open?'none':'block';var a=el.querySelector('.ar');if(a)a.textContent=open?'▸':'▾';}
 function rowHTML(x,extra){
   var tag=x.t?' <span style="color:#2478c8">['+esc(x.t)+']</span>':(x.i?' <span class="muted">'+esc(x.i)+'</span>':'');
-  var fg=x.fg?' <span style="font-size:11px;color:#f6c764;border:1px solid #5a4a1e;border-radius:5px;padding:0 4px">'+esc(x.fg)+'</span>':'';
+  var fg=x.fg?' <span style="font-size:11px;color:#8a5f14;border:1px solid rgba(224,152,40,.45);border-radius:5px;padding:0 4px">'+esc(x.fg)+'</span>':'';
   return '<div class="sitem"><div class="srow"><div class="ar">▸</div>'+
     '<div class="nm"><b>'+x.c+'</b> '+mkt(x)+' '+esc(x.n)+tag+fg+
     '<div class="mini">環境 '+cell(x.e)+'　籌碼 '+cell(x.ch)+'　估值 '+cell(x.v)+(x.tk!=null?'　技術 '+cell(x.tk):'')+'</div></div>'+
@@ -1146,7 +1146,7 @@ def _embed_rec_backtest(s, esc):
                      '<th style="text-align:right">超額</th>'
                      '<th style="text-align:right">勝率</th></tr></thead><tbody>')
         for label, av, br, al, wr in [("3 個月", avg3, br3, a3, wr3), ("6 個月", avg6, br6, a6, wr6)]:
-            parts.append('<tr style="border-top:1px solid #222936">'
+            parts.append('<tr style="border-top:1px solid #dbe4ee">'
                          '<td style="padding:5px 4px">%s</td>'
                          '<td style="text-align:right;%s">%s</td>'
                          '<td style="text-align:right;color:#5f7183">%s</td>'

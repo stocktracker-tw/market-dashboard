@@ -14,8 +14,8 @@ import os
 import re
 
 # 分頁圖示（帶 ?v= 以繞過頑固的 favicon 快取）
-FAVICON = ('<link rel="icon" href="favicon.ico?v=1">'
-           '<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1">')
+FAVICON = ('<link rel="icon" href="favicon.ico?v=2">'
+           '<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=2">')
 BRAND = "Stock Tracker"
 
 APPLE_RE = re.compile(r'<link rel="apple-touch-icon"[^>]*>')
@@ -1095,6 +1095,25 @@ def patch(html, fname):
          '255,.35);border-radius:12px;color:#cfe' + '0ff',
          'background:rgba(36,120,200,.08);border:1px solid rgba(36,120,200,.4);border-radius:12px;color:#1d5c9e'),
     ):
+        if _o in html:
+            html = html.replace(_o, _n)
+            changed = True
+
+    # 1e-5) 鎖頁面縮放：pinch-zoom（常是誤觸）會讓 fixed 分頁列縮放位移，
+    # 而且該頁會一直保持那個縮放 → 各頁 bar 位置看起來不同。引擎模板已同步。
+    _VP_LOCK = ('<meta name="viewport" content="width=device-width,initial-scale=1,'
+                'maximum-scale=1,user-scalable=no,viewport-fit=cover">')
+    for _o in ('width=device-width, initial-scale=1, viewport-fit=cover',
+               'width=device-width,initial-scale=1,viewport-fit=cover',
+               'width=device-width,initial-scale=1'):
+        _tag = '<meta name="viewport" content="%s">' % _o
+        if _tag in html:
+            html = html.replace(_tag, _VP_LOCK)
+            changed = True
+
+    # 1e-6) favicon 圓角化換版：v=1 → v=2 讓瀏覽器重抓（圖檔已改透明圓角磚）
+    for _o, _n in (('favicon.ico?v=1', 'favicon.ico?v=2'),
+                   ('favicon-32.png?v=1', 'favicon-32.png?v=2')):
         if _o in html:
             html = html.replace(_o, _n)
             changed = True

@@ -89,13 +89,13 @@ def page(x):
     canon = f"{BASE}/stock/{code}.html"
     return f"""<!DOCTYPE html>
 <html lang="zh-Hant"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>{e(title)}</title>
 <link rel="canonical" href="{canon}">
 <meta name="description" content="{e(desc)}">
 <meta name="robots" content="index,follow">
-<link rel="icon" href="../favicon.ico?v=1">
-<link rel="icon" type="image/png" sizes="32x32" href="../favicon-32.png?v=1">
+<link rel="icon" href="../favicon.ico?v=2">
+<link rel="icon" type="image/png" sizes="32x32" href="../favicon-32.png?v=2">
 <link rel="apple-touch-icon" href="../apple-icon-v9.png">
 <meta property="og:type" content="article">
 <meta property="og:title" content="{e(title)}">
@@ -166,11 +166,11 @@ def hub(rows):
     desc = "熱門台股的每日進場分數一覽：台積電、鴻海、聯發科等大型權值股的環境/籌碼/估值/技術評分。非投資建議。"
     return f"""<!DOCTYPE html>
 <html lang="zh-Hant"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>熱門台股進場分數一覽 — Stock Tracker</title>
 <link rel="canonical" href="{BASE}/stock/">
 <meta name="description" content="{e(desc)}">
-<link rel="icon" href="../favicon.ico?v=1">
+<link rel="icon" href="../favicon.ico?v=2">
 <link rel="apple-touch-icon" href="../apple-icon-v9.png">
 <meta property="og:title" content="熱門台股進場分數一覽 — Stock Tracker">
 <meta property="og:description" content="{e(desc)}">
@@ -227,12 +227,12 @@ def etf_page(meta, sc):
     canon = f"{BASE}/etf/{code}.html"
     return f"""<!DOCTYPE html>
 <html lang="zh-Hant"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>{e(title)}</title>
 <link rel="canonical" href="{canon}">
 <meta name="description" content="{e(desc)}">
 <meta name="robots" content="index,follow">
-<link rel="icon" href="../favicon.ico?v=1">
+<link rel="icon" href="../favicon.ico?v=2">
 <link rel="apple-touch-icon" href="../apple-icon-v9.png">
 <meta property="og:type" content="article">
 <meta property="og:title" content="{e(title)}">
@@ -298,11 +298,11 @@ def etf_hub(sc):
             "00878 等該不該多扣或少扣。廣基型 ETF 直接適用，高股息型供環境參考。非投資建議。")
     return f"""<!DOCTYPE html>
 <html lang="zh-Hant"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>ETF 定期定額進場時機（0050、0056…）— Stock Tracker</title>
 <link rel="canonical" href="{BASE}/etf/">
 <meta name="description" content="{e(desc)}">
-<link rel="icon" href="../favicon.ico?v=1">
+<link rel="icon" href="../favicon.ico?v=2">
 <link rel="apple-touch-icon" href="../apple-icon-v9.png">
 <meta property="og:title" content="ETF 定期定額進場時機 — Stock Tracker">
 <meta property="og:description" content="{e(desc)}">

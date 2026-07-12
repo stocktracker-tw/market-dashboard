@@ -88,11 +88,11 @@ def read_composite(html):
 
 def band_phrase(score):
     """分數 → 盤前一句話。門檻與引擎 config.ACTION_BANDS 一致（35/45/58/70），避免自打架。"""
-    if score >= 70: return "積極加碼區，該貪的時候別慫（但分批，不是歐印）"
-    if score >= 58: return "加碼區，偏多。多扣可以，歐印不行"
-    if score >= 45: return "正常定額區，照表操課，把手機關掉"
-    if score >= 35: return "減碼區，手癢想接刀先想想上次的下場"
-    return "保守區，逞英雄沒獎品，銀彈留好"
+    if score >= 70: return "遍地黃金區，恐慌給的折扣不常有"
+    if score >= 58: return "機會偏多區，數據站在買方這邊"
+    if score >= 45: return "中性區，沒戲，把手機關掉"
+    if score >= 35: return "偏熱謹慎區，想追的先想想上次的下場"
+    return "過熱危險區，逞英雄沒獎品"
 
 
 # 台指期籌碼面（外資淨未平倉）對盤前的最大影響與「滿格」口數。

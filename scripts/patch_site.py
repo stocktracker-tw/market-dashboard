@@ -273,41 +273,6 @@ def patch_taifex(html):
     return html, (html != orig)
 
 
-# --- 「我該扣多少」計算機 --------------------------------------------------
-# 把抽象的「建議定額倍數」變成具體金額：輸入平常月扣 → 今天該投多少。
-# 倍數直接讀頁面已渲染的 .mult b，永遠跟引擎顯示一致。
-CALC_ANCHOR = '（相對平常每月定額金額）</span></div>'
-CALC_BOX = (
-    '<div id="calc" style="margin-top:12px;padding:12px 14px;background:rgba(255,255,255,'
-    '.05);border:1px solid #dde6ef;border-radius:14px;font-size:13px">'
-    '<div style="margin-bottom:8px;font-weight:600">💡 我這個月該扣多少？</div>'
-    '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">平常每月定額 '
-    '<input id="calcBase" type="number" inputmode="numeric" placeholder="例 10000" '
-    'style="width:110px;padding:6px 10px;font-size:14px"> 元　→　今天建議 '
-    '<b id="calcOut" style="color:var(--accent);font-size:16px">—</b></div>'
-    '<div style="margin-top:6px;color:var(--muted);font-size:11.5px">今日倍數 '
-    '<span id="calcMult">1</span>x：高分多扣、低分少扣，把分數變成具體金額。'
-    '⚠️ 非投資建議</div></div>'
-    '<script>/*calc*/(function(){var b=document.getElementById("calcBase"),'
-    'o=document.getElementById("calcOut"),mt=document.getElementById("calcMult");'
-    'if(!b)return;var me=document.querySelector(".mult b");'
-    'var mult=me?parseFloat(me.textContent):1;if(!mult||isNaN(mult))mult=1;'
-    'mt.textContent=(Math.round(mult*100)/100);'
-    'try{var s=localStorage.getItem("calcBase");if(s)b.value=s;}catch(e){}'
-    'function f(){var v=parseFloat(b.value)||0;'
-    'o.textContent=v?Math.round(v*mult).toLocaleString()+" 元":"—";'
-    'try{localStorage.setItem("calcBase",b.value);}catch(e){}}'
-    'b.addEventListener("input",f);f();})();</script>'
-)
-
-
-def patch_calc(html):
-    """在大盤倍數區下方加「我該扣多少」計算機。只動 index.html。"""
-    if CALC_ANCHOR not in html or 'id="calc"' in html:
-        return html, False
-    return html.replace(CALC_ANCHOR, CALC_ANCHOR + CALC_BOX, 1), True
-
-
 # --- 自選股「進站變化提醒」(付費推播的第一塊地基) ----------------------
 # 進站時比對自選股分數跟「上次造訪」相比是否跨區，標出變化。純前端、免後端。
 # 用中性字眼描述分數高低，不用「加碼/減碼」動作詞，避開投顧法規。
@@ -563,123 +528,6 @@ def patch_stocklink(html):
     if STOCKLINK_ANCHOR not in html or 'href="stock/"' in html:
         return html, False
     return html.replace(STOCKLINK_ANCHOR, STOCKLINK_ANCHOR + STOCKLINK_HTML, 1), True
-
-
-# --- 儀表板內鏈到 ETF 定期定額頁 ------------------------------------------
-ETFLINK_ANCHOR = '把分數變成具體金額。⚠️ 非投資建議</div></div>'
-ETFLINK_HTML = (
-    '<a href="etf/" style="display:block;margin:10px 0 0;padding:10px 14px;'
-    'background:rgba(52,208,127,.1);border:1px solid rgba(52,208,127,.3);'
-    'border-radius:12px;color:#166b3f;text-decoration:none;font-size:13px">'
-    '📦 想用在 0050 / 0056 等 ETF 定期定額？看 ETF 專頁 →</a>'
-)
-
-
-def patch_etflink(html):
-    """大盤計算機下方加一條內鏈到 ETF 定期定額頁。只動 index.html（計算機注入後）。"""
-    if ETFLINK_ANCHOR not in html or 'href="etf/"' in html:
-        return html, False
-    return html.replace(ETFLINK_ANCHOR, ETFLINK_ANCHOR + ETFLINK_HTML, 1), True
-
-
-# --- 定額計畫追蹤（localStorage，無後端）------------------------------------
-# 讓網站從「看完就走的資訊頁」變「工具」：每次照建議倍數扣款後按一下記錄，
-# 累積下來就能對照「聽分數的我 vs 無腦固定 1x 的我」實際差多少。
-# 資料只存在使用者自己的瀏覽器（localStorage），不上傳。
-# 注入 index 計算機（含 ETF 連結）之後、5 級圖例之前；移除→重插維持冪等。
-# 刪除鈕用 <span>（不用 <a>），避免被 MULTCALC_RE 的 .*?</a> 誤吞。
-DCATRACK = (
-    '<!--dcatrack--><div id="dcatrack" style="margin:10px 0 8px;padding:12px 14px;'
-    'border-radius:14px;background:linear-gradient(180deg,rgba(255,255,255,.06),'
-    'rgba(255,255,255,.02));border:1px solid #dde6ef">'
-    '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;'
-    'justify-content:space-between">'
-    '<div style="font-weight:600;font-size:13px">📒 定額計畫追蹤 '
-    '<span style="color:#64768a;font-weight:400;font-size:11px">只存在本機瀏覽器</span></div>'
-    '<button id="dtAdd" style="background:rgba(232,168,60,.20);color:#8a5f14;'
-    'border:1px solid rgba(232,168,60,.45);border-radius:10px;padding:7px 12px;'
-    'font-size:12.5px;font-family:inherit;cursor:pointer">＋ 記一筆今天的扣款</button></div>'
-    '<div id="dtList" style="margin-top:4px"></div>'
-    '<div id="dtSum" style="font-size:12px;color:#5b6d80;margin-top:8px;line-height:1.6"></div>'
-    '<style>#dcatrack .dtRow{display:flex;gap:10px;align-items:center;font-size:12.5px;'
-    'padding:5px 0;border-bottom:1px solid #e8eef5}'
-    '#dcatrack .dtRow .dtD{color:#64768a}#dcatrack .dtRow b{margin-left:auto}'
-    '#dcatrack .dtDel{color:#64768a;cursor:pointer;padding:0 6px}'
-    '#dcatrack .dtDel:hover{color:#d63838}</style>'
-    '<script>(function(){'
-    'var K="dcalog",KB="dcabase";'
-    'function load(){try{return JSON.parse(localStorage.getItem(K))||[]}catch(e){return[]}}'
-    'function save(v){localStorage.setItem(K,JSON.stringify(v))}'
-    'function fmt(n){return Math.round(n).toLocaleString("zh-TW")}'
-    'function mult(){var el=document.getElementById("calcMult");'
-    'var v=el?parseFloat(el.textContent):1;return isFinite(v)&&v>0?v:1}'
-    'function base(){var el=document.getElementById("calcBase");'
-    'var v=el&&el.value?parseFloat(el.value):parseFloat(localStorage.getItem(KB)||"0");'
-    'return isFinite(v)&&v>0?v:0}'
-    'function render(){var v=load(),L=document.getElementById("dtList"),'
-    'S=document.getElementById("dtSum");if(!L||!S)return;'
-    'L.innerHTML=v.slice(-6).reverse().map(function(r,i){var idx=v.length-1-i;'
-    'return \'<div class="dtRow"><span class="dtD">\'+r.d+\'</span>\''
-    '+\'<span>\'+r.m+\'x</span><b>\'+fmt(r.a)+\' 元</b>\''
-    '+\'<span class="dtDel" data-i="\'+idx+\'" role="button" aria-label="刪除">✕</span></div>\';'
-    '}).join("");'
-    'var ta=0,tb=0;v.forEach(function(r){ta+=r.a;tb+=r.b});'
-    'if(v.length){var d=ta-tb;'
-    'S.innerHTML="已記 <b>"+v.length+"</b> 筆｜聽分數共投入 <b>"+fmt(ta)+"</b> 元｜"'
-    '+"若固定 1x："+fmt(tb)+" 元（分數讓你"+(d>=0?"多投 ":"少投 ")+fmt(Math.abs(d))+" 元"'
-    '+"——低分省下的是子彈、高分多投的是布局）";'
-    '}else{S.textContent="每次照建議倍數扣完款就按一下記一筆。幾個月後你就知道：聽數據的你和憑感覺的你，到底誰在養誰。";}'
-    'Array.prototype.forEach.call(L.querySelectorAll(".dtDel"),function(x){'
-    'x.onclick=function(){var v2=load();v2.splice(+this.dataset.i,1);save(v2);render()};});}'
-    'var btn=document.getElementById("dtAdd");'
-    'if(btn)btn.onclick=function(){var b=base();'
-    'if(!b){alert("先在上面『平常每月定額』填金額");return}'
-    'localStorage.setItem(KB,String(b));'
-    'var today=new Date().toISOString().slice(0,10),v=load();'
-    'if(v.length&&v[v.length-1].d===today&&!confirm("今天已記過一筆，再記一筆？"))return;'
-    'var m=mult();v.push({d:today,m:m,a:Math.round(b*m),b:b});save(v);render();};'
-    'render();})();</script></div><!--/dcatrack-->'
-)
-DCATRACK_RE = re.compile(r'<!--dcatrack-->.*?<!--/dcatrack-->', re.S)
-
-
-def patch_dcatrack(html):
-    """index：計算機下方注入定額計畫追蹤 widget（localStorage）。"""
-    if 'id="gauge"' not in html or 'id="calc"' not in html:
-        return html, False                        # 只動大盤首頁
-    if 'id="dcatrack"' in html and '<!--dcatrack-->' not in html:
-        return html, False                        # 引擎原生版（無標記）→ 不重複注入
-    if '<div class="legend"' not in html:
-        return html, False
-    orig = html
-    html = DCATRACK_RE.sub('', html)
-    html = html.replace('<div class="legend"', DCATRACK + '<div class="legend"', 1)
-    return html, (html != orig)
-
-
-# --- 把「建議定額倍數＋計算機」上移到 5 級圖例之前（行動先於說明）-----------
-# 引擎原順序：分數→盤前→圖例→倍數→計算機。最 actionable 的倍數/計算機在圖例
-# 下方，往下滑才看到。改成：分數→盤前→倍數＋計算機→圖例。
-# 用位置判斷冪等（mult 已在 legend 之前就不動）；任何錨點缺失就跳過（安全）。
-# 計算機是用 id 綁定事件，搬 DOM 不影響其 JS。連同其下方的 ETF 內鏈一起搬（mult
-# 到 etf 連結的 </a>，這段內唯一的 <a> 就是 etf，故 .*?</a> 剛好涵蓋整塊）。
-MULTCALC_RE = re.compile(r'<div class="mult">.*?</a>', re.S)
-
-
-def patch_calcup(html):
-    """index：把建議定額倍數＋計算機移到 5 級圖例之前。"""
-    if not all(s in html for s in ('<div class="mult">', 'id="calc"',
-                                   '<div class="legend"', 'href="etf/"')):
-        return html, False
-    if html.find('<div class="mult">') < html.find('<div class="legend"'):
-        return html, False                         # 已在圖例之前 → 冪等不動
-    m = MULTCALC_RE.search(html)
-    if not m:
-        return html, False
-    block = m.group(0)
-    html = html.replace(block, '', 1)              # 從原位（圖例後）移除
-    html = html.replace('<div class="legend"', block + '<div class="legend"', 1)
-    return html, True
 
 
 # --- 導覽列 iOS 液態玻璃風（SF Symbols 風單色線條圖示、無字、更透明）--------
@@ -1204,6 +1052,23 @@ def patch(html, fname):
     html, lq = patch_liquid(html)
     changed = changed or lq
 
+    # 1e-3) 定期定額元件拆除（產品定位改「觀察大盤」：已部署頁就地移除）
+    _CALC_RE = re.compile(r'<div id="calc".*?非投資建議</div></div>', re.S)
+    _ETF_RE = re.compile(r'<a href="etf/"[^>]*>.*?</a>', re.S)
+    _DCA_RE = re.compile(r'<!--dcatrack-->.*?<!--/dcatrack-->', re.S)
+    _MULT_RE = re.compile(r'<div class="mult">建議定額倍數.*?</div>', re.S)
+    for _rx in (_CALC_RE, _ETF_RE, _DCA_RE, _MULT_RE):
+        new = _rx.sub('', html)
+        if new != html:
+            html = new
+            changed = True
+    for _o, _n in (("0–35 保守", "0–35 過熱"), ("35–45 減碼", "35–45 偏熱"),
+                   ("45–58 正常定額", "45–58 中性"), ("58–70 加碼", "58–70 機會"),
+                   ("70–100 積極加碼", "70–100 遍地黃金")):
+        if _o in html:
+            html = html.replace(_o, _n)
+            changed = True
+
     # 1e-2) 舊引擎深色/粉紅控件字面值 → 淺色品牌色（就地遷移，absent-after）
     for _o, _n in (
         ('background:rgba(255,120,200,.22);color:#fff', 'background:rgba(36,120,200,.14);color:#17293a'),
@@ -1277,8 +1142,6 @@ def patch(html, fname):
     changed = changed or tx
 
     # 7) 「我該扣多少」計算機（index.html）
-    html, ca = patch_calc(html)
-    changed = changed or ca
 
     # 8) 自選股進站變化提醒（stocks.html）
     html, wa = patch_wlalert(html)
@@ -1297,16 +1160,10 @@ def patch(html, fname):
     changed = changed or sl
 
     # 11) 儀表板內鏈到 ETF 定期定額頁（index.html，計算機之後）
-    html, el = patch_etflink(html)
-    changed = changed or el
 
     # 11b) 把建議定額倍數＋計算機上移到 5 級圖例之前（行動先於說明）
-    html, cu = patch_calcup(html)
-    changed = changed or cu
 
     # 11c) 定額計畫追蹤 widget（計算機之後、圖例之前；localStorage）
-    html, dtk = patch_dcatrack(html)
-    changed = changed or dtk
 
     # 12) 導覽列液態玻璃風（只圖示、無字、更透明）
     html, vt = patch_vtliquid(html)

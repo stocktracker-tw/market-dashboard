@@ -197,6 +197,14 @@ def render_news_page(data: Dict, briefing_html: str = None) -> str:
         parts.append('<h2>每日 AI 簡報（已多源查證真偽・非投資建議）</h2>')
         parts.append('<div class="brief">%s</div>' % briefing_html)
 
+    na = load_news_adjust() or {}
+    if na.get("reason"):
+        parts.append('<div class="box" style="border-left:3px solid var(--accent)">'
+                     '🧾 <b>今日歸納</b>：%s'
+                     '<span class="muted" style="margin-left:6px;font-size:12px">'
+                     '（%s・已反映進大盤分數 %+.1f）</span></div>'
+                     % (_esc(na.get("reason") or ""), _esc(na.get("asof") or ""),
+                        float(na.get("delta") or 0)))
     pod = data.get("podcast")
     if pod:
         parts.append('<a href="%s" target="_blank" rel="noopener" class="box" '

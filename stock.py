@@ -831,7 +831,7 @@ def analyze(code_input):
         return None
     print("\n" + "=" * 56)
     print(" %s（%s）  收盤 %.2f" % (r["name"], r["code"], r["price"]))
-    print(" 個股進場分數：%.1f → %s（建議定額 %.2gx）" % (r["score"], r["band"], r["multiplier"]))
+    print(" 個股進場分數：%.1f → %s" % (r["score"], r["band"]))
     print("=" * 56)
     for label, s, w, disp in r["components"]:
         print(" %-8s %5.1f  (權重 %d%%)  %s" % (label, s, w, disp))
@@ -874,9 +874,9 @@ def _card_html(r, esc):
                     (" ｜ " + esc(r["flagtxt"])) if r.get("flagtxt") else "")) if r.get("flag") else ""
     return ('<div class="card"><h2>%s <span class="muted">%s ・ 收 %.2f</span>'
             '<span class="score %s">%.1f</span></h2>'
-            '<div class="muted" style="margin:-2px 0 4px">進場 %s ・ 定額 %.2gx</div>%s%s%s%s%s</div>'
+            '<div class="muted" style="margin:-2px 0 4px">進場 %s</div>%s%s%s%s%s</div>'
             % (esc(r["name"]), esc(r["code"]), r["price"], r["light"], r["score"],
-               esc(r["band"]), r["multiplier"], flag_html, tag_html, rows, verdict, exit_html))
+               esc(r["band"]), flag_html, tag_html, rows, verdict, exit_html))
 
 
 _PAGE_CSS = """<style>

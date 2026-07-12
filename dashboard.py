@@ -355,7 +355,7 @@ def render(result: Dict, indicators: List[Dict], score_history: List, meta: Dict
     parts.append('<div class="wrap">')
 
     parts.append('<h1>市場進場儀表板 <span style="font-size:14px;color:var(--muted)">台股・美股</span></h1>')
-    parts.append('<div class="sub">資料時間：%s　｜　綜合進場分數越高＝越適合分批加碼（較主動的定期定額）</div>'
+    parts.append('<div class="sub">資料時間：%s　｜　進場溫度計：分數高＝恐慌便宜的日子（機會）、分數低＝擁擠過熱的日子（危險），單位＝歷史百分位</div>'
                  % _esc(meta.get("generated_at", "")))
 
     failed = meta.get("sources_failed") or []
@@ -364,8 +364,8 @@ def render(result: Dict, indicators: List[Dict], score_history: List, meta: Dict
                      % _esc("、".join(failed)))
 
     # Hero
-    band_color = {"積極加碼區": "green", "加碼區": "green", "正常定額區": "amber",
-                  "減碼觀望區": "red", "保守防禦區": "red"}.get(result["band"], "amber")
+    band_color = {"遍地黃金區": "green", "機會偏多區": "green", "中性區": "amber",
+                  "偏熱謹慎區": "red", "過熱危險區": "red"}.get(result["band"], "amber")
     parts.append('<div class="hero"><div id="gauge"></div><div class="verdict">')
     parts.append('<span class="badge" style="background:var(--%s);color:#ffffff">%s</span>'
                  % (band_color, _esc(result["band"])))
@@ -386,12 +386,10 @@ def render(result: Dict, indicators: List[Dict], score_history: List, meta: Dict
                      '<span style="white-space:nowrap;font-size:11.5px">'
                      '<span style="display:inline-block;width:9px;height:9px;border-radius:2px;'
                      'background:%s;margin-right:3px"></span>%s</span>' % (c, t)
-                     for c, t in [("var(--red)", "0–35 保守"), ("#f6862a", "35–45 減碼"),
-                                  ("var(--amber)", "45–58 正常定額"), ("#7cc24a", "58–70 加碼"),
-                                  ("var(--green)", "70–100 積極加碼")])
+                     for c, t in [("var(--red)", "0–35 過熱"), ("#f6862a", "35–45 偏熱"),
+                                  ("var(--amber)", "45–58 中性"), ("#7cc24a", "58–70 機會"),
+                                  ("var(--green)", "70–100 遍地黃金")])
                  + '</div>')
-    parts.append('<div class="mult">建議定額倍數：<b>%.2gx</b> <span style="color:var(--muted)">'
-                 '（相對平常每月定額金額）</span></div>' % result["dca_multiplier"])
     if result.get("news_delta"):
         _nd = result["news_delta"]
         _ncol = "green" if _nd > 0 else "red"

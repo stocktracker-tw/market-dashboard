@@ -350,6 +350,7 @@ def run(open_browser=False):
             log("個股分頁失敗（不影響大盤儀表板）：%s" % str(e)[:140])
 
     # 市場消息監控（①：抓標題＋是否已反映；不判真偽）
+    nd = None
     try:
         import news
         nd = news.assess(shared=shared, twii_close=(yh.get("twii") or {}).get("close"))

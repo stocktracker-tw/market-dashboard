@@ -192,12 +192,12 @@ def assess(result: Dict, indicators: List[Dict], regime: Optional[Dict],
     if result.get("calibrated"):
         pct_txt = "，贏過歷史上 %.0f%% 的日子" % result.get("composite", 50)
     band_quip = {
-        "積極加碼區": "數據難得這麼齊，該上的時候不要慫。",
-        "加碼區": "偏多，但偏多不是叫你歐印，是多扣一點的意思。",
-        "正常定額區": "不上不下，最無聊但也最不會出事的位置，照表操課就好。",
-        "減碼觀望區": "數據偏弱，手癢想接刀的先想想上次接刀的下場。",
-        "保守防禦區": "這種位置逞英雄沒獎品，銀彈留著，活著最重要。",
-    }.get(result.get("band", ""), "照表操課就好。")
+        "遍地黃金區": "數據難得這麼齊，該貪的時候不要慫——這種折扣不常有。",
+        "機會偏多區": "數據偏買方，可以認真看，但認真看不等於歐印。",
+        "中性區": "不上不下，最無聊但也最不會出事的位置，看看就好。",
+        "偏熱謹慎區": "市場開始擠了，手癢想追的先想想上次追高的下場。",
+        "過熱危險區": "全場都樂觀，能接盤的人剩沒幾個——逞英雄沒獎品。",
+    }.get(result.get("band", ""), "看看就好。")
     mono.append("今天大盤 %s 分%s。%s"
                 % (("%.0f" % comp) if comp is not None else "—", pct_txt, band_quip))
     attr = result.get("attribution")
@@ -222,6 +222,26 @@ def assess(result: Dict, indicators: List[Dict], regime: Optional[Dict],
         watch = "散戶在跟大戶對作，歷史上這劇本結局都差不多。" if (
             margin_chasing and tx_inst is not None and tx_inst < 0) else "籌碼面自己盯，錢不會說謊。"
         mono.append("籌碼實況：%s。%s" % ("、".join(chips_line), watch))
+    # 方向怎麼押：歷史條件式預期（同樣乖離位置的歷史樣本）＋誠實的部位觀
+    if fc_tw:
+        h1 = next((h for h in fc_tw["horizons"] if h["label"] == "1個月"), None)
+        h3 = next((h for h in fc_tw["horizons"] if h["label"] == "3個月"), None)
+        seg = "台股現在距 200 日均 %+.0f%%（第 %d 十分位）。" % (
+            fc_tw.get("ext", 0) * 100, fc_tw.get("decile", 0))
+        bits = ["%s後平均 %+.1f%%、勝率 %.0f%%" % (lbl, hh["mean"] * 100, hh["win"] * 100)
+                for lbl, hh in (("1 個月", h1), ("3 個月", h3)) if hh]
+        if bits:
+            seg += "歷史上同樣位置：" + "；".join(bits) + "。"
+        ref = h3 or h1
+        if ref and ref["win"] >= 0.6 and ref["mean"] > 0:
+            lean_txt = "所以我的傾向是偏多——樣本站在多方，別跟歷史對作"
+        elif ref and (ref["win"] <= 0.4 or ref["mean"] < 0):
+            lean_txt = "所以我的傾向是偏空——同樣位置的歷史結局多半不好看"
+        else:
+            lean_txt = "老實說是五五波——這種時候裝有觀點才是最危險的"
+        mono.append("方向怎麼押：%s%s。不過預測是拿來被打臉的，部位控制永遠比預測重要。"
+                    % (seg, lean_txt))
+
     hot = (picks or {}).get("hot_themes") or []
     tr = (picks or {}).get("trend") or []
     if hot or tr:

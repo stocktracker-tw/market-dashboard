@@ -472,6 +472,15 @@ LIQUID = (
     ':root{--bg:#f5f8fb;--panel:#ffffff;--panel2:#eef3f8;--line:#dbe4ee;'
     '--text:#17293a;--muted:#5b6d80;--green:#1f9d55;--amber:#c98a1e;'
     '--red:#d63838;--accent:#2478c8;--gray:#8795a3}'
+    'input,select,textarea{background:#ffffff!important;color:#17293a!important;'
+    'border:1px solid #cfdae6!important}'
+    'input::placeholder{color:#8fa1b3!important}'
+    'input:focus{border-color:#2478c8!important}'
+    'button{background:rgba(36,120,200,.12)!important;color:#17293a!important;'
+    'border:1px solid #cfdae6!important}'
+    '#dtAdd{background:rgba(224,152,40,.18)!important;color:#8a5f14!important;'
+    'border-color:rgba(224,152,40,.5)!important}'
+    '.searchwrap{background:rgba(245,248,251,.92)!important}'
     # 玻璃面板：卡片與 hero（半透明漸層＋細高光邊＋頂緣鏡面反光＋柔和落影）
     '.card,.hero{background:linear-gradient(180deg,#ffffff,#fbfdff)!important;'
     'border:1px solid #dde6ef!important;'
@@ -1194,6 +1203,18 @@ def patch(html, fname):
     # 1d2) 全站 Liquid Glass 材質（底層極光光暈 + 卡片玻璃化）
     html, lq = patch_liquid(html)
     changed = changed or lq
+
+    # 1e-2) 舊引擎深色/粉紅控件字面值 → 淺色品牌色（就地遷移，absent-after）
+    for _o, _n in (
+        ('background:rgba(255,120,200,.22);color:#fff', 'background:rgba(36,120,200,.14);color:#17293a'),
+        ('rgba(255,80,190,.55)', 'rgba(224,152,40,.5)'),
+        ('background:rgba(91,156,255,.1);border:1px solid rgba(91,156,'
+         '255,.35);border-radius:12px;color:#cfe' + '0ff',
+         'background:rgba(36,120,200,.08);border:1px solid rgba(36,120,200,.4);border-radius:12px;color:#1d5c9e'),
+    ):
+        if _o in html:
+            html = html.replace(_o, _n)
+            changed = True
 
     # 1e-1) 已注入的 howto 盒舊文案 → 新聲線（id 守門不回改舊頁，就地遷移）
     _HOWTO_MIG = (

@@ -150,7 +150,13 @@ BRIEFING_MAX_AGE_DAYS = 5
 
 # 追蹤的 Podcast RSS（消息頁「最新一集」盒）。抓不到就用快取、再沒有就不顯示。
 # 換節目改這行即可（SoundOn 的 feed 格式：feeds.soundon.fm/podcasts/<id>.xml）。
-PODCAST_RSS = "https://feeds.soundon.fm/podcasts/954689a5-3096-43a4-a80b-7810b219cef3.xml"          # 每日 AI 簡報超過幾天沒更新就自動不顯示（避免舊簡報被當成今天的）
+PODCAST_RSS = "https://feeds.soundon.fm/podcasts/954689a5-3096-43a4-a80b-7810b219cef3.xml"
+
+# Threads 關鍵字聲量（碎念風口段引用）。需要含 threads_keyword_search 權限的
+# access token，貼進 data/threads_token.txt 即自動啟用；沒有檔案就整段跳過。
+# （到 developers.facebook.com 你的 Threads App → 權限加 threads_keyword_search
+#  → 重新產生長效 token。與發文用的 THREADS_ACCESS_TOKEN 可以是同一顆。）
+THREADS_TOKEN_FILE = os.path.join(DATA_DIR, "threads_token.txt")          # 每日 AI 簡報超過幾天沒更新就自動不顯示（避免舊簡報被當成今天的）
 
 # 10) 個股版進場分數（stock.py）：四個面向的權重（缺資料自動重新分配）。
 STOCK_WEIGHTS = {

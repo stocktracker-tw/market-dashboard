@@ -371,6 +371,17 @@ def run(open_browser=False):
     except Exception as e:                         # noqa: BLE001 — 選股失敗不擋觀點
         log("五派選股略過：%s" % str(e)[:120])
 
+    # Threads 關鍵字聲量（台股＋當日熱門題材；無 token 靜默跳過）
+    try:
+        if faction_pk is not None:
+            _kws = ["台股"] + [t["theme"] for t in (faction_pk.get("hot_themes") or [])][:3]
+            _pulse = src.threads_pulse(_kws)
+            if _pulse:
+                faction_pk["threads_pulse"] = _pulse
+                log("Threads 聲量：" + "、".join("%s %s則" % (k, v) for k, v in _pulse.items()))
+    except Exception:                              # noqa: BLE001 — 聲量非必要
+        pass
+
     # 五派投資策略觀點（含台指期籌碼；抓不到就用快取/略過）
     try:
         tx_chips = src.taifex_chips()

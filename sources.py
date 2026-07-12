@@ -850,3 +850,45 @@ def podcast_latest():
         except Exception:                      # noqa: BLE001 — 解析失敗走快取
             pass
     return _cache_load("podcast")
+
+
+# ---------------- Threads 關鍵字聲量 ----------------
+def threads_pulse(keywords):
+    """Threads 公開貼文關鍵字聲量：每個關鍵字近期貼文數（單頁上限 25，25 代表 25+）。
+
+    token 讀 config.THREADS_TOKEN_FILE，缺檔靜默跳過；權限不足（缺
+    threads_keyword_search）印一次提示。只數則數、不儲存任何貼文內容。
+    失敗回快取，再沒有回 None。
+    """
+    tok = None
+    try:
+        path = getattr(cfg, "THREADS_TOKEN_FILE", "")
+        if path and os.path.exists(path):
+            with open(path, encoding="utf-8") as f:
+                tok = f.read().strip()
+    except OSError:
+        pass
+    if not tok:
+        return None
+    out = {}
+    for kw in list(keywords or [])[:4]:                    # 控制配額
+        r = _get("https://graph.threads.net/v1.0/keyword_search"
+                 "?q=%s&search_type=RECENT&fields=id&access_token=%s"
+                 % (requests.utils.quote(kw), tok), timeout=25, retries=1)
+        if r is None:
+            continue
+        try:
+            j = r.json()
+            if "error" in j:
+                msg = str(j["error"].get("message", ""))[:120]
+                print("  [Threads] %s：%s%s" % (kw, msg,
+                      "（token 缺 threads_keyword_search 權限？）" if "permission" in msg.lower() else ""))
+                continue
+            out[kw] = len(j.get("data") or [])
+        except Exception:                                  # noqa: BLE001
+            continue
+        time.sleep(0.4)
+    if out:
+        _cache_save("threads_pulse", out)
+        return out
+    return _cache_load("threads_pulse")

@@ -232,6 +232,12 @@ def assess(result: Dict, indicators: List[Dict], regime: Optional[Dict],
         if tr:
             seg += "盯的名單：%s。" % "、".join(
                 "%s %s（%s）" % (k["name"], k["code"], k["why"]) for k in tr)
+        tp = (picks or {}).get("threads_pulse") or {}
+        hot_kw = next((t["theme"] for t in hot if t["theme"] in tp), None)
+        if hot_kw:
+            n_tp = tp[hot_kw]
+            seg += "Threads 上%s的文已經 %s 則在洗版——大家都看到的行情，進場前先想想自己是第幾棒。" % (
+                hot_kw, ("25+" if n_tp >= 25 else n_tp))
         seg += "要跟可以，部位算好、跌破月線就出，別到時候上來哭。"
         mono.append("風口：" + seg)
     va = (picks or {}).get("value") or []

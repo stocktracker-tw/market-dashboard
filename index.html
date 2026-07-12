@@ -215,13 +215,13 @@ const fmt=v=>(v>0?'+':'')+v.toFixed(1);
   const g=echarts.init(el,null,{renderer:'canvas'});
   g.setOption({series:[{type:'gauge',min:0,max:100,radius:'100%',center:['50%','62%'],
     startAngle:210,endAngle:-30,
-    axisLine:{lineStyle:{width:16,color:[[0.35,'#e8a83c'],[0.6,'#3d84d6'],[0.8,'#54a4e0'],[1,'#6cc0f0']]}},
-    pointer:{width:5,length:'62%',itemStyle:{color:'#e7ebf3'}},
+    axisLine:{lineStyle:{width:16,color:[[0.35,'#d29024'],[0.6,'#2f7cc4'],[0.8,'#2492d6'],[1,'#1a9bdf']]}},
+    pointer:{width:5,length:'62%',itemStyle:{color:'#2f7cc4'}},
     axisTick:{show:false},splitLine:{length:14,lineStyle:{color:'#39414f'}},
     axisLabel:{color:'#8590a3',fontSize:10,distance:-30},
     progress:{show:false},
     detail:{valueAnimation:true,fontSize:40,fontWeight:'bold',offsetCenter:[0,'38%'],
-      color:'#e7ebf3',formatter:'{value}'},
+      color:'#17293a',formatter:'{value}'},
     title:{show:false},
     data:[{value:Math.round(DASH.composite)}]}]});
   window.addEventListener('resize',()=>g.resize());
@@ -234,7 +234,7 @@ const fmt=v=>(v>0?'+':'')+v.toFixed(1);
   h.setOption({grid:{left:4,right:4,top:6,bottom:4},xAxis:{type:'category',data:xs,show:false},
     yAxis:{type:'value',min:0,max:100,show:false},
     tooltip:{trigger:'axis',formatter:p=>p[0].axisValue+'：'+p[0].data},
-    series:[{type:'line',data:ys,smooth:true,symbol:'none',lineStyle:{color:C.accent||'#5b9cff',width:2},
+    series:[{type:'line',data:ys,smooth:true,symbol:'none',lineStyle:{color:C.accent||'#2478c8',width:2},
       areaStyle:{color:'rgba(91,156,255,.15)'}}]});
   window.addEventListener('resize',()=>h.resize());
 })();

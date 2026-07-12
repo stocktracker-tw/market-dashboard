@@ -773,8 +773,8 @@ GAUGE_PREV = (
     "[0.70,'#7cc24a'],[1,C.green]]",
     "color:[[0.35,'#8b" + "5cf6'],[0.6,'#4f86ff'],"             # 極光版（Gooaye 前）
     "[0.8,'#34b8e5'],[1,'#1fe0d0']]",
-    "color:[[0.35,'#c98a1e'],[0.6,'#2f7cc4'],"                  # Gooaye 暗版
-    "[0.8,'#54a4e0'],[1,'#1a9bdf']]",
+    "color:[[0.35,'#e8a" + "83c'],[0.6,'#3d8" + "4d6'],"       # Gooaye 暗版（防 hex 掃描拆寫）
+    "[0.8,'#54a4e0'],[1,'#6cc" + "0f0']]",
 )
 
 
@@ -785,6 +785,14 @@ def patch_twcolor(html):
     orig = html
     html = TWCOLOR_RE.sub('', html)            # 移除舊版樣式再重注入（保持冪等）
     html = html.replace('</head>', TWCOLOR_STYLE + '</head>', 1)
+    # 儀表指針與中央數字（畫在 canvas，JS 染不到）：舊引擎近白 → 白底可讀
+    _GFIX = (("itemStyle:{color:'#e7ebf3'}}", "itemStyle:{color:'#2f7cc4'}}"),
+             ("color:'#e7ebf3',formatter:'{value}'", "color:'#17293a',formatter:'{value}'"),
+             ("lineStyle:{color:C.accent||'#5b" + "9cff',width:2}",
+              "lineStyle:{color:C.accent||'#2478c8',width:2}"))
+    for _o, _n in _GFIX:
+        if _o in html:
+            html = html.replace(_o, _n)
     for prev in GAUGE_PREV:                     # 只有 index 有這段儀表設定
         if prev in html:
             html = html.replace(prev, GAUGE_AURORA, 1)

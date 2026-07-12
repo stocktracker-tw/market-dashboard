@@ -428,6 +428,11 @@ LIQUID = (
     # 底層：body 讓出背景（html 已是 #0a1430），光暈鋪在內容後面
     'html{background:#f5f8fb}'
     'body{background:transparent!important;color:#17293a}'
+    # 鎖住水平溢出：內容過寬（如回測頁寬表格）會把版面撐開，
+    # 固定定位的分頁列在手機上跟著縮小位移 → 各頁 bar 位置不一致
+    'html,body{max-width:100vw;overflow-x:hidden;overflow-x:clip}'
+    '@media(max-width:700px){.wrap table{display:block;overflow-x:auto;'
+    '-webkit-overflow-scrolling:touch;max-width:100%}}'
     'body::before{content:"";position:fixed;inset:-12% -8%;z-index:-1;pointer-events:none;'
     'background:'
     'radial-gradient(50% 42% at 16% 6%,rgba(108,192,240,.12),transparent 70%),'

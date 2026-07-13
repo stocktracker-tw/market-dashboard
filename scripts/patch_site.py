@@ -472,21 +472,67 @@ LIQUID = (
 )
 LIQUID_RE = re.compile(r'<style id="liquidglass">.*?</style>', re.S)
 
-# --- 效能：移除 SVG 位移折射濾鏡（#lglass） ---------------------------------
-# feImage+三層 feDisplacementMap 的 backdrop-filter 會在捲動時對每張卡片背後
-# 的像素逐幀重算整條濾鏡鏈，是行動端捲動卡頓的主因。移除後自動退回既有的
-# 純 blur 玻璃（@supports 外面那組），視覺幾乎相同、成本低一個數量級。
+# --- 液態折射＋模糊「最高檔」（#lglass 加強版） ------------------------------
+# 依使用者要求把兩種玻璃效果都開到最強：位移折射 scale 加倍（30/34/38→60/68/76）、
+# 折射層附帶 blur 6→16px、不支援折射的瀏覽器（含 iOS Safari）退回 blur 48px。
+# 作法：先拆掉 Bot 版與舊注入版（冪等），再重插加強版 <svg> 濾鏡與 @supports 樣式。
 LGLASS_CSS_RE = re.compile(
     r'(?:/\*[^*]*\*/\s*)?@supports \(backdrop-filter: url\("#lglass"\)\)'
     r'.*?\}\s*\}', re.S)
 LGLASS_SVG_RE = re.compile(r'<svg[^>]*><filter id="lglass".*?</svg>', re.S)
+MAXGLASS_RE = re.compile(r'<style id="maxglass">.*?</style>', re.S)
+
+MAXGLASS_SVG = (
+    '<svg width="0" height="0" style="position:absolute;pointer-events:none" '
+    'aria-hidden="true"><filter id="lglass" x="0%" y="0%" width="100%" height="100%" '
+    'color-interpolation-filters="sRGB">'
+    '<feImage href="glassmap.png" preserveAspectRatio="none" x="0%" y="0%" '
+    'width="100%" height="100%" result="map"/>'
+    '<feDisplacementMap in="SourceGraphic" in2="map" scale="60" '
+    'xChannelSelector="R" yChannelSelector="G" result="dR"/>'
+    '<feDisplacementMap in="SourceGraphic" in2="map" scale="68" '
+    'xChannelSelector="R" yChannelSelector="G" result="dG"/>'
+    '<feDisplacementMap in="SourceGraphic" in2="map" scale="76" '
+    'xChannelSelector="R" yChannelSelector="G" result="dB"/>'
+    '<feColorMatrix in="dR" type="matrix" values="1 0 0 0 0  0 0 0 0 0  '
+    '0 0 0 0 0  0 0 0 1 0" result="cR"/>'
+    '<feColorMatrix in="dG" type="matrix" values="0 0 0 0 0  0 1 0 0 0  '
+    '0 0 0 0 0  0 0 0 1 0" result="cG"/>'
+    '<feColorMatrix in="dB" type="matrix" values="0 0 0 0 0  0 0 0 0 0  '
+    '0 0 1 0 0  0 0 0 1 0" result="cB"/>'
+    '<feBlend in="cR" in2="cG" mode="screen" result="rg"/>'
+    '<feBlend in="rg" in2="cB" mode="screen"/></filter></svg>'
+)
+MAXGLASS_CSS = (
+    '<style id="maxglass">'
+    '.card,.box,.pcard,.hero,.brief,.nrow,.tabbar,.topglass{'
+    '-webkit-backdrop-filter:blur(48px) saturate(2)!important;'
+    'backdrop-filter:blur(48px) saturate(2)!important}'
+    '@supports (backdrop-filter: url("#lglass")) or '
+    '(-webkit-backdrop-filter: url("#lglass")){'
+    '.card,.box,.pcard,.hero,.brief,.nrow,.tabbar,.topglass{'
+    '-webkit-backdrop-filter:url(#lglass) blur(16px) saturate(2)!important;'
+    'backdrop-filter:url(#lglass) blur(16px) saturate(2)!important}}'
+    '</style>'
+)
 
 
-def patch_deglass(html):
-    """拿掉 #lglass 位移折射（CSS @supports 區塊 + 隱藏的 <svg> 濾鏡定義）。"""
+def patch_reglass(html):
+    """液態折射＋模糊最高檔：移除舊版再重插加強版（冪等、可升級）。"""
+    if '</body>' not in html:
+        return html, False
+    if MAXGLASS_SVG + MAXGLASS_CSS in html:
+        return html, False
     orig = html
+    html = MAXGLASS_RE.sub('', html)
     html = LGLASS_CSS_RE.sub('', html)
     html = LGLASS_SVG_RE.sub('', html)
+    anchor = '<nav class="tabbar">'
+    ins = MAXGLASS_SVG + MAXGLASS_CSS
+    if anchor in html:
+        html = html.replace(anchor, ins + anchor, 1)
+    else:
+        html = html.replace('</body>', ins + '</body>', 1)
     return html, (html != orig)
 
 
@@ -1108,8 +1154,8 @@ def patch(html, fname):
     html, lq = patch_liquid(html)
     changed = changed or lq
 
-    # 1d2b) 效能：移除 #lglass 位移折射，退回純 blur 玻璃
-    html, dg = patch_deglass(html)
+    # 1d2b) 液態折射＋模糊最高檔（折射不支援時退回 blur 48px）
+    html, dg = patch_reglass(html)
     changed = changed or dg
 
     # 1d3) 縮放鎖：網頁版 iOS Safari 捏縮讓 bar 飄，事件層實際擋下

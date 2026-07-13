@@ -473,8 +473,9 @@ LIQUID = (
 LIQUID_RE = re.compile(r'<style id="liquidglass">.*?</style>', re.S)
 
 # --- 液態折射＋模糊「最高檔」（#lglass 加強版） ------------------------------
-# 依使用者要求把兩種玻璃效果都開到最強：位移折射 scale 加倍（30/34/38→60/68/76）、
-# 折射層附帶 blur 6→16px、不支援折射的瀏覽器（含 iOS Safari）退回 blur 48px。
+# 模糊開到最強；位移折射維持原設計 scale 30/34/38——加倍到 60/68/76 時，位移量
+# 超過小元件（如 .fab 54px）本身，支援折射的新版 iOS Safari 會把背後內容抹成大團
+# 光暈（使用者截圖回報）。折射層附帶 blur 16px、不支援折射的瀏覽器退回 blur 48px。
 # 作法：先拆掉 Bot 版與舊注入版（冪等），再重插加強版 <svg> 濾鏡與 @supports 樣式。
 LGLASS_CSS_RE = re.compile(
     r'(?:/\*[^*]*\*/\s*)?@supports \(backdrop-filter: url\("#lglass"\)\)'
@@ -488,11 +489,11 @@ MAXGLASS_SVG = (
     'color-interpolation-filters="sRGB">'
     '<feImage href="glassmap.png" preserveAspectRatio="none" x="0%" y="0%" '
     'width="100%" height="100%" result="map"/>'
-    '<feDisplacementMap in="SourceGraphic" in2="map" scale="60" '
+    '<feDisplacementMap in="SourceGraphic" in2="map" scale="30" '
     'xChannelSelector="R" yChannelSelector="G" result="dR"/>'
-    '<feDisplacementMap in="SourceGraphic" in2="map" scale="68" '
+    '<feDisplacementMap in="SourceGraphic" in2="map" scale="34" '
     'xChannelSelector="R" yChannelSelector="G" result="dG"/>'
-    '<feDisplacementMap in="SourceGraphic" in2="map" scale="76" '
+    '<feDisplacementMap in="SourceGraphic" in2="map" scale="38" '
     'xChannelSelector="R" yChannelSelector="G" result="dB"/>'
     '<feColorMatrix in="dR" type="matrix" values="1 0 0 0 0  0 0 0 0 0  '
     '0 0 0 0 0  0 0 0 1 0" result="cR"/>'

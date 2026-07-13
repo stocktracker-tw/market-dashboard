@@ -663,13 +663,13 @@ BAR_STYLE = (
     '.tabbar a.tab.on .ic,.tabbar a.tab.hl .ic'
     '{color:#c98a1e!important;opacity:1;filter:none!important}'
     '.tabbar a.tab.on{background:transparent!important}'   # 靜態背景關掉（膠囊由 .thumb 呈現）
-    # 滑動膠囊要看得見：主題藍 wash + 頂緣高光 + 柔和外光暈（bar 底近不透明白，觀感恆定）
+    # 滑動膠囊要看得見：淺灰 wash + 頂緣高光 + 柔和外影（bar 底近不透明白，觀感恆定）
     # 負 margin：引擎 JS 用 rect 相減定位卻沒扣 bar 的 1px border（absolute 以邊框
     # 內側為基準），膠囊會右下各偏 1px——這裡抵銷，讓膠囊正對分頁
-    '.tabbar .thumb{background:rgba(36,120,200,.24)!important;'
+    '.tabbar .thumb{background:rgba(135,149,163,.22)!important;'
     'margin:-1px 0 0 -1px!important;'
     'box-shadow:inset 0 1px 0 rgba(255,255,255,.65),'
-    '0 2px 10px -2px rgba(36,120,200,.45)!important}'
+    '0 2px 10px -2px rgba(90,105,120,.35)!important}'
     '.tabbar{width:min(324px,calc(100vw - 52px))!important;'
     'box-shadow:0 10px 30px rgba(30,60,100,.14)!important;'
     'background:linear-gradient(180deg,rgba(255,255,255,.9),rgba(255,255,255,.72))!important;'

@@ -566,7 +566,7 @@ def patch_stocklink(html):
 # 在 <a> 上補 aria-label、SVG 標 aria-hidden（裝飾用），螢幕閱讀器才唸得出來。
 _BAR_LINE = {                                     # 各分頁的線條 path
     '📊': '<path d="M5 20V11"/><path d="M12 20V4"/><path d="M19 20v-6"/>',
-    '📈': '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
+    '📈': '<path d="M3 17l5.5-5.5 4 4L20 8"/><path d="M15 8h5v5"/>',
     '🗣️': '<path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v8a1.5 1.5 0 0 1-1.5 '
           '1.5H9l-4 4v-4H5.5A1.5 1.5 0 0 1 4 13.5z"/>',
     '📰': '<path d="M4 5a1 1 0 0 1 1-1h11a1 1 0 0 1 1 1v13a2 2 0 0 0 2 2H6a2 2 0 0 1-2-2z"/>'
@@ -615,6 +615,9 @@ def patch_barglass(html):
     if '<nav class="tabbar">' not in html:
         return html, False
     orig = html
+    # 0) 舊版個股 icon（放大鏡，語意跑掉）→ 上升趨勢線（就地遷移，absent-after）
+    html = html.replace('<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
+                        '<path d="M3 17l5.5-5.5 4 4L20 8"/><path d="M15 8h5v5"/>')
     for emoji, newsvg in BAR_ICON_SVGS.items():   # 1) emoji → 線條 SVG（aria-hidden）
         html = html.replace(emoji, newsvg)
     html = TAB_ARIA_RE.sub(                       # 2) icon-only 連結補 accessible name

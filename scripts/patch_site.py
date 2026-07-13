@@ -662,8 +662,11 @@ BAR_STYLE = (
     # liquid glass 不變；選中＝線條圖示上紫色（不填實心、不做背景）
     '.tabbar a.tab.on .ic,.tabbar a.tab.hl .ic'
     '{color:#c98a1e!important;opacity:1;transform:translateY(-1px);filter:none!important}'
-    '.tabbar a.tab.on{background:transparent!important}'   # 不要背景膠囊（引擎粉紅 tint 也關掉）
-    '.tabbar .thumb{background:transparent!important}'     # 不要滑動背景塊
+    '.tabbar a.tab.on{background:transparent!important}'   # 靜態背景關掉（膠囊由 .thumb 呈現）
+    # 滑動膠囊要看得見：琥珀色 wash + 頂緣高光 + 柔和外光暈（bar 底近不透明白，觀感恆定）
+    '.tabbar .thumb{background:rgba(232,168,60,.26)!important;'
+    'box-shadow:inset 0 1px 0 rgba(255,255,255,.65),'
+    '0 2px 10px -2px rgba(201,138,30,.4)!important}'
     '.tabbar{width:min(324px,calc(100vw - 52px))!important;'
     'box-shadow:0 10px 30px rgba(30,60,100,.14)!important;'
     'background:linear-gradient(180deg,rgba(255,255,255,.9),rgba(255,255,255,.72))!important;'

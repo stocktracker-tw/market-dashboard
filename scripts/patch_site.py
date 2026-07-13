@@ -472,6 +472,23 @@ LIQUID = (
 )
 LIQUID_RE = re.compile(r'<style id="liquidglass">.*?</style>', re.S)
 
+# --- 效能：移除 SVG 位移折射濾鏡（#lglass） ---------------------------------
+# feImage+三層 feDisplacementMap 的 backdrop-filter 會在捲動時對每張卡片背後
+# 的像素逐幀重算整條濾鏡鏈，是行動端捲動卡頓的主因。移除後自動退回既有的
+# 純 blur 玻璃（@supports 外面那組），視覺幾乎相同、成本低一個數量級。
+LGLASS_CSS_RE = re.compile(
+    r'(?:/\*[^*]*\*/\s*)?@supports \(backdrop-filter: url\("#lglass"\)\)'
+    r'.*?\}\s*\}', re.S)
+LGLASS_SVG_RE = re.compile(r'<svg[^>]*><filter id="lglass".*?</svg>', re.S)
+
+
+def patch_deglass(html):
+    """拿掉 #lglass 位移折射（CSS @supports 區塊 + 隱藏的 <svg> 濾鏡定義）。"""
+    orig = html
+    html = LGLASS_CSS_RE.sub('', html)
+    html = LGLASS_SVG_RE.sub('', html)
+    return html, (html != orig)
+
 
 def patch_liquid(html):
     """全站玻璃材質：底層極光光暈 + 卡片玻璃化。移除舊版再注入（冪等、可升級）。"""
@@ -825,30 +842,36 @@ def patch_emptyhide(html):
     return html, (html != orig)
 
 
-# --- 切換分頁的液態轉場（覆寫 View Transition keyframes，模糊+縮放+滑動）------
+# --- 切換分頁的液態轉場（覆寫 View Transition keyframes，縮放+滑動）----------
 # 注入在 keyframes 之後（nav 前），同名 @keyframes 後定義者勝出。
 # 前進(右→)用 vtin/vtout，後退(左→)用 vtin-back/vtout-back（引擎依 data-navdir 切換）。
+# 效能：轉場不做逐幀 blur——動態模糊是行動 GPU 最貴的操作，換頁的掉幀感多半來自它。
 VT_LIQUID = (
     '<style id="vtliquid">'
     '::view-transition-old(root){animation:vtout .34s cubic-bezier(.4,0,.2,1) both}'
     '::view-transition-new(root){animation:vtin .46s cubic-bezier(.2,.85,.25,1) both}'
-    '@keyframes vtin{from{opacity:0;transform:translateX(52px) scale(.93);filter:blur(12px)}'
-    'to{opacity:1;transform:translateX(0) scale(1);filter:blur(0)}}'
-    '@keyframes vtout{from{opacity:1;transform:translateX(0) scale(1);filter:blur(0)}'
-    'to{opacity:0;transform:translateX(-38px) scale(.93);filter:blur(12px)}}'
-    '@keyframes vtin-back{from{opacity:0;transform:translateX(-52px) scale(.93);filter:blur(12px)}'
-    'to{opacity:1;transform:translateX(0) scale(1);filter:blur(0)}}'
-    '@keyframes vtout-back{from{opacity:1;transform:translateX(0) scale(1);filter:blur(0)}'
-    'to{opacity:0;transform:translateX(38px) scale(.93);filter:blur(12px)}}'
+    '@keyframes vtin{from{opacity:0;transform:translateX(52px) scale(.93)}'
+    'to{opacity:1;transform:translateX(0) scale(1)}}'
+    '@keyframes vtout{from{opacity:1;transform:translateX(0) scale(1)}'
+    'to{opacity:0;transform:translateX(-38px) scale(.93)}}'
+    '@keyframes vtin-back{from{opacity:0;transform:translateX(-52px) scale(.93)}'
+    'to{opacity:1;transform:translateX(0) scale(1)}}'
+    '@keyframes vtout-back{from{opacity:1;transform:translateX(0) scale(1)}'
+    'to{opacity:0;transform:translateX(38px) scale(.93)}}'
     '</style>'
 )
+VTLIQUID_RE = re.compile(r'<style id="vtliquid">.*?</style>', re.S)
 
 
 def patch_vtliquid(html):
-    """把分頁切換的轉場改成液態感（模糊+縮放+滑動）。有 tabbar 的頁面。"""
-    if 'id="vtliquid"' in html or '<nav class="tabbar">' not in html:
+    """把分頁切換的轉場改成液態感（縮放+滑動）。有 tabbar 的頁面。
+    移除舊版再重插（冪等、可升級：頁上是含 blur 的舊版時會被換成新版）。"""
+    if '<nav class="tabbar">' not in html or VT_LIQUID in html:
         return html, False
-    return html.replace('<nav class="tabbar">', VT_LIQUID + '<nav class="tabbar">', 1), True
+    orig = html
+    html = VTLIQUID_RE.sub('', html)
+    html = html.replace('<nav class="tabbar">', VT_LIQUID + '<nav class="tabbar">', 1)
+    return html, (html != orig)
 
 
 # --- 觀點頁：移除三方辯論，保留三方立場，改成「選一派問問題」 ---------------
@@ -1084,6 +1107,10 @@ def patch(html, fname):
     # 1d2) 全站 Liquid Glass 材質（底層極光光暈 + 卡片玻璃化）
     html, lq = patch_liquid(html)
     changed = changed or lq
+
+    # 1d2b) 效能：移除 #lglass 位移折射，退回純 blur 玻璃
+    html, dg = patch_deglass(html)
+    changed = changed or dg
 
     # 1d3) 縮放鎖：網頁版 iOS Safari 捏縮讓 bar 飄，事件層實際擋下
     html, zl = patch_zoomlock(html)
@@ -1341,6 +1368,44 @@ SW_ASSETS = ["index.html", "stocks.html", "perspectives.html", "news.html",
              "icon-192-maskable.png", "icon-512-maskable.png"]
 
 
+# --- SW 抓取策略：快取優先、背景更新（stale-while-revalidate） --------------
+# 原本是「網路優先」：每次點分頁都要等 HTML 的網路往返才渲染，切頁的等待感
+# 多半來自這裡。改為快取先回、同時在背景抓新版更新快取：切頁即開，資料最多
+# 舊一次瀏覽，下次切頁或重開就是新的（fix_sw 的內容雜湊版本也會促發背景更新）。
+SW_FETCH_SWR = (
+    'self.addEventListener("fetch", (e) => {\n'
+    '  if (e.request.method !== "GET") return;\n'
+    '  e.respondWith(\n'
+    '    caches.match(e.request).then((hit) => {\n'
+    '      const net = fetch(e.request).then((r) => {\n'
+    '        const cp = r.clone();\n'
+    '        caches.open(C).then((c) => c.put(e.request, cp)).catch(() => {});\n'
+    '        return r;\n'
+    '      }).catch(() => hit || caches.match("./index.html"));\n'
+    '      return hit || net;\n'
+    '    })\n'
+    '  );\n'
+    '});\n'
+)
+SW_FETCH_RE = re.compile(r'self\.addEventListener\("fetch",.*', re.S)
+
+
+def fix_sw_strategy():
+    """把 sw.js 的 fetch 策略改成快取優先＋背景更新。冪等：已是新版就不動；
+    引擎重產 sw.js 退回網路優先時，每日執行會自動修回。"""
+    try:
+        sw = open("sw.js", encoding="utf-8").read()
+    except Exception:                      # noqa: BLE001 — 缺檔就跳過
+        return False
+    if SW_FETCH_SWR in sw or not SW_FETCH_RE.search(sw):
+        return False
+    new = SW_FETCH_RE.sub(SW_FETCH_SWR, sw, count=1)
+    new = new.replace("網路優先、離線退回快取", "快取優先、背景更新、離線退回快取", 1)
+    with open("sw.js", "w", encoding="utf-8") as fh:
+        fh.write(new)
+    return True
+
+
 def fix_sw():
     """sw.js 快取版本改成「內容雜湊」：ASSETS 裡任何檔案變了，版本自動跟著變，
     手機 PWA 不必手動下拉重整就會在背景拿到新版。引擎每天把版本蓋回固定字串
@@ -1390,6 +1455,8 @@ def main():
         touched.append("universe.json")
     if fix_manifest():
         touched.append("manifest.webmanifest")
+    if fix_sw_strategy():
+        touched.append("sw.js(策略)")
     if fix_sw():                           # 必須最後：雜湊要涵蓋以上全部產出
         touched.append("sw.js")
     print("已補丁：" + (", ".join(touched) if touched else "(無需變更)"))

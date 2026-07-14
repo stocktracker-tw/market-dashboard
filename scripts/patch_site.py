@@ -603,7 +603,7 @@ def patch_canonical(html, fname):
 BRANDBAR_HTML = (
     '<header class="brandbar"><span class="brandlogo">'
     '<img src="icon-180.png" alt=""><i aria-hidden="true"></i></span>'
-    '<span class="brandname">Stock Tracker<small>台股・美股 進場儀表板</small></span>'
+    '<span class="brandname">Stock Tracker<small>台股進場儀表板</small></span>'
     '</header>'
     '<script id="brandbarjs">(function(){var b=document.querySelector(".brandbar");'
     'if(!b)return;var f=function(){b.classList.toggle("scrolled",(window.scrollY||0)>6)};'
@@ -633,7 +633,7 @@ BRANDBAR_CSS = (
     'inset 0 0 0 1px rgba(255,255,255,.28);'
     'background:linear-gradient(180deg,rgba(255,255,255,.26),rgba(255,255,255,0) 30%,'
     'rgba(255,255,255,0) 78%,rgba(255,255,255,.14))}'
-    '.wrap{padding-top:calc(64px + env(safe-area-inset-top,0px))!important}'
+    'body .wrap{padding-top:calc(64px + env(safe-area-inset-top,0px))!important}'
     '</style>'
 )
 BRANDLOGO_RE = re.compile(r'<style id="brandlogo">.*?</style>', re.S)
@@ -1218,6 +1218,16 @@ def patch(html, fname):
     # 1b2) 固定頂部 logo 欄
     html, bl = patch_brandlogo(html, fname)
     changed = changed or bl
+
+    # 1b3) 標題統一為「台股進場儀表板」，不提美股（h1 註記與 <title> 一併處理）
+    for _o, _n in (
+        ('市場進場儀表板 <span style="font-size:14px;color:var(--muted)">台股・美股</span>',
+         '台股進場儀表板'),
+        ('市場進場儀表板', '台股進場儀表板'),
+    ):
+        if _o in html:
+            html = html.replace(_o, _n)
+            changed = True
 
     # 1c) 頂部狀態列底色對齊頁面（消除色差「分開」）
     html, tcm = patch_themecolor(html)

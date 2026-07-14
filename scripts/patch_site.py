@@ -599,16 +599,27 @@ def patch_canonical(html, fname):
 
 
 # --- 每頁頁首 logo（與 Mindrise 邏輯統一：每個畫面的標題左側都有 app icon） --
-BRANDLOGO = '<img class="brandlogo" src="icon-180.png" alt="">'
+# iOS 27 風格：圖案清晰為主，玻璃只當表面處理——上下緣細高光（靜態、不流動）、
+# 邊緣一圈薄玻璃、極淡的頂部光澤，外加柔和落影。
+BRANDLOGO = ('<span class="brandlogo"><img src="icon-180.png" alt="">'
+             '<i aria-hidden="true"></i></span>')
 BRANDLOGO_CSS = (
     '<style id="brandlogo">'
-    '.brandlogo{width:34px;height:34px;border-radius:9px;vertical-align:-8px;'
-    'margin-right:9px;box-shadow:0 4px 14px -6px rgba(30,60,100,.45),'
-    'inset 0 1px 0 rgba(255,255,255,.35)}'
+    '.brandlogo{position:relative;display:inline-block;width:36px;height:36px;'
+    'border-radius:10px;vertical-align:-9px;margin-right:9px;overflow:hidden;'
+    'box-shadow:0 5px 14px -5px rgba(30,60,100,.45)}'
+    '.brandlogo img{width:100%;height:100%;display:block}'
+    '.brandlogo i{position:absolute;inset:0;border-radius:inherit;pointer-events:none;'
+    'box-shadow:inset 0 1px 1px rgba(255,255,255,.8),'
+    'inset 0 -1px 1px rgba(255,255,255,.4),'
+    'inset 0 0 0 1px rgba(255,255,255,.28);'
+    'background:linear-gradient(180deg,rgba(255,255,255,.26),rgba(255,255,255,0) 30%,'
+    'rgba(255,255,255,0) 78%,rgba(255,255,255,.14))}'
     '</style>'
 )
-BRANDLOGO_RE = re.compile(r'<style id="brandlogo">.*?</style>')
-BRANDLOGO_IMG_RE = re.compile(r'<img class="brandlogo"[^>]*>')
+BRANDLOGO_RE = re.compile(r'<style id="brandlogo">.*?</style>', re.S)
+BRANDLOGO_IMG_RE = re.compile(
+    r'(<span class="brandlogo">.*?</span>|<img class="brandlogo"[^>]*>)', re.S)
 
 
 def patch_brandlogo(html, fname):

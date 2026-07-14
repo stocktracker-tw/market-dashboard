@@ -598,15 +598,33 @@ def patch_canonical(html, fname):
     return html, (html != orig)
 
 
-# --- 每頁頁首 logo（與 Mindrise 邏輯統一：每個畫面的標題左側都有 app icon） --
-# iOS 27 風格：圖案清晰為主，玻璃只當表面處理——上下緣細高光（靜態、不流動）、
-# 邊緣一圈薄玻璃、極淡的頂部光澤，外加柔和落影。
-BRANDLOGO = ('<span class="brandlogo"><img src="icon-180.png" alt="">'
-             '<i aria-hidden="true"></i></span>')
-BRANDLOGO_CSS = (
+# --- 固定頂部 logo 欄（與 Mindrise 邏輯統一：fixed 頂欄，捲動時變毛玻璃） ----
+# logo 用 iOS 27 風格 Liquid Glass 表面處理；欄本體 pointer-events:none 不擋內容。
+BRANDBAR_HTML = (
+    '<header class="brandbar"><span class="brandlogo">'
+    '<img src="icon-180.png" alt=""><i aria-hidden="true"></i></span>'
+    '<span class="brandname">Stock Tracker<small>台股・美股 進場儀表板</small></span>'
+    '</header>'
+    '<script id="brandbarjs">(function(){var b=document.querySelector(".brandbar");'
+    'if(!b)return;var f=function(){b.classList.toggle("scrolled",(window.scrollY||0)>6)};'
+    'addEventListener("scroll",f,{passive:true});f();})();</script>'
+)
+BRANDBAR_CSS = (
     '<style id="brandlogo">'
+    '.brandbar{position:fixed;top:0;left:0;right:0;z-index:90;display:flex;'
+    'align-items:center;gap:10px;pointer-events:none;'
+    'padding:calc(9px + env(safe-area-inset-top,0px)) max(16px,calc((100vw - 1288px)/2)) 8px;'
+    'background:transparent;transition:background .25s ease,box-shadow .25s ease}'
+    '.brandbar.scrolled{background:rgba(245,248,251,.82);'
+    '-webkit-backdrop-filter:blur(24px) saturate(1.6);'
+    'backdrop-filter:blur(24px) saturate(1.6);'
+    'box-shadow:0 1px 0 rgba(30,60,100,.08),0 14px 34px -22px rgba(30,60,100,.35)}'
+    '.brandname{font-weight:800;font-size:17px;color:#17293a;letter-spacing:.03em;'
+    'line-height:1.1}'
+    '.brandname small{display:block;font-size:10px;font-weight:600;color:#5b6d80;'
+    'letter-spacing:.16em;margin-top:2px}'
     '.brandlogo{position:relative;display:inline-block;width:36px;height:36px;'
-    'border-radius:10px;vertical-align:-9px;margin-right:9px;overflow:hidden;'
+    'border-radius:10px;overflow:hidden;flex:0 0 auto;'
     'box-shadow:0 5px 14px -5px rgba(30,60,100,.45)}'
     '.brandlogo img{width:100%;height:100%;display:block}'
     '.brandlogo i{position:absolute;inset:0;border-radius:inherit;pointer-events:none;'
@@ -615,27 +633,33 @@ BRANDLOGO_CSS = (
     'inset 0 0 0 1px rgba(255,255,255,.28);'
     'background:linear-gradient(180deg,rgba(255,255,255,.26),rgba(255,255,255,0) 30%,'
     'rgba(255,255,255,0) 78%,rgba(255,255,255,.14))}'
+    '.wrap{padding-top:calc(64px + env(safe-area-inset-top,0px))!important}'
     '</style>'
 )
 BRANDLOGO_RE = re.compile(r'<style id="brandlogo">.*?</style>', re.S)
+BRANDBAR_RE = re.compile(r'<header class="brandbar">.*?</header>', re.S)
+BRANDBARJS_RE = re.compile(r'<script id="brandbarjs">.*?</script>', re.S)
 BRANDLOGO_IMG_RE = re.compile(
     r'(<span class="brandlogo">.*?</span>|<img class="brandlogo"[^>]*>)', re.S)
 
 
 def patch_brandlogo(html, fname):
-    """每頁第一個 <h1> 前放 app icon（子頁用 ../ 路徑）。移除舊版再重插（冪等）。"""
-    m = re.search(r'<h1[^>]*>', html)
-    if not m or '</head>' not in html:
+    """固定頂部 logo 欄，插在 <body> 開頭。移除舊版（含 h1 內 logo）再重插（冪等）。"""
+    m = re.search(r'<body[^>]*>', html)
+    if not m:
         return html, False
-    img = BRANDLOGO.replace('src="', 'src="../') if '/' in fname else BRANDLOGO
-    if BRANDLOGO_CSS in html and img in html:
+    pre = '../' if '/' in fname else ''
+    ins = BRANDBAR_CSS + BRANDBAR_HTML.replace(
+        'src="icon-180.png"', 'src="' + pre + 'icon-180.png"')
+    if ins in html:
         return html, False
     orig = html
     html = BRANDLOGO_RE.sub('', html)
+    html = BRANDBARJS_RE.sub('', html)
+    html = BRANDBAR_RE.sub('', html)
     html = BRANDLOGO_IMG_RE.sub('', html)
-    m = re.search(r'<h1[^>]*>', html)
-    html = html[:m.end()] + img + html[m.end():]
-    html = html.replace('</head>', BRANDLOGO_CSS + '</head>', 1)
+    m = re.search(r'<body[^>]*>', html)
+    html = html[:m.end()] + ins + html[m.end():]
     return html, (html != orig)
 
 
@@ -1191,7 +1215,7 @@ def patch(html, fname):
     html, dc = patch_desc(html, fname)
     changed = changed or dc
 
-    # 1b2) 每頁頁首 logo
+    # 1b2) 固定頂部 logo 欄
     html, bl = patch_brandlogo(html, fname)
     changed = changed or bl
 

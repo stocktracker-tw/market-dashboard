@@ -262,19 +262,22 @@ _NAV_CSS = """<style>
  -webkit-backdrop-filter:blur(16px) saturate(1.9);backdrop-filter:blur(16px) saturate(1.9);
  box-shadow:0 12px 30px rgba(0,0,0,.55), inset 0 1px 0.5px rgba(255,255,255,.6), 0 0 0 1px rgba(255,255,255,.22)}
 .wrap{padding-top:calc(16px + env(safe-area-inset-top,0px))!important;padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))!important}
-/* 切換分頁時內容滑入、底部 bar 不動（原生 View Transitions；不支援則直接切換） */
+/* 切換分頁：新頁全程不透明只滑入（不crossfade→不露底閃爍），舊頁在底下淡出。
+   底部 bar 不參與轉場（毛玻璃快照會閃）。不支援 View Transitions 則直接切換。 */
 @view-transition{navigation:auto}
-::view-transition-old(root){animation:vtout .24s ease both}
-::view-transition-new(root){animation:vtin .32s cubic-bezier(.2,.8,.2,1) both}
-@keyframes vtin{from{opacity:0;transform:translateX(26px)}to{opacity:1;transform:translateX(0)}}
-@keyframes vtout{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(-16px)}}
-/* 往回滑（→）時，新頁從左邊滑入、舊頁往右滑出 */
+::view-transition-old(root){animation:vtout .4s cubic-bezier(.4,0,.2,1) both}
+::view-transition-new(root){animation:vtin .42s cubic-bezier(.22,.7,.2,1) both}
+@keyframes vtin{from{transform:translateX(42px)}to{transform:translateX(0)}}
+@keyframes vtout{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(-26px)}}
+/* 往回滑（→）時，新頁從左邊滑入 */
 :root[data-navdir="back"]::view-transition-new(root){animation-name:vtin-back}
 :root[data-navdir="back"]::view-transition-old(root){animation-name:vtout-back}
-@keyframes vtin-back{from{opacity:0;transform:translateX(-26px)}to{opacity:1;transform:translateX(0)}}
-@keyframes vtout-back{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(16px)}}
+@keyframes vtin-back{from{transform:translateX(-42px)}to{transform:translateX(0)}}
+@keyframes vtout-back{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(26px)}}
 .tabbar{view-transition-name:tabbar}
-::view-transition-group(tabbar){animation-duration:.2s}
+::view-transition-group(tabbar){animation:none}
+::view-transition-old(tabbar){display:none}
+::view-transition-new(tabbar){animation:none;opacity:1}
 @media(prefers-reduced-motion:reduce){::view-transition-group(*){animation:none!important}}
 </style>"""
 

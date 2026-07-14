@@ -612,6 +612,7 @@ BRANDBAR_HTML = (
 BRANDBAR_CSS = (
     '<style id="brandlogo">'
     '.brandbar{position:fixed;top:0;left:0;right:0;z-index:90;display:flex;'
+    'view-transition-name:brandbar;'
     'align-items:center;gap:10px;pointer-events:none;'
     'padding:calc(9px + env(safe-area-inset-top,0px)) max(16px,calc((100vw - 1288px)/2)) 8px;'
     'background:transparent;transition:background .25s ease,box-shadow .25s ease}'
@@ -771,6 +772,116 @@ def patch_tabpill(html):
     """移除先前注入的自製滑動膠囊 script（改用引擎內建 thumb）。"""
     new = TABPILL_RE.sub('', html)
     return new, (new != html)
+
+
+# --- SPA 式換頁（pjax + 同文件 View Transition，體感對齊 Mindrise） ----------
+# 四個主分頁間的切換不再整頁重載：fetch 下一頁（SW 快取即回）→ 只替換內容區
+# （chrome 白名單保留在 DOM，零閃爍）→ 頁面腳本以 { } 區塊包裹重跑（頂層
+# let/const 不會撞全域）→ 轉場沿用 vtliquid 動畫但改走 document.startViewTransition。
+# 直接輸入網址仍是完整頁面；stock/、etf/ 子頁維持一般導頁。
+SPANAV_JS = (
+    '<script id="spanav">(function(){'
+    'if(window.__spanav)return;window.__spanav=1;'
+    'var MAIN=/^(index|stocks|perspectives|news)\\.html$/;'
+    'function sub(){return /\\/(stock|etf)\\//.test(location.pathname);}'
+    'function KEEP(n){'
+    'if(n.nodeType!==1)return false;'
+    'var id=n.id||"";'
+    'if(/^(topglass|brandlogo|brandbarjs|maxglass|vtliquid|barglass|spanav|zoomlock)$/.test(id))return true;'
+    'var cl=typeof n.className==="string"?n.className:"";'
+    'if(/(^| )(topglass|brandbar|tabbar)( |$)/.test(cl))return true;'
+    'if(n.tagName&&n.tagName.toUpperCase()==="SVG")return true;'
+    'if(n.tagName==="SCRIPT"&&/__tabdrag|__zoomlock|__spanav/.test(n.textContent||""))return true;'
+    'return false;}'
+    'function mergeHead(doc){'
+    'var have={},i,el;'
+    'var hs=document.head.querySelectorAll("style,script");'
+    'for(i=0;i<hs.length;i++)have[hs[i].src||hs[i].textContent]=1;'
+    'var ds=doc.head.querySelectorAll("style,script");'
+    'for(i=0;i<ds.length;i++){var key=ds[i].src||ds[i].textContent;'
+    'if(have[key])continue;have[key]=1;'
+    'if(ds[i].tagName==="SCRIPT"){el=document.createElement("script");'
+    'if(ds[i].src){el.src=ds[i].src;'
+    'if(ds[i].getAttribute("onload"))el.setAttribute("onload",ds[i].getAttribute("onload"));'
+    'if(ds[i].getAttribute("onerror"))el.setAttribute("onerror",ds[i].getAttribute("onerror"));}'
+    'else{el.textContent=ds[i].textContent;}'
+    'document.head.appendChild(el);}'
+    'else{document.head.appendChild(ds[i].cloneNode(true));}}}'
+    'function swap(doc,url){'
+    'document.title=doc.title;mergeHead(doc);'
+    'var i,kids=[].slice.call(document.body.childNodes);'
+    'for(i=0;i<kids.length;i++)if(!KEEP(kids[i]))document.body.removeChild(kids[i]);'
+    'var codes=[],srcs=[],nks=[].slice.call(doc.body.childNodes);'
+    'for(i=0;i<nks.length;i++){var n=nks[i];'
+    'if(KEEP(n))continue;'
+    'if(n.nodeType===1&&n.tagName==="SCRIPT"){'
+    'if(n.src)srcs.push(n);else codes.push(n.textContent);continue;}'
+    'document.body.appendChild(document.importNode(n,true));}'
+    'for(i=0;i<srcs.length;i++){'
+    'if(!document.querySelector("script[src=\\""+srcs[i].getAttribute("src")+"\\"]")){'
+    'var ex=document.createElement("script");ex.src=srcs[i].src;'
+    'document.body.appendChild(ex);}}'
+    'for(i=0;i<codes.length;i++){var el=document.createElement("script");'
+    'el.textContent="{\\n"+codes[i]+"\\n}";'
+    'document.body.appendChild(el);el.parentNode.removeChild(el);}'
+    'if(window.echarts&&!window.echarts.__stub&&typeof window.__ecReady==="function"){'
+    'try{window.__ecReady()}catch(_){}}'
+    'var b=document.querySelector(".brandbar");if(b)b.classList.remove("scrolled");'
+    'window.scrollTo(0,0);sync(url);}'
+    'function sync(url){'
+    'var i,tabs=document.querySelectorAll(".tabbar a.tab");'
+    'for(i=0;i<tabs.length;i++){tabs[i].classList.toggle("on",'
+    'tabs[i].getAttribute("href")===url);tabs[i].classList.remove("hl");}'
+    'var bar=document.querySelector(".tabbar"),th=bar&&bar.querySelector(".thumb"),'
+    'act=bar&&bar.querySelector("a.tab.on");'
+    'if(th&&act){var br=bar.getBoundingClientRect(),r=act.getBoundingClientRect();'
+    'th.style.width=r.width+"px";th.style.height=r.height+"px";'
+    'th.style.top=(r.top-br.top)+"px";th.style.left=(r.left-br.left)+"px";}}'
+    'var busy=0,pend=null;'
+    'function release(){if(!busy)return;busy=0;'
+    'if(pend){var q=pend;pend=null;go(q[0],q[1]);}}'
+    'function go(url,push){'
+    'if(busy){pend=[url,push];return;}busy=1;'
+    'var guard=setTimeout(release,900);'
+    'fetch(url).then(function(r){if(!r.ok)throw 0;return r.text();}).then(function(txt){'
+    'var doc=new DOMParser().parseFromString(txt,"text/html");'
+    'if(push!==false)history.pushState({u:url},"",url);'
+    'var run=function(){swap(doc,url);};'
+    'if(document.startViewTransition){'
+    'var vt=document.startViewTransition(run);'
+    'var done=vt.updateCallbackDone||vt.finished;'
+    'done.then(release,release);'
+    'if(vt.finished&&vt.finished.catch)vt.finished.catch(function(){});}'
+    'else{run();release();}'
+    '}).catch(function(){clearTimeout(guard);busy=0;pend=null;location.href=url;});}'
+    'window.__spanavGo=function(u){'
+    'if(sub()||!MAIN.test(u)){location.href=u;return;}go(u,true);};'
+    'if(!sub()){'
+    'history.replaceState({u:(location.pathname.split("/").pop()||"index.html")},"");'
+    'addEventListener("popstate",function(e){'
+    'var u=(e.state&&e.state.u)||(location.pathname.split("/").pop()||"index.html");'
+    'if(MAIN.test(u))go(u,false);else location.reload();});'
+    'document.addEventListener("click",function(e){'
+    'if(e.defaultPrevented)return;'
+    'var a=e.target&&e.target.closest?e.target.closest(".tabbar a.tab"):null;'
+    'if(!a)return;var h=a.getAttribute("href");'
+    'if(!MAIN.test(h))return;'
+    'e.preventDefault();e.stopPropagation();window.__spanavGo(h);},true);}'
+    '})();</script>'
+)
+SPANAV_RE = re.compile(r'<script id="spanav">.*?</script>', re.S)
+
+
+def patch_spanav(html):
+    """注入 SPA 換頁引擎（tabbar 前）。移除舊版再重插（冪等、可升級）。"""
+    if '<nav class="tabbar">' not in html:
+        return html, False
+    if SPANAV_JS in html:
+        return html, False
+    orig = html
+    html = SPANAV_RE.sub('', html)
+    html = html.replace('<nav class="tabbar">', SPANAV_JS + '<nav class="tabbar">', 1)
+    return html, (html != orig)
 
 
 # --- 台股配色：漲跌「紅漲綠跌」+ 進場分數用「極光冷色」漸進色帶 -------------
@@ -967,16 +1078,16 @@ def patch_emptyhide(html):
 # 效能：轉場不做逐幀 blur——動態模糊是行動 GPU 最貴的操作，換頁的掉幀感多半來自它。
 VT_LIQUID = (
     '<style id="vtliquid">'
-    '::view-transition-old(root){animation:vtout .34s cubic-bezier(.4,0,.2,1) both}'
-    '::view-transition-new(root){animation:vtin .46s cubic-bezier(.2,.85,.25,1) both}'
-    '@keyframes vtin{from{opacity:0;transform:translateX(52px) scale(.93)}'
+    '::view-transition-old(root){animation:vtout .16s cubic-bezier(.4,0,.2,1) both}'
+    '::view-transition-new(root){animation:vtin .20s cubic-bezier(.2,.85,.25,1) both}'
+    '@keyframes vtin{from{opacity:0;transform:translateX(24px) scale(.97)}'
     'to{opacity:1;transform:translateX(0) scale(1)}}'
     '@keyframes vtout{from{opacity:1;transform:translateX(0) scale(1)}'
-    'to{opacity:0;transform:translateX(-38px) scale(.93)}}'
-    '@keyframes vtin-back{from{opacity:0;transform:translateX(-52px) scale(.93)}'
+    'to{opacity:0;transform:translateX(-18px) scale(.97)}}'
+    '@keyframes vtin-back{from{opacity:0;transform:translateX(-24px) scale(.97)}'
     'to{opacity:1;transform:translateX(0) scale(1)}}'
     '@keyframes vtout-back{from{opacity:1;transform:translateX(0) scale(1)}'
-    'to{opacity:0;transform:translateX(38px) scale(.93)}}'
+    'to{opacity:0;transform:translateX(18px) scale(.97)}}'
     '</style>'
 )
 VTLIQUID_RE = re.compile(r'<style id="vtliquid">.*?</style>', re.S)
@@ -1219,6 +1330,16 @@ def patch(html, fname):
     html, bl = patch_brandlogo(html, fname)
     changed = changed or bl
 
+    # 1b2b) 移除 document.write 的 echarts 後備：主載入是 defer，解析當下
+    # window.echarts 必為空，這行每次都會同步再載一次 echarts、阻塞首繪。
+    # defer 版本身已帶 onerror 後備鏈，直接拿掉。
+    _ECW_RE = re.compile(
+        r'<script>window\.echarts\|\|document\.write\(.*?\);</script>\n?', re.S)
+    new = _ECW_RE.sub('', html)
+    if new != html:
+        html = new
+        changed = True
+
     # 1b3) 標題統一為「台股進場儀表板」，不提美股（h1 註記與 <title> 一併處理）
     for _o, _n in (
         ('市場進場儀表板 <span style="font-size:14px;color:var(--muted)">台股・美股</span>',
@@ -1435,6 +1556,16 @@ def patch(html, fname):
 
     html, bg = patch_barglass(html)
     changed = changed or bg
+
+    # 12a2) SPA 式換頁引擎 + 拖曳引擎導頁改走 SPA
+    html, sn = patch_spanav(html)
+    changed = changed or sn
+    _old_nav = 'setTimeout(function(){location.href=order[t];},130);'
+    _new_nav = ('setTimeout(function(){(window.__spanavGo||'
+                'function(u){location.href=u;})(order[t]);},130);')
+    if _old_nav in html:
+        html = html.replace(_old_nav, _new_nav)
+        changed = True
 
     # 12b) 導覽列滑動填滿膠囊（隨 hover 滑動）
     html, tp = patch_tabpill(html)

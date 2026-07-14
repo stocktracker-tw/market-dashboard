@@ -1076,26 +1076,32 @@ def patch_emptyhide(html):
 # 注入在 keyframes 之後（nav 前），同名 @keyframes 後定義者勝出。
 # 前進(右→)用 vtin/vtout，後退(左→)用 vtin-back/vtout-back（引擎依 data-navdir 切換）。
 # 效能：轉場不做逐幀 blur——動態模糊是行動 GPU 最貴的操作，換頁的掉幀感多半來自它。
+# 防閃爍（跨文件轉場）：交叉淡化是元凶——新頁 opacity 0→1、舊頁 1→0 同時進行，
+# 中間那格兩張快照都半透明，頁面背景（極光漸層）就從縫裡閃一下。根治＝取消
+# crossfade：新頁全程不透明、只滑入（畫面永遠有一層蓋住背景），舊頁在底下淡出。
+# 另把 tabbar 釘死不參與轉場：它的毛玻璃 backdrop-filter 不會進快照，一參與那
+# 段 group 動畫就會「玻璃掉一下再回來」——這也是使用者看到的閃。
 VT_LIQUID = (
     '<style id="vtliquid">'
-    '::view-transition-old(root){animation:vtout .16s cubic-bezier(.4,0,.2,1) both}'
-    '::view-transition-new(root){animation:vtin .20s cubic-bezier(.2,.85,.25,1) both}'
-    '@keyframes vtin{from{opacity:0;transform:translateX(24px) scale(.97)}'
-    'to{opacity:1;transform:translateX(0) scale(1)}}'
-    '@keyframes vtout{from{opacity:1;transform:translateX(0) scale(1)}'
-    'to{opacity:0;transform:translateX(-18px) scale(.97)}}'
-    '@keyframes vtin-back{from{opacity:0;transform:translateX(-24px) scale(.97)}'
-    'to{opacity:1;transform:translateX(0) scale(1)}}'
-    '@keyframes vtout-back{from{opacity:1;transform:translateX(0) scale(1)}'
-    'to{opacity:0;transform:translateX(18px) scale(.97)}}'
+    '::view-transition-old(root){animation:vtout .4s cubic-bezier(.4,0,.2,1) both}'
+    '::view-transition-new(root){animation:vtin .42s cubic-bezier(.22,.7,.2,1) both}'
+    # 新頁：opacity 全程 1，只位移 → 不crossfade、不露底
+    '@keyframes vtin{from{transform:translateX(42px)}to{transform:translateX(0)}}'
+    '@keyframes vtout{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(-26px)}}'
+    '@keyframes vtin-back{from{transform:translateX(-42px)}to{transform:translateX(0)}}'
+    '@keyframes vtout-back{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(26px)}}'
+    # 底部分頁列：完全不轉場（引擎 base 有 view-transition-name:tabbar+group動畫，這裡覆蓋掉）
+    '::view-transition-group(tabbar){animation:none}'
+    '::view-transition-old(tabbar){display:none}'
+    '::view-transition-new(tabbar){animation:none;opacity:1}'
     '</style>'
 )
 VTLIQUID_RE = re.compile(r'<style id="vtliquid">.*?</style>', re.S)
 
 
 def patch_vtliquid(html):
-    """把分頁切換的轉場改成液態感（縮放+滑動）。有 tabbar 的頁面。
-    移除舊版再重插（冪等、可升級：頁上是含 blur 的舊版時會被換成新版）。"""
+    """分頁切換轉場（防閃爍：新頁不透明只滑入、舊頁淡出、tabbar 不轉場）。
+    有 tabbar 的頁面。移除舊版再重插（冪等、可升級：頁上是舊 crossfade 版會被換掉）。"""
     if '<nav class="tabbar">' not in html or VT_LIQUID in html:
         return html, False
     orig = html

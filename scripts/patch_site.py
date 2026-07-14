@@ -667,7 +667,7 @@ BAR_STYLE = (
     # 滑動膠囊要看得見：淺灰 wash + 頂緣高光 + 柔和外影（bar 底近不透明白，觀感恆定）
     # 負 margin：引擎 JS 用 rect 相減定位卻沒扣 bar 的 1px border（absolute 以邊框
     # 內側為基準），膠囊會右下各偏 1px——這裡抵銷，讓膠囊正對分頁
-    '.tabbar .thumb{background:rgba(135,149,163,.22)!important;'
+    '.tabbar .thumb{background:rgba(135,149,163,.38)!important;'
     'margin:-1px 0 0 -1px!important;'
     'box-shadow:inset 0 1px 0 rgba(255,255,255,.65),'
     '0 2px 10px -2px rgba(90,105,120,.35)!important}'

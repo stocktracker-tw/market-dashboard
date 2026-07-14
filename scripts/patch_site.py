@@ -598,7 +598,7 @@ def patch_canonical(html, fname):
     return html, (html != orig)
 
 
-# --- 首頁頁首 logo（照 Mindrise 的頁首做法：圓角 app icon 放在標題左側） ------
+# --- 每頁頁首 logo（與 Mindrise 邏輯統一：每個畫面的標題左側都有 app icon） --
 BRANDLOGO = '<img class="brandlogo" src="icon-180.png" alt="">'
 BRANDLOGO_CSS = (
     '<style id="brandlogo">'
@@ -612,17 +612,18 @@ BRANDLOGO_IMG_RE = re.compile(r'<img class="brandlogo"[^>]*>')
 
 
 def patch_brandlogo(html, fname):
-    """首頁第一個 <h1> 前放 app icon。移除舊版再重插（冪等、可升級）。"""
+    """每頁第一個 <h1> 前放 app icon（子頁用 ../ 路徑）。移除舊版再重插（冪等）。"""
     m = re.search(r'<h1[^>]*>', html)
-    if fname != 'index.html' or not m or '</head>' not in html:
+    if not m or '</head>' not in html:
         return html, False
-    if BRANDLOGO_CSS in html and BRANDLOGO in html:
+    img = BRANDLOGO.replace('src="', 'src="../') if '/' in fname else BRANDLOGO
+    if BRANDLOGO_CSS in html and img in html:
         return html, False
     orig = html
     html = BRANDLOGO_RE.sub('', html)
     html = BRANDLOGO_IMG_RE.sub('', html)
     m = re.search(r'<h1[^>]*>', html)
-    html = html[:m.end()] + BRANDLOGO + html[m.end():]
+    html = html[:m.end()] + img + html[m.end():]
     html = html.replace('</head>', BRANDLOGO_CSS + '</head>', 1)
     return html, (html != orig)
 
@@ -1179,7 +1180,7 @@ def patch(html, fname):
     html, dc = patch_desc(html, fname)
     changed = changed or dc
 
-    # 1b2) 首頁頁首 logo
+    # 1b2) 每頁頁首 logo
     html, bl = patch_brandlogo(html, fname)
     changed = changed or bl
 

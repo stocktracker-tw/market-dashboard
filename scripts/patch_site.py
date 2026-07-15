@@ -736,14 +736,14 @@ BAR_STYLE = (
     '.tabbar .thumb{background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,.05)),'
     'linear-gradient(rgba(195,206,217,.92),rgba(195,206,217,.92))!important;'
     'margin:-1px 0 0 -1px!important;'
-    # 滑動曲線比照 Mindrise 的 lens：帶彈性的 .38s（原引擎 .26s 無彈性）
-    'transition:left .38s cubic-bezier(.2,1.4,.3,1),top .2s ease,'
-    'width .2s ease,height .2s ease,transform .16s,box-shadow .16s!important;'
     'box-shadow:inset 0 1px 0 rgba(255,255,255,.65),'
     '0 2px 10px -2px rgba(90,105,120,.35)!important}'
+    # 底部膠囊玻璃＝頂欄同款（同漸層底＋同 blur/saturate）→ 兩條 bar 透明度一致
     '.tabbar{width:min(324px,calc(100vw - 52px))!important;'
     'box-shadow:0 10px 30px rgba(30,60,100,.14)!important;'
-    'background:rgba(245,248,251,.75)!important;'
+    'background:linear-gradient(180deg,rgba(255,255,255,.88),rgba(255,255,255,.6))!important;'
+    '-webkit-backdrop-filter:blur(18px) saturate(1.6)!important;'
+    'backdrop-filter:blur(18px) saturate(1.6)!important;'
     'border:1px solid #d8e2ec!important}'
     '</style>'
 )
@@ -780,8 +780,7 @@ def patch_tabpill(html):
 # --- SPA 式換頁（pjax + 同文件 View Transition，體感對齊 Mindrise） ----------
 # 四個主分頁間的切換不再整頁重載：fetch 下一頁（SW 快取即回）→ 只替換內容區
 # （chrome 白名單保留在 DOM，零閃爍）→ 頁面腳本以 { } 區塊包裹重跑（頂層
-# let/const 不會撞全域）→ 換頁比照 Mindrise：內容區淡入（opacity+translateY 4px、
-# 220ms），頂欄/工具列不動，不做滑動/縮放/整頁轉場。
+# let/const 不會撞全域）→ 轉場沿用 vtliquid 動畫但改走 document.startViewTransition。
 # 直接輸入網址仍是完整頁面；stock/、etf/ 子頁維持一般導頁。
 SPANAV_JS = (
     '<script id="spanav">(function(){'
@@ -841,46 +840,36 @@ SPANAV_JS = (
     'if(th&&act){var br=bar.getBoundingClientRect(),r=act.getBoundingClientRect();'
     'th.style.width=r.width+"px";th.style.height=r.height+"px";'
     'th.style.top=(r.top-br.top)+"px";th.style.left=(r.left-br.left)+"px";}}'
-    'var busy=0,pend=null,CACHE={};'
-    'function here(){return location.pathname.split("/").pop()||"index.html";}'
+    'var busy=0,pend=null;'
     'function release(){if(!busy)return;busy=0;'
     'if(pend){var q=pend;pend=null;go(q[0],q[1]);}}'
-    # 記憶體文件快取：命中即同步回（重訪瞬間切，體感等同 Mindrise 原地切換）
-    'function getDoc(url){if(CACHE[url])return Promise.resolve(CACHE[url]);'
-    'return fetch(url).then(function(r){if(!r.ok)throw 0;return r.text();})'
-    '.then(function(t){var d=new DOMParser().parseFromString(t,"text/html");'
-    'CACHE[url]=d;return d;});}'
     'function go(url,push){'
     'if(busy){pend=[url,push];return;}busy=1;'
-    'sync(url);'
     'var guard=setTimeout(release,900);'
-    'getDoc(url).then(function(doc){clearTimeout(guard);'
+    'fetch(url).then(function(r){if(!r.ok)throw 0;return r.text();}).then(function(txt){'
+    'var doc=new DOMParser().parseFromString(txt,"text/html");'
     'if(push!==false)history.pushState({u:url},"",url);'
-    'swap(doc,url);'
-    'var w=document.querySelector(".wrap");'
-    'if(w&&w.animate){try{w.animate('
-    '[{opacity:0,transform:"translateY(4px)"},{opacity:1,transform:"none"}],'
-    '{duration:220,easing:"ease"});}catch(_){}}'
-    'release();'
+    'var run=function(){swap(doc,url);};'
+    'if(document.startViewTransition){'
+    'var vt=document.startViewTransition(run);'
+    'var done=vt.updateCallbackDone||vt.finished;'
+    'done.then(release,release);'
+    'if(vt.finished&&vt.finished.catch)vt.finished.catch(function(){});}'
+    'else{run();release();}'
     '}).catch(function(){clearTimeout(guard);busy=0;pend=null;location.href=url;});}'
     'window.__spanavGo=function(u){'
     'if(sub()||!MAIN.test(u)){location.href=u;return;}go(u,true);};'
     'if(!sub()){'
-    'history.replaceState({u:here()},"");'
+    'history.replaceState({u:(location.pathname.split("/").pop()||"index.html")},"");'
     'addEventListener("popstate",function(e){'
-    'var u=(e.state&&e.state.u)||here();'
+    'var u=(e.state&&e.state.u)||(location.pathname.split("/").pop()||"index.html");'
     'if(MAIN.test(u))go(u,false);else location.reload();});'
     'document.addEventListener("click",function(e){'
     'if(e.defaultPrevented)return;'
     'var a=e.target&&e.target.closest?e.target.closest(".tabbar a.tab"):null;'
     'if(!a)return;var h=a.getAttribute("href");'
     'if(!MAIN.test(h))return;'
-    'e.preventDefault();e.stopPropagation();window.__spanavGo(h);},true);'
-    # 閒置預抓其餘三主頁進快取 → 之後每次切換都是同步命中
-    'var PF=function(){var o=["index.html","stocks.html","perspectives.html","news.html"],i;'
-    'for(i=0;i<o.length;i++){var u=o[i];'
-    'if(u!==here()&&!CACHE[u])getDoc(u).catch(function(){});}};'
-    'if(window.requestIdleCallback)requestIdleCallback(PF);else setTimeout(PF,1200);}'
+    'e.preventDefault();e.stopPropagation();window.__spanavGo(h);},true);}'
     '})();</script>'
 )
 SPANAV_RE = re.compile(r'<script id="spanav">.*?</script>', re.S)
@@ -1090,20 +1079,20 @@ def patch_emptyhide(html):
 # 注入在 keyframes 之後（nav 前），同名 @keyframes 後定義者勝出。
 # 前進(右→)用 vtin/vtout，後退(左→)用 vtin-back/vtout-back（引擎依 data-navdir 切換）。
 # 效能：轉場不做逐幀 blur——動態模糊是行動 GPU 最貴的操作，換頁的掉幀感多半來自它。
-# 防閃爍（跨文件轉場）：交叉淡化是元凶——新頁 opacity 0→1、舊頁 1→0 同時進行，
-# 中間那格兩張快照都半透明，頁面背景（極光漸層）就從縫裡閃一下。根治＝取消
-# crossfade：新頁全程不透明、只滑入（畫面永遠有一層蓋住背景），舊頁在底下淡出。
-# 另把 tabbar 釘死不參與轉場：它的毛玻璃 backdrop-filter 不會進快照，一參與那
-# 段 group 動畫就會「玻璃掉一下再回來」——這也是使用者看到的閃。
+# 轉場：取消滑入，改乾淨淡入（無水平位移）。防閃爍靠「舊頁全程不透明」——
+# 新頁 opacity 0→1 在上層淡入，舊頁在底下維持 opacity 1 當實心背板（vtout=1→1
+# 恆定），所以任何一格都有一層蓋住頁面背景→不露底、不閃。前進/後退共用同一組
+# 淡入（無方向性滑動）。tabbar 釘死不參與轉場（毛玻璃快照會閃）。
 VT_LIQUID = (
     '<style id="vtliquid">'
-    '::view-transition-old(root){animation:vtout .4s cubic-bezier(.4,0,.2,1) both}'
-    '::view-transition-new(root){animation:vtin .42s cubic-bezier(.22,.7,.2,1) both}'
-    # 新頁：opacity 全程 1，只位移 → 不crossfade、不露底
-    '@keyframes vtin{from{transform:translateX(42px)}to{transform:translateX(0)}}'
-    '@keyframes vtout{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(-26px)}}'
-    '@keyframes vtin-back{from{transform:translateX(-42px)}to{transform:translateX(0)}}'
-    '@keyframes vtout-back{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(26px)}}'
+    '::view-transition-old(root){animation:vtout .26s linear both}'
+    '::view-transition-new(root){animation:vtin .26s ease both}'
+    # 新頁淡入；舊頁維持不透明（不淡出→背景永遠被蓋住→不閃）。無 translateX＝無滑入。
+    '@keyframes vtin{from{opacity:0}to{opacity:1}}'
+    '@keyframes vtout{from{opacity:1}to{opacity:1}}'
+    # 引擎 base 在 data-navdir="back" 時把 name 換成 *-back，這裡也定義成同款淡入/恆定
+    '@keyframes vtin-back{from{opacity:0}to{opacity:1}}'
+    '@keyframes vtout-back{from{opacity:1}to{opacity:1}}'
     # 底部分頁列：完全不轉場（引擎 base 有 view-transition-name:tabbar+group動畫，這裡覆蓋掉）
     '::view-transition-group(tabbar){animation:none}'
     '::view-transition-old(tabbar){display:none}'
@@ -1485,6 +1474,20 @@ def patch(html, fname):
             html = html.replace(_o, _n)
             changed = True
 
+    # 1e-8) 個股卡標題「歪掉」修正：h2 是 flex，個股名是裸中文字節（flex item 的
+    # min-width＝1 個中文字寬），列被分數(32px)＋代碼撐爆時名字就被壓成一字一行直排。
+    # flex-wrap:wrap 讓塞不下時整塊換行、white-space:nowrap 擋字內斷行、score 不縮。
+    for _o, _n in (
+        ('h2{font-size:18px;margin:0;display:flex;align-items:center;gap:8px}',
+         'h2{font-size:18px;margin:0;display:flex;flex-wrap:wrap;align-items:center;'
+         'gap:4px 8px;white-space:nowrap;min-width:0}'),
+        ('h2 .score{margin-left:auto;font-size:32px;font-weight:800}',
+         'h2 .score{margin-left:auto;font-size:32px;font-weight:800;flex-shrink:0}'),
+    ):
+        if _o in html:
+            html = html.replace(_o, _n)
+            changed = True
+
     # 1e-1) 已注入的 howto 盒舊文案 → 新聲線（id 守門不回改舊頁，就地遷移）
     _HOWTO_MIG = (
         ('幾十個指標壓成一個 0–100 分，就管一件事：<br>',
@@ -1580,19 +1583,11 @@ def patch(html, fname):
     # 12a2) SPA 式換頁引擎 + 拖曳引擎導頁改走 SPA
     html, sn = patch_spanav(html)
     changed = changed or sn
-    # 導頁改走 SPA，且延遲由 130ms→0：舊版整頁重載才需等膠囊定位再跳（避免閃），
-    # pjax 下換頁無閃、膠囊 CSS transition 自己跑，tap 應即時導頁（比照 Mindrise 0 延遲）。
     _old_nav = 'setTimeout(function(){location.href=order[t];},130);'
     _new_nav = ('setTimeout(function(){(window.__spanavGo||'
-                'function(u){location.href=u;})(order[t]);},0);')
+                'function(u){location.href=u;})(order[t]);},130);')
     if _old_nav in html:
         html = html.replace(_old_nav, _new_nav)
-        changed = True
-    # 遷移：已部署的 __spanavGo 版仍是 130ms → 降為 0
-    _dep_nav = ('setTimeout(function(){(window.__spanavGo||'
-                'function(u){location.href=u;})(order[t]);},130);')
-    if _dep_nav in html:
-        html = html.replace(_dep_nav, _new_nav)
         changed = True
 
     # 12b) 導覽列滑動填滿膠囊（隨 hover 滑動）

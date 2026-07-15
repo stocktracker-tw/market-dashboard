@@ -810,8 +810,12 @@ def patch_striptabdrag(html):
 # 當唯一指示；JS 沒跑（極少數）則保留 .on 靜態底。
 TABTHUMB = (
     '<style id="tabthumbcss">'
+    # 玻璃膠囊色（比照原本的灰白玻璃，非琥珀）：白色頂緣高光漸層＋半透明灰底
+    # ＋柔和落影。因為覆蓋在圖示之上，灰底用半透明（.42）讓圖示透得出來。
     '.tabthumb{position:fixed;z-index:61;pointer-events:none;border-radius:999px;'
-    'background:rgba(201,138,30,.16);'
+    'background:linear-gradient(180deg,rgba(255,255,255,.5),rgba(255,255,255,.12)),'
+    'rgba(198,208,219,.42);'
+    'box-shadow:inset 0 1px 0 rgba(255,255,255,.7),0 2px 10px -3px rgba(90,105,120,.4);'
     'transition:left .26s cubic-bezier(.2,.8,.2,1),top .2s,width .2s,height .2s}'
     '.tabthumb.drag{transition:none}'
     '.tabbar.hasthumb a.tab.on{background:transparent!important}'

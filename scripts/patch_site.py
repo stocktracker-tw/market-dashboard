@@ -736,6 +736,9 @@ BAR_STYLE = (
     '.tabbar .thumb{background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,.05)),'
     'linear-gradient(rgba(195,206,217,.92),rgba(195,206,217,.92))!important;'
     'margin:-1px 0 0 -1px!important;'
+    # 滑動曲線比照 Mindrise 的 lens：帶彈性的 .38s（原引擎 .26s 無彈性）
+    'transition:left .38s cubic-bezier(.2,1.4,.3,1),top .2s ease,'
+    'width .2s ease,height .2s ease,transform .16s,box-shadow .16s!important;'
     'box-shadow:inset 0 1px 0 rgba(255,255,255,.65),'
     '0 2px 10px -2px rgba(90,105,120,.35)!important}'
     '.tabbar{width:min(324px,calc(100vw - 52px))!important;'
@@ -838,35 +841,46 @@ SPANAV_JS = (
     'if(th&&act){var br=bar.getBoundingClientRect(),r=act.getBoundingClientRect();'
     'th.style.width=r.width+"px";th.style.height=r.height+"px";'
     'th.style.top=(r.top-br.top)+"px";th.style.left=(r.left-br.left)+"px";}}'
-    'var busy=0,pend=null;'
+    'var busy=0,pend=null,CACHE={};'
+    'function here(){return location.pathname.split("/").pop()||"index.html";}'
     'function release(){if(!busy)return;busy=0;'
     'if(pend){var q=pend;pend=null;go(q[0],q[1]);}}'
+    # 記憶體文件快取：命中即同步回（重訪瞬間切，體感等同 Mindrise 原地切換）
+    'function getDoc(url){if(CACHE[url])return Promise.resolve(CACHE[url]);'
+    'return fetch(url).then(function(r){if(!r.ok)throw 0;return r.text();})'
+    '.then(function(t){var d=new DOMParser().parseFromString(t,"text/html");'
+    'CACHE[url]=d;return d;});}'
     'function go(url,push){'
     'if(busy){pend=[url,push];return;}busy=1;'
+    'sync(url);'
     'var guard=setTimeout(release,900);'
-    'fetch(url).then(function(r){if(!r.ok)throw 0;return r.text();}).then(function(txt){'
-    'var doc=new DOMParser().parseFromString(txt,"text/html");'
+    'getDoc(url).then(function(doc){clearTimeout(guard);'
     'if(push!==false)history.pushState({u:url},"",url);'
-    'var run=function(){swap(doc,url);'
+    'swap(doc,url);'
     'var w=document.querySelector(".wrap");'
     'if(w&&w.animate){try{w.animate('
     '[{opacity:0,transform:"translateY(4px)"},{opacity:1,transform:"none"}],'
-    '{duration:220,easing:"ease"});}catch(_){}}};'
-    'run();release();'
+    '{duration:220,easing:"ease"});}catch(_){}}'
+    'release();'
     '}).catch(function(){clearTimeout(guard);busy=0;pend=null;location.href=url;});}'
     'window.__spanavGo=function(u){'
     'if(sub()||!MAIN.test(u)){location.href=u;return;}go(u,true);};'
     'if(!sub()){'
-    'history.replaceState({u:(location.pathname.split("/").pop()||"index.html")},"");'
+    'history.replaceState({u:here()},"");'
     'addEventListener("popstate",function(e){'
-    'var u=(e.state&&e.state.u)||(location.pathname.split("/").pop()||"index.html");'
+    'var u=(e.state&&e.state.u)||here();'
     'if(MAIN.test(u))go(u,false);else location.reload();});'
     'document.addEventListener("click",function(e){'
     'if(e.defaultPrevented)return;'
     'var a=e.target&&e.target.closest?e.target.closest(".tabbar a.tab"):null;'
     'if(!a)return;var h=a.getAttribute("href");'
     'if(!MAIN.test(h))return;'
-    'e.preventDefault();e.stopPropagation();window.__spanavGo(h);},true);}'
+    'e.preventDefault();e.stopPropagation();window.__spanavGo(h);},true);'
+    # 閒置預抓其餘三主頁進快取 → 之後每次切換都是同步命中
+    'var PF=function(){var o=["index.html","stocks.html","perspectives.html","news.html"],i;'
+    'for(i=0;i<o.length;i++){var u=o[i];'
+    'if(u!==here()&&!CACHE[u])getDoc(u).catch(function(){});}};'
+    'if(window.requestIdleCallback)requestIdleCallback(PF);else setTimeout(PF,1200);}'
     '})();</script>'
 )
 SPANAV_RE = re.compile(r'<script id="spanav">.*?</script>', re.S)
@@ -1566,11 +1580,19 @@ def patch(html, fname):
     # 12a2) SPA 式換頁引擎 + 拖曳引擎導頁改走 SPA
     html, sn = patch_spanav(html)
     changed = changed or sn
+    # 導頁改走 SPA，且延遲由 130ms→0：舊版整頁重載才需等膠囊定位再跳（避免閃），
+    # pjax 下換頁無閃、膠囊 CSS transition 自己跑，tap 應即時導頁（比照 Mindrise 0 延遲）。
     _old_nav = 'setTimeout(function(){location.href=order[t];},130);'
     _new_nav = ('setTimeout(function(){(window.__spanavGo||'
-                'function(u){location.href=u;})(order[t]);},130);')
+                'function(u){location.href=u;})(order[t]);},0);')
     if _old_nav in html:
         html = html.replace(_old_nav, _new_nav)
+        changed = True
+    # 遷移：已部署的 __spanavGo 版仍是 130ms → 降為 0
+    _dep_nav = ('setTimeout(function(){(window.__spanavGo||'
+                'function(u){location.href=u;})(order[t]);},130);')
+    if _dep_nav in html:
+        html = html.replace(_dep_nav, _new_nav)
         changed = True
 
     # 12b) 導覽列滑動填滿膠囊（隨 hover 滑動）

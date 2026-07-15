@@ -738,12 +738,12 @@ BAR_STYLE = (
     'margin:-1px 0 0 -1px!important;'
     'box-shadow:inset 0 1px 0 rgba(255,255,255,.65),'
     '0 2px 10px -2px rgba(90,105,120,.35)!important}'
-    # 底部膠囊玻璃＝頂欄同款（同漸層底＋同 blur/saturate）→ 兩條 bar 透明度一致
+    # 底部膠囊玻璃＝頂欄（brandbar.scrolled）完全同款：同底色 rgba(245,248,251,.75)，
+    # 且「不」覆蓋 backdrop-filter——讓 maxglass 那條共用規則（.tabbar 與 .brandbar
+    # 都在清單裡）統一給 url(#lglass) blur(16px) saturate(2)，兩條 bar 霧感逐值一致。
     '.tabbar{width:min(324px,calc(100vw - 52px))!important;'
     'box-shadow:0 10px 30px rgba(30,60,100,.14)!important;'
-    'background:linear-gradient(180deg,rgba(255,255,255,.88),rgba(255,255,255,.6))!important;'
-    '-webkit-backdrop-filter:blur(18px) saturate(1.6)!important;'
-    'backdrop-filter:blur(18px) saturate(1.6)!important;'
+    'background:rgba(245,248,251,.75)!important;'
     'border:1px solid #d8e2ec!important}'
     '</style>'
 )

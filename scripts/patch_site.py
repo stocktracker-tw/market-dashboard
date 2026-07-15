@@ -777,7 +777,8 @@ def patch_tabpill(html):
 # --- SPA 式換頁（pjax + 同文件 View Transition，體感對齊 Mindrise） ----------
 # 四個主分頁間的切換不再整頁重載：fetch 下一頁（SW 快取即回）→ 只替換內容區
 # （chrome 白名單保留在 DOM，零閃爍）→ 頁面腳本以 { } 區塊包裹重跑（頂層
-# let/const 不會撞全域）→ 轉場沿用 vtliquid 動畫但改走 document.startViewTransition。
+# let/const 不會撞全域）→ 換頁比照 Mindrise：內容區淡入（opacity+translateY 4px、
+# 220ms），頂欄/工具列不動，不做滑動/縮放/整頁轉場。
 # 直接輸入網址仍是完整頁面；stock/、etf/ 子頁維持一般導頁。
 SPANAV_JS = (
     '<script id="spanav">(function(){'
@@ -846,13 +847,12 @@ SPANAV_JS = (
     'fetch(url).then(function(r){if(!r.ok)throw 0;return r.text();}).then(function(txt){'
     'var doc=new DOMParser().parseFromString(txt,"text/html");'
     'if(push!==false)history.pushState({u:url},"",url);'
-    'var run=function(){swap(doc,url);};'
-    'if(document.startViewTransition){'
-    'var vt=document.startViewTransition(run);'
-    'var done=vt.updateCallbackDone||vt.finished;'
-    'done.then(release,release);'
-    'if(vt.finished&&vt.finished.catch)vt.finished.catch(function(){});}'
-    'else{run();release();}'
+    'var run=function(){swap(doc,url);'
+    'var w=document.querySelector(".wrap");'
+    'if(w&&w.animate){try{w.animate('
+    '[{opacity:0,transform:"translateY(4px)"},{opacity:1,transform:"none"}],'
+    '{duration:220,easing:"ease"});}catch(_){}}};'
+    'run();release();'
     '}).catch(function(){clearTimeout(guard);busy=0;pend=null;location.href=url;});}'
     'window.__spanavGo=function(u){'
     'if(sub()||!MAIN.test(u)){location.href=u;return;}go(u,true);};'

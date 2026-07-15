@@ -1076,27 +1076,17 @@ def patch_emptyhide(html):
 
 
 # --- 切換分頁的液態轉場（覆寫 View Transition keyframes，縮放+滑動）----------
-# 注入在 keyframes 之後（nav 前），同名 @keyframes 後定義者勝出。
-# 前進(右→)用 vtin/vtout，後退(左→)用 vtin-back/vtout-back（引擎依 data-navdir 切換）。
-# 效能：轉場不做逐幀 blur——動態模糊是行動 GPU 最貴的操作，換頁的掉幀感多半來自它。
-# 轉場：取消滑入，改乾淨淡入（無水平位移）。防閃爍靠「舊頁全程不透明」——
-# 新頁 opacity 0→1 在上層淡入，舊頁在底下維持 opacity 1 當實心背板（vtout=1→1
-# 恆定），所以任何一格都有一層蓋住頁面背景→不露底、不閃。前進/後退共用同一組
-# 淡入（無方向性滑動）。tabbar 釘死不參與轉場（毛玻璃快照會閃）。
+# 「不要特效」：完全關閉換頁轉場。@view-transition{navigation:none} 覆蓋引擎 base 的
+# navigation:auto（同類 at-rule 後定義者勝），跨文件轉場整個不建立→即時切換、bar 不
+# 因轉場位移。保險：萬一某環境仍建立轉場，把 root/tabbar 的動畫全部關成即時。
 VT_LIQUID = (
     '<style id="vtliquid">'
-    '::view-transition-old(root){animation:vtout .26s linear both}'
-    '::view-transition-new(root){animation:vtin .26s ease both}'
-    # 新頁淡入；舊頁維持不透明（不淡出→背景永遠被蓋住→不閃）。無 translateX＝無滑入。
-    '@keyframes vtin{from{opacity:0}to{opacity:1}}'
-    '@keyframes vtout{from{opacity:1}to{opacity:1}}'
-    # 引擎 base 在 data-navdir="back" 時把 name 換成 *-back，這裡也定義成同款淡入/恆定
-    '@keyframes vtin-back{from{opacity:0}to{opacity:1}}'
-    '@keyframes vtout-back{from{opacity:1}to{opacity:1}}'
-    # 底部分頁列：完全不轉場（引擎 base 有 view-transition-name:tabbar+group動畫，這裡覆蓋掉）
-    '::view-transition-group(tabbar){animation:none}'
-    '::view-transition-old(tabbar){display:none}'
-    '::view-transition-new(tabbar){animation:none;opacity:1}'
+    '@view-transition{navigation:none}'
+    '::view-transition-group(*){animation:none!important}'
+    '::view-transition-old(root),::view-transition-new(root)'
+    '{animation:none!important;mix-blend-mode:normal!important}'
+    '::view-transition-old(tabbar){display:none!important}'
+    '::view-transition-new(tabbar){animation:none!important;opacity:1!important}'
     '</style>'
 )
 VTLIQUID_RE = re.compile(r'<style id="vtliquid">.*?</style>', re.S)

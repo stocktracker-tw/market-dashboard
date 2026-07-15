@@ -802,22 +802,26 @@ def patch_striptabdrag(html):
     return new, (new != html)
 
 
-# --- 懸浮可拖曳膠囊「獨立覆蓋層」版：不放進分頁列裡，故不會破壞其毛玻璃 --------
-# 關鍵：膠囊是 document.body 的子元素、position:fixed、pointer-events:none，覆蓋在
-# 分頁列「之上」（與分頁列同為 fixed，座標系一致→對得準）。因為它不是分頁列的
-# 子元素，iOS 上就不會讓分頁列的 backdrop-filter 失效。拖曳事件掛在分頁列上、
-# 膠囊只做視覺跟隨；放開落在哪個分頁就整頁導過去。JS 在時關掉 .on 靜態底、由膠囊
-# 當唯一指示；JS 沒跑（極少數）則保留 .on 靜態底。
+# --- 懸浮可拖曳膠囊（列內版，但去除會破壞毛玻璃的合成觸發）--------------------
+# 要「圖示亮 + 完整玻璃膠囊」只能把膠囊放回圖示「後面」（列內、z-index:0，圖示 z:1
+# 蓋在上面）。當初破壞毛玻璃的不是「列內子元素」本身（tab 連結本來就是有 z-index
+# 的定位子元素、玻璃照樣正常），而是膠囊的 transform 過場＋拖曳時的 backdrop-filter
+# 這兩個「合成觸發」，加上 SPA 讓列跨頁不重建而永不恢復。現在 SPA 已關（整頁重載）、
+# 且此膠囊只用 left/top/width/height 過場（不含 transform、不含 backdrop-filter、
+# 無 will-change），不會被提升為合成層→毛玻璃應保持。用獨立 class .tabcap 避開引擎
+# 舊 .thumb 樣式（那份含 transform 過場）。
 TABTHUMB = (
     '<style id="tabthumbcss">'
-    # 玻璃膠囊色（比照原本的灰白玻璃，非琥珀）：白色頂緣高光漸層＋半透明灰底
-    # ＋柔和落影。因為覆蓋在圖示之上，灰底用半透明（.42）讓圖示透得出來。
-    '.tabthumb{position:fixed;z-index:61;pointer-events:none;border-radius:999px;'
-    'background:linear-gradient(180deg,rgba(255,255,255,.5),rgba(255,255,255,.12)),'
-    'rgba(198,208,219,.42);'
-    'box-shadow:inset 0 1px 0 rgba(255,255,255,.7),0 2px 10px -3px rgba(90,105,120,.4);'
+    # 灰白玻璃膠囊，放在圖示後面（z-index:0）→ 圖示全亮蓋在上面；不透明灰底沒關係。
+    '.tabbar .tabcap{position:absolute;z-index:0;top:6px;left:6px;pointer-events:none;'
+    'border-radius:999px;'
+    'background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,.05)),'
+    'rgba(195,206,217,.92);'
+    'box-shadow:inset 0 1px 0 rgba(255,255,255,.65),0 2px 10px -2px rgba(90,105,120,.35);'
     'transition:left .26s cubic-bezier(.2,.8,.2,1),top .2s,width .2s,height .2s}'
-    '.tabthumb.drag{transition:none}'
+    '.tabbar .tabcap.drag{transition:none}'
+    # 圖示確保在膠囊之上、且選取時不再另加靜態底（由膠囊表示）
+    '.tabbar a.tab{position:relative;z-index:1}'
     '.tabbar.hasthumb a.tab.on{background:transparent!important}'
     '</style>'
     '<script id="tabthumb">(function(){'
@@ -829,18 +833,20 @@ TABTHUMB = (
     'var bar=document.querySelector(".tabbar");if(!bar)return;'
     'var tabs=[].slice.call(bar.querySelectorAll("a.tab"));if(tabs.length<2)return;'
     'bar.classList.add("hasthumb");'
-    'var thumb=document.createElement("span");thumb.className="tabthumb";document.body.appendChild(thumb);'
+    'var cap=document.createElement("span");cap.className="tabcap";bar.insertBefore(cap,bar.firstChild);'
     'var cur=curIdx(),over=cur,dragging=false;'
-    'function place(i,anim){var r=tabs[i].getBoundingClientRect();'
-    'thumb.classList.toggle("drag",!anim);'
-    'thumb.style.width=r.width+"px";thumb.style.height=r.height+"px";'
-    'thumb.style.top=r.top+"px";thumb.style.left=r.left+"px";}'
+    'function place(i,anim){var br=bar.getBoundingClientRect(),r=tabs[i].getBoundingClientRect();'
+    'cap.classList.toggle("drag",!anim);'
+    'cap.style.width=r.width+"px";cap.style.height=r.height+"px";'
+    'cap.style.top=(r.top-br.top)+"px";cap.style.left=(r.left-br.left)+"px";}'
     'function nearest(x){var best=0,bd=1e9;for(var k=0;k<tabs.length;k++){'
     'var r=tabs[k].getBoundingClientRect(),c=r.left+r.width/2,d=Math.abs(x-c);'
     'if(d<bd){bd=d;best=k;}}return best;}'
-    'function follow(x){var r0=tabs[0].getBoundingClientRect(),rn=tabs[tabs.length-1].getBoundingClientRect();'
-    'var w=thumb.offsetWidth;var L=Math.max(r0.left,Math.min(rn.left,x-w/2));'
-    'thumb.classList.add("drag");thumb.style.left=L+"px";'
+    'function follow(x){var br=bar.getBoundingClientRect(),w=cap.offsetWidth;'
+    'var lo=tabs[0].getBoundingClientRect().left-br.left;'
+    'var hi=tabs[tabs.length-1].getBoundingClientRect().left-br.left;'
+    'var L=Math.max(lo,Math.min(hi,x-br.left-w/2));'
+    'cap.classList.add("drag");cap.style.left=L+"px";'
     'var o=nearest(x);if(o!==over)over=o;}'
     'requestAnimationFrame(function(){place(cur,false);});'
     'function down(x,e){dragging=true;over=nearest(x);place(over,true);}'

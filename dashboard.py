@@ -351,7 +351,10 @@ def nav(active="", include_css=False):
     items = "".join('<a class="tab%s" href="%s"><span class="ic">%s</span><span>%s</span></a>'
                     % (" on" if k == active else "", href, ic, lb) for href, k, ic, lb in tabs)
     css = (_NAV_CSS + GLASS_CSS) if include_css else ""
-    return css + GLASS_SVG + '<nav class="tabbar">' + items + '</nav>' + SWIPE_JS + ZOOM_JS
+    # 不再輸出 SWIPE_JS 拖曳膠囊：它在分頁列插入會合成的 .thumb 子元素，iOS 上會讓
+    # 分頁列的 backdrop-filter 毛玻璃失效（換頁後消失、切回也沒有）。分頁列改為靜態
+    # <a href> 導頁（像頂欄一樣穩定），選取狀態由 .on 樣式表示。
+    return css + GLASS_SVG + '<nav class="tabbar">' + items + '</nav>' + ZOOM_JS
 
 
 def render(result: Dict, indicators: List[Dict], score_history: List, meta: Dict,

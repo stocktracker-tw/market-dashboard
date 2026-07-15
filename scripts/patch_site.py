@@ -802,6 +802,78 @@ def patch_striptabdrag(html):
     return new, (new != html)
 
 
+# --- 懸浮可拖曳膠囊「獨立覆蓋層」版：不放進分頁列裡，故不會破壞其毛玻璃 --------
+# 關鍵：膠囊是 document.body 的子元素、position:fixed、pointer-events:none，覆蓋在
+# 分頁列「之上」（與分頁列同為 fixed，座標系一致→對得準）。因為它不是分頁列的
+# 子元素，iOS 上就不會讓分頁列的 backdrop-filter 失效。拖曳事件掛在分頁列上、
+# 膠囊只做視覺跟隨；放開落在哪個分頁就整頁導過去。JS 在時關掉 .on 靜態底、由膠囊
+# 當唯一指示；JS 沒跑（極少數）則保留 .on 靜態底。
+TABTHUMB = (
+    '<style id="tabthumbcss">'
+    '.tabthumb{position:fixed;z-index:61;pointer-events:none;border-radius:999px;'
+    'background:rgba(201,138,30,.16);'
+    'transition:left .26s cubic-bezier(.2,.8,.2,1),top .2s,width .2s,height .2s}'
+    '.tabthumb.drag{transition:none}'
+    '.tabbar.hasthumb a.tab.on{background:transparent!important}'
+    '</style>'
+    '<script id="tabthumb">(function(){'
+    'if(window.__tabthumb)return;window.__tabthumb=1;'
+    'var order=["index.html","stocks.html","perspectives.html","news.html"];'
+    'function curIdx(){var f=(location.pathname.split("/").pop()||"").toLowerCase();'
+    'return f==="stocks.html"?1:f==="perspectives.html"?2:f==="news.html"?3:0;}'
+    'function start(){'
+    'var bar=document.querySelector(".tabbar");if(!bar)return;'
+    'var tabs=[].slice.call(bar.querySelectorAll("a.tab"));if(tabs.length<2)return;'
+    'bar.classList.add("hasthumb");'
+    'var thumb=document.createElement("span");thumb.className="tabthumb";document.body.appendChild(thumb);'
+    'var cur=curIdx(),over=cur,dragging=false;'
+    'function place(i,anim){var r=tabs[i].getBoundingClientRect();'
+    'thumb.classList.toggle("drag",!anim);'
+    'thumb.style.width=r.width+"px";thumb.style.height=r.height+"px";'
+    'thumb.style.top=r.top+"px";thumb.style.left=r.left+"px";}'
+    'function nearest(x){var best=0,bd=1e9;for(var k=0;k<tabs.length;k++){'
+    'var r=tabs[k].getBoundingClientRect(),c=r.left+r.width/2,d=Math.abs(x-c);'
+    'if(d<bd){bd=d;best=k;}}return best;}'
+    'function follow(x){var r0=tabs[0].getBoundingClientRect(),rn=tabs[tabs.length-1].getBoundingClientRect();'
+    'var w=thumb.offsetWidth;var L=Math.max(r0.left,Math.min(rn.left,x-w/2));'
+    'thumb.classList.add("drag");thumb.style.left=L+"px";'
+    'var o=nearest(x);if(o!==over)over=o;}'
+    'requestAnimationFrame(function(){place(cur,false);});'
+    'function down(x,e){dragging=true;over=nearest(x);place(over,true);}'
+    'function move(x,e){if(!dragging)return;follow(x);if(e.cancelable)e.preventDefault();}'
+    'function up(){if(!dragging)return;dragging=false;var t=over;place(t,true);'
+    'if(t!==curIdx())setTimeout(function(){location.href=order[t];},130);}'
+    'if(window.PointerEvent){'
+    'bar.addEventListener("pointerdown",function(e){if(e.button&&e.button!==0)return;'
+    'down(e.clientX,e);try{bar.setPointerCapture(e.pointerId);}catch(_){}});'
+    'bar.addEventListener("pointermove",function(e){move(e.clientX,e);});'
+    'bar.addEventListener("pointerup",up);bar.addEventListener("pointercancel",up);'
+    '}else{'
+    'bar.addEventListener("touchstart",function(e){if(e.touches.length===1)down(e.touches[0].clientX,e);},{passive:true});'
+    'bar.addEventListener("touchmove",function(e){if(e.touches.length===1)move(e.touches[0].clientX,e);},{passive:false});'
+    'bar.addEventListener("touchend",up);bar.addEventListener("touchcancel",up);}'
+    'for(var k=0;k<tabs.length;k++)tabs[k].addEventListener("click",function(e){e.preventDefault();});'
+    'addEventListener("resize",function(){place(curIdx(),false);});'
+    'addEventListener("pageshow",function(){place(curIdx(),false);});'
+    '}'
+    'if(document.readyState!=="loading")start();else addEventListener("DOMContentLoaded",start);'
+    '})();</script>'
+)
+TABTHUMB_RE = re.compile(r'<style id="tabthumbcss">.*?</script>', re.S)
+
+
+def patch_tabthumb(html):
+    """把可拖曳膠囊做成 body 層的獨立覆蓋層（不進分頁列→不破壞毛玻璃）。"""
+    if '<nav class="tabbar">' not in html or '</body>' not in html:
+        return html, False
+    if TABTHUMB in html:
+        return html, False
+    orig = html
+    html = TABTHUMB_RE.sub('', html)
+    html = html.replace('</body>', TABTHUMB + '</body>', 1)
+    return html, (html != orig)
+
+
 # --- SPA 式換頁（pjax + 同文件 View Transition，體感對齊 Mindrise） ----------
 # 四個主分頁間的切換不再整頁重載：fetch 下一頁（SW 快取即回）→ 只替換內容區
 # （chrome 白名單保留在 DOM，零閃爍）→ 頁面腳本以 { } 區塊包裹重跑（頂層
@@ -1597,6 +1669,10 @@ def patch(html, fname):
     changed = changed or sn
     html, std = patch_striptabdrag(html)
     changed = changed or std
+
+    # 12a3) 可拖曳膠囊改用 body 層獨立覆蓋層（不進分頁列→毛玻璃不受影響）
+    html, tt = patch_tabthumb(html)
+    changed = changed or tt
 
     # 12b) 導覽列滑動填滿膠囊（隨 hover 滑動）
     html, tp = patch_tabpill(html)

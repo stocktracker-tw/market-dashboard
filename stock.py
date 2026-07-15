@@ -930,8 +930,8 @@ h1{font-size:25px;margin:0 0 3px}.muted{color:#5f7183;font-size:13.5px}
 .cardgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:16px;margin-bottom:8px}
 @media(max-width:560px){.cardgrid{grid-template-columns:1fr}.wrap{padding:20px 14px 60px}}
 .card{background:#ffffff;border:1px solid #dbe4ee;border-radius:16px;padding:18px 22px}
-h2{font-size:18px;margin:0;display:flex;align-items:center;gap:8px}
-h2 .score{margin-left:auto;font-size:32px;font-weight:800}
+h2{font-size:18px;margin:0;display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;white-space:nowrap;min-width:0}
+h2 .score{margin-left:auto;font-size:32px;font-weight:800;flex-shrink:0}
 .row{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #e2e9f2;font-size:14.5px}
 .green{color:#28c76f}.amber{color:#f6a821}.red{color:#ea5455}a{color:#2478c8}
 .searchwrap{position:sticky;top:0;z-index:6;background:rgba(245,248,251,.92);padding:12px 0 8px}

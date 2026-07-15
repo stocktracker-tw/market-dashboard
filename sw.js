@@ -1,5 +1,5 @@
 /* 市場儀表板 PWA service worker：快取優先、背景更新、離線退回快取。 */
-const C = "mkt-h9f2b5ac8";
+const C = "mkt-hc01f7551";
 const ASSETS = ["index.html", "stocks.html", "perspectives.html", "news.html", "backtest.html", "rec_backtest.html", "threads.html", "stock/index.html", "etf/index.html", "universe.json", "taifex.json", "manifest.webmanifest", "icon-192.png", "icon-512.png", "icon-180.png", "icon-192-maskable.png", "icon-512-maskable.png"];
 
 self.addEventListener("install", (e) => {

@@ -729,7 +729,8 @@ BAR_STYLE = (
     # liquid glass 不變；選中＝線條圖示上色（不再上移 1px：icon 要正對膠囊中心）
     '.tabbar a.tab.on .ic,.tabbar a.tab.hl .ic'
     '{color:#c98a1e!important;opacity:1;filter:none!important}'
-    '.tabbar a.tab.on{background:transparent!important}'   # 靜態背景關掉（膠囊由 .thumb 呈現）
+    # 選取指示：琥珀淡底膠囊（拖曳 .thumb 已移除，改靜態底）
+    '.tabbar a.tab.on{background:rgba(201,138,30,.14)!important;border-radius:999px!important}'
     # 滑動膠囊：與 Mindrise 同構——近不透明（.92）淺灰底 + 白色高光漸層，觀感恆定
     # 負 margin：引擎 JS 用 rect 相減定位卻沒扣 bar 的 1px border（absolute 以邊框
     # 內側為基準），膠囊會右下各偏 1px——這裡抵銷，讓膠囊正對分頁
@@ -779,6 +780,25 @@ TABPILL_RE = re.compile(r'<script id="tabpill">.*?</script>', re.S)
 def patch_tabpill(html):
     """移除先前注入的自製滑動膠囊 script（改用引擎內建 thumb）。"""
     new = TABPILL_RE.sub('', html)
+    return new, (new != html)
+
+
+# --- 拆掉引擎的分頁列拖曳膠囊（SWIPE_JS）------------------------------------
+# 為什麼：它在分頁列裡動態插入一個會合成的 .thumb 子元素、還攔截 tab 點擊
+# （preventDefault）。iOS WebKit 上「backdrop-filter 元素若含被提升為合成層的
+# 子元素」毛玻璃會失效——這就是分頁列初始有霧、JS 一跑（或換頁後）霧就消失、
+# 頂欄(靜態、無此腳本)卻一直正常的原因。拿掉它→分頁列變回像頂欄的靜態元素，
+# 玻璃穩定；選取狀態改由 .on 的琥珀色圖示表示；點擊走原生 <a href> 導頁。
+# （也符合「不要特效」：滑動膠囊本身就是特效。）
+TABDRAG_RE = re.compile(
+    r'<script>(?:(?!</script>)[\s\S])*?window\.__tabdrag(?:(?!</script>)[\s\S])*?</script>')
+
+
+def patch_striptabdrag(html):
+    # 選取指示已由 BAR_STYLE 的 .on 琥珀淡底處理；這裡只負責移除拖曳腳本本身。
+    if 'window.__tabdrag' not in html:
+        return html, False
+    new = TABDRAG_RE.sub('', html)
     return new, (new != html)
 
 
@@ -881,15 +901,11 @@ SPANAV_RE = re.compile(r'<script id="spanav">.*?</script>', re.S)
 
 
 def patch_spanav(html):
-    """注入 SPA 換頁引擎（tabbar 前）。移除舊版再重插（冪等、可升級）。"""
-    if '<nav class="tabbar">' not in html:
-        return html, False
-    if SPANAV_JS in html:
-        return html, False
-    orig = html
-    html = SPANAV_RE.sub('', html)
-    html = html.replace('<nav class="tabbar">', SPANAV_JS + '<nav class="tabbar">', 1)
-    return html, (html != orig)
+    """停用 SPA 換頁：改回整頁重載。SPA 會把 .tabbar 保留在 DOM 跨頁不重建，
+    一旦 iOS 上它的 backdrop-filter 失效就永遠不會恢復（換頁後霧消失、切回也沒有）。
+    整頁重載讓分頁列每次重新產生→毛玻璃每頁都在。此函式改為「移除已注入的 spanav」。"""
+    new = SPANAV_RE.sub('', html)
+    return new, (new != html)
 
 
 # --- 台股配色：漲跌「紅漲綠跌」+ 進場分數用「極光冷色」漸進色帶 -------------
@@ -1575,15 +1591,12 @@ def patch(html, fname):
     html, bg = patch_barglass(html)
     changed = changed or bg
 
-    # 12a2) SPA 式換頁引擎 + 拖曳引擎導頁改走 SPA
+    # 12a2) 停用 SPA 換頁（移除已注入的 spanav）→ 改回整頁重載，分頁列每頁重建、
+    # 玻璃穩定；並拆掉引擎的拖曳膠囊（合成子元素會讓 iOS backdrop-filter 失效）。
     html, sn = patch_spanav(html)
     changed = changed or sn
-    _old_nav = 'setTimeout(function(){location.href=order[t];},130);'
-    _new_nav = ('setTimeout(function(){(window.__spanavGo||'
-                'function(u){location.href=u;})(order[t]);},130);')
-    if _old_nav in html:
-        html = html.replace(_old_nav, _new_nav)
-        changed = True
+    html, std = patch_striptabdrag(html)
+    changed = changed or std
 
     # 12b) 導覽列滑動填滿膠囊（隨 hover 滑動）
     html, tp = patch_tabpill(html)

@@ -738,15 +738,14 @@ BAR_STYLE = (
     'margin:-1px 0 0 -1px!important;'
     'box-shadow:inset 0 1px 0 rgba(255,255,255,.65),'
     '0 2px 10px -2px rgba(90,105,120,.35)!important}'
-    # 底部膠囊玻璃＝頂欄（brandbar.scrolled）完全同款：同底色 rgba(245,248,251,.75)，
-    # backdrop-filter 交給 maxglass 共用規則統一。
-    # ★ iOS：backdrop-filter 需要元素被提升為合成層才會生效；transform:translateX(-50%)
-    #   正好強制合成→毛玻璃在每頁都作用（實測使用者錄影：含 transform 時四頁皆起霧）。
-    #   之前誤把 transform 當兇手拿掉，反而讓多數頁少了合成層、玻璃失效（只剩內容剛好
-    #   自帶合成層的首頁還有霧）。故保留 transform 置中，並加 view-transition-name:none。
+    # 底部膠囊玻璃＝頂欄（brandbar）完全同款：同底色 .75、backdrop-filter 交給 maxglass。
+    # ★ iOS 真兇（A/B 實證）：頂欄 brandbar 用 left:0;right:0（無 transform）→ 毛玻璃正常；
+    #   分頁列用 transform:translateX(-50%) → 毛玻璃失效變透明（WebKit 已知 bug：元素帶
+    #   transform 會讓 backdrop-filter 不作用）。解法＝比照頂欄，改 left:0;right:0;margin:auto
+    #   置中（不靠 transform），並清掉 view-transition-name（同樣會破壞 backdrop）。
     '.tabbar{width:min(324px,calc(100vw - 52px))!important;'
-    'left:50%!important;right:auto!important;transform:translateX(-50%)!important;'
-    'margin-left:0!important;margin-right:0!important;'
+    'left:0!important;right:0!important;transform:none!important;'
+    'margin-left:auto!important;margin-right:auto!important;'
     'view-transition-name:none!important;'
     'box-shadow:0 10px 30px rgba(30,60,100,.14)!important;'
     'background:rgba(245,248,251,.75)!important;'

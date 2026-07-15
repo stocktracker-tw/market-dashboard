@@ -243,9 +243,9 @@ ZOOM_JS = ('<script id="zoomlock">(function(){if(window.__zoomlock)return;'
 
 _NAV_CSS = """<style>
 /* iOS 26 風格：置中浮動的玻璃膠囊（外觀玻璃由 GLASS_CSS 提供） */
-/* 置中不靠 transform：iOS 上 backdrop-filter 遇 transform 會失效（毛玻璃變不透明白塊）。
-   改 left:0;right:0;margin:auto 置中，玻璃才能在 iOS 正常起霧、與頂欄一致。 */
-.tabbar{position:fixed;left:0;right:0;margin-left:auto;margin-right:auto;bottom:calc(11px + env(safe-area-inset-bottom,0px));
+/* transform:translateX(-50%) 置中：iOS 上這個 transform 同時把分頁列提升為合成層，
+   backdrop-filter 毛玻璃才會作用（實測拿掉 transform 反而使多數頁玻璃失效）。 */
+.tabbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(11px + env(safe-area-inset-bottom,0px));
  z-index:60;display:flex;gap:5px;padding:6px;width:min(340px,calc(100vw - 36px));box-sizing:border-box;touch-action:none}
 .tabbar a.tab{position:relative;z-index:1;flex:1 1 0;min-width:0;box-sizing:border-box;
  display:flex;flex-direction:column;align-items:center;gap:2px;

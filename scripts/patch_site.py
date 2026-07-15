@@ -740,8 +740,15 @@ BAR_STYLE = (
     '0 2px 10px -2px rgba(90,105,120,.35)!important}'
     # 底部膠囊玻璃＝頂欄（brandbar.scrolled）完全同款：同底色 rgba(245,248,251,.75)，
     # 且「不」覆蓋 backdrop-filter——讓 maxglass 那條共用規則（.tabbar 與 .brandbar
-    # 都在清單裡）統一給 url(#lglass) blur(16px) saturate(2)，兩條 bar 霧感逐值一致。
+    # 都在清單裡）統一給玻璃模糊，兩條 bar 霧感逐值一致。
+    # ★ iOS 關鍵修正：Safari 上 backdrop-filter 遇到「元素自身有 transform 或
+    #   view-transition-name」會靜默失效 → 只剩底色 .75 看起來像不透明白塊（頂欄無
+    #   transform 所以正常起霧，這就是兩條 bar 看起來不一樣的真正原因）。改用
+    #   left:0;right:0;margin:auto 置中（不靠 transform），並清掉 view-transition-name。
     '.tabbar{width:min(324px,calc(100vw - 52px))!important;'
+    'left:0!important;right:0!important;transform:none!important;'
+    'margin-left:auto!important;margin-right:auto!important;'
+    'view-transition-name:none!important;'
     'box-shadow:0 10px 30px rgba(30,60,100,.14)!important;'
     'background:rgba(245,248,251,.75)!important;'
     'border:1px solid #d8e2ec!important}'

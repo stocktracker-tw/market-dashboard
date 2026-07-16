@@ -807,7 +807,10 @@ def patch_striptabdrag(html):
 TABTHUMB = (
     '<style id="tabthumbcss">'
     # 灰白玻璃膠囊，放在圖示後面（z-index:0）→ 圖示全亮蓋在上面；不透明灰底沒關係。
+    # margin:-1px：JS 用 rect 相減定位、但 absolute 以「邊框內側」為基準，
+    # 不補償會右下各偏 1px（分頁列有 1px border）→ 看起來沒置中
     '.tabbar .tabcap{position:absolute;z-index:0;top:6px;left:6px;pointer-events:none;'
+    'margin:-1px 0 0 -1px;'
     'border-radius:999px;'
     'background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,.05)),'
     'rgba(195,206,217,.92);'

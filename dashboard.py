@@ -175,62 +175,6 @@ def with_pwa(html: str) -> str:
     return html.replace("</head>", PWA_HEAD + "</head>", 1)
 
 
-# 在分頁列上「按住 icon → 浮起的玻璃膠囊跟著手指滑動 → 放開在哪個 icon 就去那頁」。
-# 純拖曳互動；放開後用 View Transitions 做方向感滑入（iOS Safari 不支援轉場則直接切頁）。
-SWIPE_JS = """<script>
-(function(){
- if(window.__tabdrag)return;window.__tabdrag=1;
- var order=["index.html","stocks.html","perspectives.html","news.html"];
- function curIdx(){var f=(location.pathname.split("/").pop()||"").toLowerCase();
-  if(f==="stocks.html")return 1;if(f==="perspectives.html")return 2;if(f==="news.html")return 3;return 0;}
- function start(){
-  var bar=document.querySelector(".tabbar");if(!bar)return;
-  var tabs=[].slice.call(bar.querySelectorAll("a.tab"));if(tabs.length<2)return;
-  bar.classList.add("js");
-  var thumb=document.createElement("span");thumb.className="thumb";bar.insertBefore(thumb,bar.firstChild);
-  var cur=curIdx(),over=cur,dragging=false;
-  function hl(i){for(var k=0;k<tabs.length;k++)tabs[k].classList.toggle("hl",k===i);}
-  function place(i,anim){var br=bar.getBoundingClientRect(),r=tabs[i].getBoundingClientRect();
-   thumb.style.transition=anim?"":"none";
-   thumb.style.width=r.width+"px";thumb.style.height=r.height+"px";
-   thumb.style.top=(r.top-br.top)+"px";thumb.style.left=(r.left-br.left)+"px";}
-  function nearest(x){var best=0,bd=1e9;for(var k=0;k<tabs.length;k++){
-   var r=tabs[k].getBoundingClientRect(),c=r.left+r.width/2,d=Math.abs(x-c);
-   if(d<bd){bd=d;best=k;}}return best;}
-  function follow(x){var br=bar.getBoundingClientRect(),w=thumb.offsetWidth;
-   var lo=tabs[0].getBoundingClientRect().left-br.left;
-   var hi=tabs[tabs.length-1].getBoundingClientRect().left-br.left;
-   var L=Math.max(lo,Math.min(hi,x-br.left-w/2));
-   thumb.style.transition="none";thumb.style.left=L+"px";
-   var o=nearest(x);if(o!==over){over=o;hl(o);}}
-  requestAnimationFrame(function(){place(cur,false);hl(cur);});
-  function down(x,e){dragging=true;over=nearest(x);bar.classList.add("dragging");
-   thumb.style.transition="";place(over,true);hl(over);
-   if(e.cancelable)e.preventDefault();}
-  function move(x,e){if(!dragging)return;follow(x);if(e.cancelable)e.preventDefault();}
-  function up(){if(!dragging)return;dragging=false;bar.classList.remove("dragging");
-   var t=over;place(t,true);hl(t);
-   if(t!==curIdx()){try{sessionStorage.setItem("navdir",t>curIdx()?"fwd":"back");}catch(_){}
-    setTimeout(function(){location.href=order[t];},130);}}
-  if(window.PointerEvent){
-   bar.addEventListener("pointerdown",function(e){if(e.button&&e.button!==0)return;
-    down(e.clientX,e);try{bar.setPointerCapture(e.pointerId);}catch(_){}});
-   bar.addEventListener("pointermove",function(e){move(e.clientX,e);});
-   bar.addEventListener("pointerup",up);bar.addEventListener("pointercancel",up);
-  }else{
-   bar.addEventListener("touchstart",function(e){if(e.touches.length===1)down(e.touches[0].clientX,e);},{passive:false});
-   bar.addEventListener("touchmove",function(e){if(e.touches.length===1)move(e.touches[0].clientX,e);},{passive:false});
-   bar.addEventListener("touchend",up);bar.addEventListener("touchcancel",up);
-  }
-  for(var k=0;k<tabs.length;k++)tabs[k].addEventListener("click",function(e){e.preventDefault();});
-  addEventListener("resize",function(){place(curIdx(),false);});
- }
- addEventListener("pagereveal",function(e){var d=null;
-  try{d=sessionStorage.getItem("navdir");sessionStorage.removeItem("navdir");}catch(_){}
-  if(d==="back")document.documentElement.setAttribute("data-navdir","back");});
- if(document.readyState!=="loading")start();else addEventListener("DOMContentLoaded",start);
-})();
-</script>"""
 
 # 縮放鎖：網頁版 iOS Safari 無視 user-scalable=no，捏縮讓 fixed 分頁列位移且保持。
 # gesturestart/gesturechange preventDefault 實際擋下；補丁層有同款（id 守門互不重複）。
@@ -254,15 +198,8 @@ _NAV_CSS = """<style>
 .tabbar a.tab .ic{font-size:20px;line-height:1}
 .tabbar a.tab.on,.tabbar a.tab.hl{color:#fff}
 .tabbar a.tab.on .ic,.tabbar a.tab.hl .ic{filter:drop-shadow(0 2px 10px rgba(232,168,60,.6))}
-/* 無 JS 時用靜態高光；有 JS 時改用可拖曳的玻璃膠囊 .thumb */
+/* 選取分頁靜態高光（分頁列已是靜態；補丁層另加可拖曳玻璃膠囊 .tabcap） */
 .tabbar a.tab.on{background:rgba(232,168,60,.22)}
-.tabbar.js a.tab.on{background:transparent}
-.tabbar .thumb{position:absolute;top:6px;left:6px;z-index:0;pointer-events:none;border-radius:999px;
- background:rgba(232,168,60,.22);
- transition:left .26s cubic-bezier(.2,.8,.2,1),top .2s,width .2s,height .2s,transform .16s,box-shadow .16s,background .16s}
-.tabbar.dragging .thumb{transform:scale(1.12);background:rgba(232,168,60,.34);
- -webkit-backdrop-filter:blur(16px) saturate(1.9);backdrop-filter:blur(16px) saturate(1.9);
- box-shadow:0 12px 30px rgba(0,0,0,.55), inset 0 1px 0.5px rgba(255,255,255,.6), 0 0 0 1px rgba(255,255,255,.22)}
 .wrap{padding-top:calc(16px + env(safe-area-inset-top,0px))!important;padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))!important}
 /* 切換分頁：不做任何特效（navigation:none）→ 即時切換，分頁列不因轉場位移。 */
 @view-transition{navigation:none}

@@ -730,15 +730,9 @@ BAR_STYLE = (
     '.tabbar a.tab.on .ic,.tabbar a.tab.hl .ic'
     '{color:#c98a1e!important;opacity:1;filter:none!important}'
     # 選取指示：琥珀淡底膠囊（拖曳 .thumb 已移除，改靜態底）
+    # .on 靜態琥珀底：只在拖曳膠囊 JS 沒跑時當備援指示（JS 有跑 → .hasthumb 關掉它、
+    # 改由 .tabcap 玻璃膠囊表示，見 patch_tabthumb）
     '.tabbar a.tab.on{background:rgba(201,138,30,.14)!important;border-radius:999px!important}'
-    # 滑動膠囊：與 Mindrise 同構——近不透明（.92）淺灰底 + 白色高光漸層，觀感恆定
-    # 負 margin：引擎 JS 用 rect 相減定位卻沒扣 bar 的 1px border（absolute 以邊框
-    # 內側為基準），膠囊會右下各偏 1px——這裡抵銷，讓膠囊正對分頁
-    '.tabbar .thumb{background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,.05)),'
-    'linear-gradient(rgba(195,206,217,.92),rgba(195,206,217,.92))!important;'
-    'margin:-1px 0 0 -1px!important;'
-    'box-shadow:inset 0 1px 0 rgba(255,255,255,.65),'
-    '0 2px 10px -2px rgba(90,105,120,.35)!important}'
     # 底部膠囊玻璃＝頂欄（brandbar）完全同款：同底色 .75、backdrop-filter 交給 maxglass。
     # ★ iOS 真兇（A/B 實證）：頂欄 brandbar 用 left:0;right:0（無 transform）→ 毛玻璃正常；
     #   分頁列用 transform:translateX(-50%) → 毛玻璃失效變透明（WebKit 已知 bug：元素帶
@@ -884,101 +878,9 @@ def patch_tabthumb(html):
     return html, (html != orig)
 
 
-# --- SPA 式換頁（pjax + 同文件 View Transition，體感對齊 Mindrise） ----------
-# 四個主分頁間的切換不再整頁重載：fetch 下一頁（SW 快取即回）→ 只替換內容區
-# （chrome 白名單保留在 DOM，零閃爍）→ 頁面腳本以 { } 區塊包裹重跑（頂層
-# let/const 不會撞全域）→ 轉場沿用 vtliquid 動畫但改走 document.startViewTransition。
-# 直接輸入網址仍是完整頁面；stock/、etf/ 子頁維持一般導頁。
-SPANAV_JS = (
-    '<script id="spanav">(function(){'
-    'if(window.__spanav)return;window.__spanav=1;'
-    'var MAIN=/^(index|stocks|perspectives|news)\\.html$/;'
-    'function sub(){return /\\/(stock|etf)\\//.test(location.pathname);}'
-    'function KEEP(n){'
-    'if(n.nodeType!==1)return false;'
-    'var id=n.id||"";'
-    'if(/^(topglass|brandlogo|brandbarjs|maxglass|vtliquid|barglass|spanav|zoomlock)$/.test(id))return true;'
-    'var cl=typeof n.className==="string"?n.className:"";'
-    'if(/(^| )(topglass|brandbar|tabbar)( |$)/.test(cl))return true;'
-    'if(n.tagName&&n.tagName.toUpperCase()==="SVG")return true;'
-    'if(n.tagName==="SCRIPT"&&/__tabdrag|__zoomlock|__spanav/.test(n.textContent||""))return true;'
-    'return false;}'
-    'function mergeHead(doc){'
-    'var have={},i,el;'
-    'var hs=document.head.querySelectorAll("style,script");'
-    'for(i=0;i<hs.length;i++)have[hs[i].src||hs[i].textContent]=1;'
-    'var ds=doc.head.querySelectorAll("style,script");'
-    'for(i=0;i<ds.length;i++){var key=ds[i].src||ds[i].textContent;'
-    'if(have[key])continue;have[key]=1;'
-    'if(ds[i].tagName==="SCRIPT"){el=document.createElement("script");'
-    'if(ds[i].src){el.src=ds[i].src;'
-    'if(ds[i].getAttribute("onload"))el.setAttribute("onload",ds[i].getAttribute("onload"));'
-    'if(ds[i].getAttribute("onerror"))el.setAttribute("onerror",ds[i].getAttribute("onerror"));}'
-    'else{el.textContent=ds[i].textContent;}'
-    'document.head.appendChild(el);}'
-    'else{document.head.appendChild(ds[i].cloneNode(true));}}}'
-    'function swap(doc,url){'
-    'document.title=doc.title;mergeHead(doc);'
-    'var i,kids=[].slice.call(document.body.childNodes);'
-    'for(i=0;i<kids.length;i++)if(!KEEP(kids[i]))document.body.removeChild(kids[i]);'
-    'var codes=[],srcs=[],nks=[].slice.call(doc.body.childNodes);'
-    'for(i=0;i<nks.length;i++){var n=nks[i];'
-    'if(KEEP(n))continue;'
-    'if(n.nodeType===1&&n.tagName==="SCRIPT"){'
-    'if(n.src)srcs.push(n);else codes.push(n.textContent);continue;}'
-    'document.body.appendChild(document.importNode(n,true));}'
-    'for(i=0;i<srcs.length;i++){'
-    'if(!document.querySelector("script[src=\\""+srcs[i].getAttribute("src")+"\\"]")){'
-    'var ex=document.createElement("script");ex.src=srcs[i].src;'
-    'document.body.appendChild(ex);}}'
-    'for(i=0;i<codes.length;i++){var el=document.createElement("script");'
-    'el.textContent="{\\n"+codes[i]+"\\n}";'
-    'document.body.appendChild(el);el.parentNode.removeChild(el);}'
-    'if(window.echarts&&!window.echarts.__stub&&typeof window.__ecReady==="function"){'
-    'try{window.__ecReady()}catch(_){}}'
-    'var b=document.querySelector(".brandbar");if(b)b.classList.remove("scrolled");'
-    'window.scrollTo(0,0);sync(url);}'
-    'function sync(url){'
-    'var i,tabs=document.querySelectorAll(".tabbar a.tab");'
-    'for(i=0;i<tabs.length;i++){tabs[i].classList.toggle("on",'
-    'tabs[i].getAttribute("href")===url);tabs[i].classList.remove("hl");}'
-    'var bar=document.querySelector(".tabbar"),th=bar&&bar.querySelector(".thumb"),'
-    'act=bar&&bar.querySelector("a.tab.on");'
-    'if(th&&act){var br=bar.getBoundingClientRect(),r=act.getBoundingClientRect();'
-    'th.style.width=r.width+"px";th.style.height=r.height+"px";'
-    'th.style.top=(r.top-br.top)+"px";th.style.left=(r.left-br.left)+"px";}}'
-    'var busy=0,pend=null;'
-    'function release(){if(!busy)return;busy=0;'
-    'if(pend){var q=pend;pend=null;go(q[0],q[1]);}}'
-    'function go(url,push){'
-    'if(busy){pend=[url,push];return;}busy=1;'
-    'var guard=setTimeout(release,900);'
-    'fetch(url).then(function(r){if(!r.ok)throw 0;return r.text();}).then(function(txt){'
-    'var doc=new DOMParser().parseFromString(txt,"text/html");'
-    'if(push!==false)history.pushState({u:url},"",url);'
-    'var run=function(){swap(doc,url);};'
-    'if(document.startViewTransition){'
-    'var vt=document.startViewTransition(run);'
-    'var done=vt.updateCallbackDone||vt.finished;'
-    'done.then(release,release);'
-    'if(vt.finished&&vt.finished.catch)vt.finished.catch(function(){});}'
-    'else{run();release();}'
-    '}).catch(function(){clearTimeout(guard);busy=0;pend=null;location.href=url;});}'
-    'window.__spanavGo=function(u){'
-    'if(sub()||!MAIN.test(u)){location.href=u;return;}go(u,true);};'
-    'if(!sub()){'
-    'history.replaceState({u:(location.pathname.split("/").pop()||"index.html")},"");'
-    'addEventListener("popstate",function(e){'
-    'var u=(e.state&&e.state.u)||(location.pathname.split("/").pop()||"index.html");'
-    'if(MAIN.test(u))go(u,false);else location.reload();});'
-    'document.addEventListener("click",function(e){'
-    'if(e.defaultPrevented)return;'
-    'var a=e.target&&e.target.closest?e.target.closest(".tabbar a.tab"):null;'
-    'if(!a)return;var h=a.getAttribute("href");'
-    'if(!MAIN.test(h))return;'
-    'e.preventDefault();e.stopPropagation();window.__spanavGo(h);},true);}'
-    '})();</script>'
-)
+# --- 停用 SPA 換頁（移除已注入的 spanav）：改回整頁重載，分頁列每頁重建、
+# 毛玻璃穩定。SPA 曾把 .tabbar 保留在 DOM 跨頁不重建，一旦 iOS backdrop-filter
+# 失效就永不恢復——這是分頁列「換頁後霧消失、切回也沒有」的根因之一。
 SPANAV_RE = re.compile(r'<script id="spanav">.*?</script>', re.S)
 
 

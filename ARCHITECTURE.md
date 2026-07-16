@@ -38,6 +38,26 @@ GitHub Pages ─▶ 手機 PWA（sw.js 內容雜湊自動換版）
 | universe.json | 全市場輕量分 | 引擎（patch 端 minify） |
 | data/rec_*、backtest_summary.json | 回測/推薦資料 | 引擎 |
 
+## 分頁列（tabbar）的 iOS 地雷——踩過三次，別再踩
+
+底部分頁列的毛玻璃（backdrop-filter）在 iOS WebKit 上很脆，以下每一條都是
+實機驗證過的血淚，動分頁列前先讀：
+
+1. **元素自身不能有 `transform`**——有就整條玻璃靜默失效變不透明白塊
+   （頂欄 brandbar 用 `left:0;right:0;margin:auto` 置中所以一直正常）。
+   分頁列置中同樣用 margin:auto，**不准用 translateX(-50%)**。
+2. **列內不能有會被提升成合成層的子元素**——舊拖曳膠囊（transform 過場＋
+   拖曳時 backdrop-filter）就是這樣把玻璃弄壞的。現行 `.tabcap` 膠囊
+   只用 left/top/width/height 過場，無 transform、無 backdrop、無 will-change。
+3. **不能用 SPA 換頁**——SPA 讓分頁列跨頁不重建，玻璃一旦失效就永不恢復
+   （症狀：初始有霧、換頁後消失、切回也沒有）。現行為整頁重載，
+   `patch_spanav` 反而是負責「移除」殘留 spanav 的。
+4. 換頁轉場全關（`@view-transition{navigation:none}`）——使用者要求不要特效，
+   而且 view-transition-name 也會破壞 backdrop。
+
+玻璃樣式本體：底色 `rgba(245,248,251,.75)` 與頂欄同值，模糊由 `maxglass`
+共用規則統一（.tabbar 與 .brandbar 同一張清單）——改一邊必動另一邊。
+
 ## 常見狀況 → 處置
 
 - **手機看到舊版**：等背景更新或下拉重整；sw 版本是內容雜湊，push 後必換。

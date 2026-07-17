@@ -31,15 +31,8 @@ thead th{color:#5f7183;font-weight:600}
 .tabbar a.tab .ic{font-size:20px;line-height:1}
 .tabbar a.tab.on,.tabbar a.tab.hl{color:#fff}
 .tabbar a.tab.on .ic,.tabbar a.tab.hl .ic{filter:drop-shadow(0 2px 10px rgba(232,168,60,.6))}
-/* 無 JS 時用靜態高光；有 JS 時改用可拖曳的玻璃膠囊 .thumb */
+/* 選取分頁靜態高光（分頁列已是靜態；補丁層另加可拖曳玻璃膠囊 .tabcap） */
 .tabbar a.tab.on{background:rgba(232,168,60,.22)}
-.tabbar.js a.tab.on{background:transparent}
-.tabbar .thumb{position:absolute;top:6px;left:6px;z-index:0;pointer-events:none;border-radius:999px;
- background:rgba(232,168,60,.22);
- transition:left .26s cubic-bezier(.2,.8,.2,1),top .2s,width .2s,height .2s,transform .16s,box-shadow .16s,background .16s}
-.tabbar.dragging .thumb{transform:scale(1.12);background:rgba(232,168,60,.34);
- -webkit-backdrop-filter:blur(16px) saturate(1.9);backdrop-filter:blur(16px) saturate(1.9);
- box-shadow:0 12px 30px rgba(0,0,0,.55), inset 0 1px 0.5px rgba(255,255,255,.6), 0 0 0 1px rgba(255,255,255,.22)}
 .wrap{padding-top:calc(16px + env(safe-area-inset-top,0px))!important;padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))!important}
 /* 切換分頁：不做任何特效（navigation:none）→ 即時切換，分頁列不因轉場位移。 */
 @view-transition{navigation:none}

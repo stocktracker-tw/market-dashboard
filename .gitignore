@@ -1,1 +1,7 @@
 __pycache__/
+
+# 本機專屬、不進版控（進了就會讓本機與遠端分岔 → 引擎 self-update 的
+# git pull --ff-only 失敗、整天用舊程式跑）
+*.ps1              # run_daily.ps1 等排程腳本：只存在你 PC
+data/              # token、快取、歷史 CSV（含 github_token.txt，絕不上傳）
+output/            # 引擎產出的 HTML（由 publish.py 直接推到 main）

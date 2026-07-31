@@ -520,7 +520,45 @@ def compute(code, env=None, shared=None, record=True):
             "components": comps, "chips_verdict": chips_verdict, "exit": exit_sig,
             "flag": flag, "flagtxt": flagtxt,
             "industry": industry, "themes": themes, "has_theme": has_theme,
+            "kline": _kline_data(hist),
             "generated_at": dt.datetime.now().strftime("%Y-%m-%d %H:%M")}
+
+
+# ------------------------- K 線資料（近 N 個交易日，含 5/20 均線） -------------------------
+def _kline_data(hist, days=None):
+    """從 yahoo_history 抽出 K 線畫圖資料：[日期, 開, 收, 低, 高]（ECharts candlestick 順序）
+    ＋ 5/20 日均線。回傳 None 代表資料不足不畫圖。均線用「完整序列」算再切尾，
+    這樣圖左緣的均線才不會因為樣本不足而斷頭。"""
+    days = days or getattr(cfg, "STOCK_KLINE_DAYS", 60)
+    if not hist:
+        return None
+    ts = hist.get("timestamps") or []
+    o, h, l, c = (hist.get(k) or [] for k in ("open", "high", "low", "close"))
+    n = min(len(ts), len(o), len(h), len(l), len(c))
+    if n < 20:
+        return None
+    rows, closes = [], []
+    for i in range(n):
+        if None in (ts[i], o[i], h[i], l[i], c[i]):
+            continue
+        rows.append([dt.datetime.fromtimestamp(ts[i]).strftime("%m/%d"),
+                     round(o[i], 2), round(c[i], 2), round(l[i], 2), round(h[i], 2)])
+        closes.append(c[i])
+    if len(rows) < 20:
+        return None
+    k = min(days, len(rows))
+    cut = len(rows) - k
+
+    def _ma(window):
+        # sma_series 長度＝len-window+1（前面缺 window-1 天）→ 左側補 None 對齊 closes，
+        # 再切尾。不補齊的話均線會整條左移、與 K 棒對不上。
+        s = A.sma_series(closes, window)
+        if not s:
+            return [None] * k
+        full = [None] * (len(closes) - len(s)) + [round(v, 2) for v in s]
+        return full[cut:]
+
+    return {"rows": rows[cut:], "ma5": _ma(5), "ma20": _ma(20)}
 
 
 # ------------------------- 全市場輕量分（給搜尋用，不含趨勢、不抓個股 Yahoo） -------------------------
@@ -915,11 +953,18 @@ def _card_html(r, esc):
                  'font-size:11.5px;padding:2px 8px;border-radius:6px;border:1px solid rgba(224,152,40,.45)">%s%s</span></div>'
                  % (esc(r.get("flag", "")),
                     (" ｜ " + esc(r["flagtxt"])) if r.get("flagtxt") else "")) if r.get("flag") else ""
+    # K 線：資料掛在 data-k（JSON），由頁尾腳本統一渲染；無資料就不出現這塊
+    kl = r.get("kline")
+    kline_html = ""
+    if kl and kl.get("rows"):
+        kline_html = ('<div class="kwrap"><div class="kchart" data-k=\'%s\'></div>'
+                      '<div class="muted kcap">近 %d 日 K 線・5 日均（藍）／20 日均（橘）</div></div>'
+                      % (json.dumps(kl, separators=(",", ":")).replace("'", "&#39;"), len(kl["rows"])))
     return ('<div class="card"><h2>%s <span class="muted">%s ・ 收 %.2f</span>'
             '<span class="score %s">%.1f</span></h2>'
-            '<div class="muted" style="margin:-2px 0 4px">進場 %s</div>%s%s%s%s%s</div>'
+            '<div class="muted" style="margin:-2px 0 4px">進場 %s</div>%s%s%s%s%s%s</div>'
             % (esc(r["name"]), esc(r["code"]), r["price"], r["light"], r["score"],
-               esc(r["band"]), flag_html, tag_html, rows, verdict, exit_html))
+               esc(r["band"]), flag_html, tag_html, kline_html, rows, verdict, exit_html))
 
 
 _PAGE_CSS = """<style>
@@ -933,6 +978,9 @@ h1{font-size:25px;margin:0 0 3px}.muted{color:#5f7183;font-size:13.5px}
 h2{font-size:18px;margin:0;display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;white-space:nowrap;min-width:0}
 h2 .score{margin-left:auto;font-size:32px;font-weight:800;flex-shrink:0}
 .row{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #e2e9f2;font-size:14.5px}
+.kwrap{margin:6px 0 10px}
+.kchart{width:100%;height:170px}
+.kcap{font-size:11.5px;margin-top:2px}
 .green{color:#28c76f}.amber{color:#f6a821}.red{color:#ea5455}a{color:#2478c8}
 .searchwrap{position:sticky;top:0;z-index:6;background:rgba(245,248,251,.92);padding:12px 0 8px}
 input{width:100%;box-sizing:border-box;padding:13px 15px;border-radius:12px;border:1px solid #dbe4ee;
@@ -989,6 +1037,76 @@ def _write_single_html(r):
         f.write(html)
     print(" 報告頁：%s" % path)
 
+
+# K 線渲染：ECharts 延後載入（頁面先顯示分數，不阻塞），且用 IntersectionObserver
+# 只畫捲到畫面的圖（一頁十幾張卡，全畫會卡）。載不到 CDN 就靜靜不畫，不影響分數。
+_KLINE_JS = """
+<script>
+(function(){
+ var els=[].slice.call(document.querySelectorAll('.kchart[data-k]'));
+ if(!els.length)return;
+ var UP='#d63838',DOWN='#1f9d55';   // 台股慣例：紅漲綠跌
+ function draw(el){
+  if(el.__done)return;el.__done=1;
+  var d;try{d=JSON.parse(el.getAttribute('data-k'));}catch(e){return;}
+  if(!d||!d.rows||!d.rows.length)return;
+  var c=echarts.init(el,null,{renderer:'canvas'});
+  var dates=d.rows.map(function(r){return r[0];});
+  var ohlc=d.rows.map(function(r){return [r[1],r[2],r[3],r[4]];});
+  c.setOption({
+   animation:false,
+   grid:{left:2,right:44,top:8,bottom:16,containLabel:true},
+   xAxis:{type:'category',data:dates,boundaryGap:true,
+     axisLine:{lineStyle:{color:'#dbe4ee'}},axisTick:{show:false},
+     axisLabel:{color:'#8494a5',fontSize:10,interval:Math.max(1,Math.floor(dates.length/4))}},
+   yAxis:{scale:true,position:'right',
+     axisLine:{show:false},axisTick:{show:false},
+     axisLabel:{color:'#8494a5',fontSize:10,margin:6},
+     splitLine:{lineStyle:{color:'#eef3f8'}}},
+   tooltip:{trigger:'axis',axisPointer:{type:'cross'},confine:true,
+     backgroundColor:'rgba(255,255,255,.96)',borderColor:'#dbe4ee',
+     textStyle:{color:'#17293a',fontSize:12},
+     formatter:function(p){
+       var k=null,m5=null,m20=null,dt='';
+       p.forEach(function(s){dt=s.axisValue;
+         if(s.seriesType==='candlestick')k=s.data;
+         else if(s.seriesName==='5日均')m5=s.data;
+         else if(s.seriesName==='20日均')m20=s.data;});
+       var t=dt;
+       if(k)t+='<br>開 '+k[1]+'　收 '+k[2]+'<br>低 '+k[3]+'　高 '+k[4];
+       if(m5!=null)t+='<br>5日均 '+m5;
+       if(m20!=null)t+='<br>20日均 '+m20;
+       return t;}},
+   series:[
+    {type:'candlestick',data:ohlc,barMaxWidth:9,
+     itemStyle:{color:UP,color0:DOWN,borderColor:UP,borderColor0:DOWN}},
+    {name:'5日均',type:'line',data:d.ma5,smooth:true,symbol:'none',
+     lineStyle:{width:1.2,color:'#2478c8'},connectNulls:false},
+    {name:'20日均',type:'line',data:d.ma20,smooth:true,symbol:'none',
+     lineStyle:{width:1.2,color:'#e09828'},connectNulls:false}
+   ]});
+  addEventListener('resize',function(){c.resize();});
+ }
+ function run(){
+  if(typeof IntersectionObserver==='undefined'){els.forEach(draw);return;}
+  var io=new IntersectionObserver(function(es){
+    es.forEach(function(e){if(e.isIntersecting){draw(e.target);io.unobserve(e.target);}});
+  },{rootMargin:'240px'});
+  els.forEach(function(el){io.observe(el);});
+ }
+ function boot(){
+  if(window.echarts)return run();
+  var s=document.createElement('script');
+  s.src='https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js';
+  s.onload=run;
+  s.onerror=function(){var u=document.createElement('script');
+    u.src='https://unpkg.com/echarts@5.5.0/dist/echarts.min.js';u.onload=run;
+    document.head.appendChild(u);};
+  document.head.appendChild(s);
+ }
+ if(document.readyState!=='loading')boot();else addEventListener('DOMContentLoaded',boot);
+})();
+</script>"""
 
 _FAB = """
 <button class="fab" id="fab" aria-label="加入自選股" title="加入自選股">
@@ -1294,10 +1412,10 @@ def render_stocks_page(recommendations, watchlist, universe, hot=None):
     html = ('<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="utf-8">'
             '<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">'
             '<meta http-equiv="refresh" content="%d">'
-            '<title>個股進場分數</title>%s</head><body>%s<div class="wrap wide">%s</div>%s%s</body></html>'
+            '<title>個股進場分數</title>%s</head><body>%s<div class="wrap wide">%s</div>%s%s%s</body></html>'
             % (getattr(cfg, "STOCKS_REFRESH_SECONDS", 3600), _PAGE_CSS, nav("stocks", include_css=True), body,
                _SEARCH_JS.replace("__DEFWL__", default_wl) if uni else "",
-               _FAB))
+               _KLINE_JS, _FAB))
     os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
     # 全市場清單外部化成 universe.json（瀏覽器/SW 快取、只抓一次）→ 個股頁 HTML 從 ~600KB 瘦回 ~40KB
     if uni:

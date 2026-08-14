@@ -734,7 +734,10 @@ BAR_STYLE = (
     # 選取指示：琥珀淡底膠囊（拖曳 .thumb 已移除，改靜態底）
     # .on 靜態琥珀底：只在拖曳膠囊 JS 沒跑時當備援指示（JS 有跑 → .hasthumb 關掉它、
     # 改由 .tabcap 玻璃膠囊表示，見 patch_tabthumb）
-    '.tabbar a.tab.on{background:rgba(201,138,30,.14)!important;border-radius:999px!important}'
+    # 一開始就透明：這塊琥珀底原是「JS 沒跑時的備援指示」，但 JS 跑起來前會先畫出來，
+    # 等 .tabcap 玻璃膠囊建立才被蓋掉 → 使用者看到「先閃琥珀再變正常」。
+    # 選取狀態本來就由圖示的琥珀色表示（有無 JS 都成立），底色不需要。
+    '.tabbar a.tab.on{background:transparent!important}'
     # 底部膠囊玻璃＝頂欄（brandbar）完全同款：同底色 .75、backdrop-filter 交給 maxglass。
     # ★ iOS 真兇（A/B 實證）：頂欄 brandbar 用 left:0;right:0（無 transform）→ 毛玻璃正常；
     #   分頁列用 transform:translateX(-50%) → 毛玻璃失效變透明（WebKit 已知 bug：元素帶

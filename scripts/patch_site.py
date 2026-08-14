@@ -738,13 +738,25 @@ BAR_STYLE = (
     #   分頁列用 transform:translateX(-50%) → 毛玻璃失效變透明（WebKit 已知 bug：元素帶
     #   transform 會讓 backdrop-filter 不作用）。解法＝比照頂欄，改 left:0;right:0;margin:auto
     #   置中（不靠 transform），並清掉 view-transition-name（同樣會破壞 backdrop）。
+    # ★ Liquid Glass 質感三件套（皆為純 CSS，不新增元素、不加 transform → iOS 安全）：
+    #   1) 邊緣折射：由 glassmap.png 負責（位移集中在外緣、中心中性）
+    #   2) 方向性高光：左上緣亮弧＋右下緣微弱反射（模擬單一光源），取代原本均勻白線
+    #   3) 厚度：底緣內陰影，讓它從「貼紙」變成「有厚度的玻璃板」
     '.tabbar{width:min(324px,calc(100vw - 52px))!important;'
     'left:0!important;right:0!important;transform:none!important;'
     'margin-left:auto!important;margin-right:auto!important;'
     'view-transition-name:none!important;'
-    'box-shadow:0 10px 30px rgba(30,60,100,.14)!important;'
-    'background:rgba(245,248,251,.75)!important;'
-    'border:1px solid #d8e2ec!important}'
+    'background:rgba(245,248,251,.72)!important;'
+    'border:1px solid rgba(216,226,236,.9)!important;'
+    'box-shadow:'
+    '0 10px 30px rgba(30,60,100,.14),'                      # 落影
+    '0 2px 6px rgba(30,60,100,.07),'                        # 接觸影
+    'inset 0 0 0 1px rgba(255,255,255,.30),'                # 內圈細光環（玻璃邊界）
+    'inset 0 1.5px 0 rgba(255,255,255,.95),'                # 上緣鏡面亮線
+    'inset 3px 4px 10px -6px rgba(255,255,255,.95),'        # 左上柔光弧
+    'inset -3px -4px 10px -7px rgba(255,255,255,.55),'      # 右下微弱反射
+    'inset 0 -1.5px 3px -1px rgba(70,95,125,.26)'           # 底緣厚度陰影
+    '!important}'
     '</style>'
 )
 BAR_STYLE_RE = re.compile(r'<style id="barglass">.*?</style>', re.S)
@@ -812,9 +824,15 @@ TABTHUMB = (
     '.tabbar .tabcap{position:absolute;z-index:0;top:6px;left:6px;pointer-events:none;'
     'margin:-1px 0 0 -1px;'
     'border-radius:999px;'
-    'background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,.05)),'
-    'rgba(195,206,217,.92);'
-    'box-shadow:inset 0 1px 0 rgba(255,255,255,.65),0 2px 10px -2px rgba(90,105,120,.35);'
+    # 膠囊也做成玻璃：降低灰底不透明度（原 .92 像一坨實心灰，與周圍玻璃打架）、
+    # 加自己的上緣亮線與內光環 → 讀起來像「更厚的一片玻璃」浮在 bar 裡。
+    # 不用 backdrop-filter（玻璃裡再放玻璃＝iOS 毛玻璃失效的老地雷）。
+    'background:linear-gradient(180deg,rgba(255,255,255,.62),rgba(255,255,255,.18)),'
+    'rgba(196,208,220,.55);'
+    'box-shadow:inset 0 1.5px 0 rgba(255,255,255,.9),'
+    'inset 0 0 0 1px rgba(255,255,255,.45),'
+    'inset 0 -1px 2px -1px rgba(70,95,125,.18),'
+    '0 2px 8px -3px rgba(90,105,120,.3);'
     'transition:left .26s cubic-bezier(.2,.8,.2,1),top .2s,width .2s,height .2s}'
     '.tabbar .tabcap.drag{transition:none}'
     # 圖示確保在膠囊之上、且選取時不再另加靜態底（由膠囊表示）

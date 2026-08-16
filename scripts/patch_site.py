@@ -884,8 +884,8 @@ TABTHUMB = (
     'function hl(i){for(var k=0;k<tabs.length;k++)tabs[k].classList.toggle("hl",k===i);}'
     'function follow(x){var br=bar.getBoundingClientRect();'
     'var r0=tabs[0].getBoundingClientRect();'
-    'cap.style.width=(r0.width+14)+"px";cap.style.height=(r0.height+8)+"px";'
-    'cap.style.top=(tabs[over].getBoundingClientRect().top-br.top-4)+"px";'
+    'cap.style.width=(r0.width+26)+"px";cap.style.height=(r0.height+16)+"px";'
+    'cap.style.top=(tabs[over].getBoundingClientRect().top-br.top-8)+"px";'
     'var w=cap.offsetWidth;'
     # 夾限用「膠囊中心」對齊頭尾分頁中心：放大後的膠囊會微微超出 bar 兩端，
     # 但拖到底時正好以第一顆／最後一顆 icon 為中心（夾膠囊邊緣會偏向內側）

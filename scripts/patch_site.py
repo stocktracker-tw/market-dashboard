@@ -851,6 +851,13 @@ TABTHUMB = (
     'inset 0 1.5px 1px rgba(255,255,255,1),'
     'inset 0 -1px 2px -1px rgba(70,95,125,.28),'
     '0 4px 14px -5px rgba(30,60,100,.35)!important}'
+    # 實驗：拖曳當下讓膠囊自己吃 #lglass 折射（真的扭曲背後內容）。這是規則
+    # 點名的「巢狀玻璃」，iOS 上可能讓分頁列毛玻璃閃一下——只在拖曳期間套用。
+    '@supports (backdrop-filter: url("#lglass")) or '
+    '(-webkit-backdrop-filter: url("#lglass")){'
+    '.tabbar .tabcap.grab{'
+    '-webkit-backdrop-filter:url(#lglass) blur(.5px) saturate(1.5)!important;'
+    'backdrop-filter:url(#lglass) blur(.5px) saturate(1.5)!important}}'
     # 圖示確保在膠囊之上、且選取時不再另加靜態底（由膠囊表示）
     '.tabbar a.tab{position:relative;z-index:1}'
     '.tabbar.hasthumb a.tab.on{background:transparent!important}'

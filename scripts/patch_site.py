@@ -747,7 +747,9 @@ BAR_STYLE = (
     #   1) 邊緣折射：由 glassmap.png 負責（位移集中在外緣、中心中性）
     #   2) 方向性高光：左上緣亮弧＋右下緣微弱反射（模擬單一光源），取代原本均勻白線
     #   3) 厚度：底緣內陰影，讓它從「貼紙」變成「有厚度的玻璃板」
-    '.tabbar{width:min(324px,calc(100vw - 52px))!important;'
+        # 寬度對齊頂欄：brandbar 左右內距 16px，分頁列原本卻各留 33px → 兩條 bar 的
+    # 邊界線對不齊，看起來「不夠寬/縮成一團」。改成同樣 16px（桌面上限 440px）。
+'.tabbar{width:min(440px,calc(100vw - 32px))!important;'
     'left:0!important;right:0!important;transform:none!important;'
     'margin-left:auto!important;margin-right:auto!important;'
     'view-transition-name:none!important;'

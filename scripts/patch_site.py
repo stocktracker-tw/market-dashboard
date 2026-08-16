@@ -502,6 +502,27 @@ MAXGLASS_SVG = (
     '<feColorMatrix in="dB" type="matrix" values="0 0 0 0 0  0 0 0 0 0  '
     '0 0 1 0 0  0 0 0 1 0" result="cB"/>'
     '<feBlend in="cR" in2="cG" mode="screen" result="rg"/>'
+    '<feBlend in="rg" in2="cB" mode="screen"/></filter>'
+    # 膠囊專用：位移量縮小（30/34/38 → 10/12/14）。主濾鏡的位移是為整條
+    # bar／卡片設計，套在 112x72 的小膠囊上會超出取樣範圍、留下方形殘影。
+    # 濾鏡區域放大到 160%：位移需要取樣到元件外圍，否則邊界會出現方形殘影
+    '<filter id="lglass-cap" x="-30%" y="-30%" width="160%" height="160%" '
+    'color-interpolation-filters="sRGB">'
+    '<feImage href="glassmap.png" preserveAspectRatio="none" x="0%" y="0%" '
+    'width="100%" height="100%" result="map"/>'
+    '<feDisplacementMap in="SourceGraphic" in2="map" scale="10" '
+    'xChannelSelector="R" yChannelSelector="G" result="dR"/>'
+    '<feDisplacementMap in="SourceGraphic" in2="map" scale="12" '
+    'xChannelSelector="R" yChannelSelector="G" result="dG"/>'
+    '<feDisplacementMap in="SourceGraphic" in2="map" scale="14" '
+    'xChannelSelector="R" yChannelSelector="G" result="dB"/>'
+    '<feColorMatrix in="dR" type="matrix" values="1 0 0 0 0  0 0 0 0 0  '
+    '0 0 0 0 0  0 0 0 1 0" result="cR"/>'
+    '<feColorMatrix in="dG" type="matrix" values="0 0 0 0 0  0 1 0 0 0  '
+    '0 0 0 0 0  0 0 0 1 0" result="cG"/>'
+    '<feColorMatrix in="dB" type="matrix" values="0 0 0 0 0  0 0 0 0 0  '
+    '0 0 1 0 0  0 0 0 1 0" result="cB"/>'
+    '<feBlend in="cR" in2="cG" mode="screen" result="rg"/>'
     '<feBlend in="rg" in2="cB" mode="screen"/></filter></svg>'
 )
 MAXGLASS_CSS = (
@@ -853,11 +874,11 @@ TABTHUMB = (
     '0 4px 14px -5px rgba(30,60,100,.35)!important}'
     # 實驗：拖曳當下讓膠囊自己吃 #lglass 折射（真的扭曲背後內容）。這是規則
     # 點名的「巢狀玻璃」，iOS 上可能讓分頁列毛玻璃閃一下——只在拖曳期間套用。
-    '@supports (backdrop-filter: url("#lglass")) or '
-    '(-webkit-backdrop-filter: url("#lglass")){'
+    '@supports (backdrop-filter: url("#lglass-cap")) or '
+    '(-webkit-backdrop-filter: url("#lglass-cap")){'
     '.tabbar .tabcap.grab{'
-    '-webkit-backdrop-filter:url(#lglass) blur(.5px) saturate(1.5)!important;'
-    'backdrop-filter:url(#lglass) blur(.5px) saturate(1.5)!important}}'
+    '-webkit-backdrop-filter:url(#lglass-cap) blur(.5px) saturate(1.5)!important;'
+    'backdrop-filter:url(#lglass-cap) blur(.5px) saturate(1.5)!important}}'
     # 圖示確保在膠囊之上、且選取時不再另加靜態底（由膠囊表示）
     '.tabbar a.tab{position:relative;z-index:1}'
     '.tabbar.hasthumb a.tab.on{background:transparent!important}'

@@ -887,9 +887,11 @@ TABTHUMB = (
     'cap.style.width=(r0.width+14)+"px";cap.style.height=(r0.height+8)+"px";'
     'cap.style.top=(tabs[over].getBoundingClientRect().top-br.top-4)+"px";'
     'var w=cap.offsetWidth;'
-    'var lo=tabs[0].getBoundingClientRect().left-br.left;'
-    'var hi=tabs[tabs.length-1].getBoundingClientRect().left-br.left;'
-    'var L=Math.max(lo,Math.min(hi,x-br.left-w/2));'
+    # 夾限用「膠囊中心」對齊頭尾分頁中心：放大後的膠囊會微微超出 bar 兩端，
+    # 但拖到底時正好以第一顆／最後一顆 icon 為中心（夾膠囊邊緣會偏向內側）
+    'var r1=tabs[0].getBoundingClientRect(),rN=tabs[tabs.length-1].getBoundingClientRect();'
+    'var loC=r1.left+r1.width/2-br.left,hiC=rN.left+rN.width/2-br.left;'
+    'var cx=Math.max(loC,Math.min(hiC,x-br.left));var L=cx-w/2;'
     'cap.classList.add("drag");cap.style.left=L+"px";'
     'var o=nearest(x);if(o!==over){over=o;hl(o);}}'
     'requestAnimationFrame(function(){place(cur,false);hl(cur);});'

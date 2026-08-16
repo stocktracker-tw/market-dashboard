@@ -612,7 +612,6 @@ BRANDBAR_HTML = (
 BRANDBAR_CSS = (
     '<style id="brandlogo">'
     '.brandbar{position:fixed;top:0;left:0;right:0;z-index:90;display:flex;'
-    'view-transition-name:brandbar;'
     'align-items:center;gap:10px;pointer-events:none;'
     'padding:calc(14px + env(safe-area-inset-top,0px)) max(16px,calc((100vw - 1288px)/2)) 10px;'
     'background:transparent;transition:background .25s ease,box-shadow .25s ease}'
@@ -1257,10 +1256,6 @@ KEYOF_NEW = ('function keyOf(t){return (t.indexOf("價值")>=0)?"value"'
 KEYOF_RE = re.compile(r'function keyOf\(t\)\{[^}]*\}')
 
 
-# 五派配色：明顯分開的冷色寶石調（青→藍→靛→紫→洋紅），不用綠（綠留給漲跌）。
-# 獨立遷移：把先前各版（金黃版、極光版、三色版）整串換成五色版，冪等。
-PCOL_NEW = ('var PCOL={passive:"#06d6e0",chips:"#3d8bff",trend:"#5b6cff",'
-            'macro:"#c462ff",value:"#ff5fb0"};')
 
 
 # 引擎只生三張立場卡；價值派、籌碼派由 patch 端補進同一個 .grid。

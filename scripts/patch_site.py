@@ -716,7 +716,7 @@ def patch_stocklink(html):
 # 在 <a> 上補 aria-label、SVG 標 aria-hidden（裝飾用），螢幕閱讀器才唸得出來。
 _BAR_LINE = {                                     # 各分頁的線條 path
     '📊': '<path d="M4.4 17.2a8.6 8.6 0 1 1 15.2 0"/><path d="M12 16.4l3.8-6.2"/><circle cx="12" cy="16.4" r="1.35"/>',
-    '📈': '<path d="M3 17l5.5-5.5 4 4L20 8"/><path d="M15 8h5v5"/>',
+    '📈': '<path d="M3 18l5.5-6.5 4 4L20 6.5"/><path d="M15 6.5h5v5"/>',
     # 觀點：雙泡泡（該頁是三派立場，單泡泡表達不出多方觀點）
     '🗣️': '<path d="M5 4.5h8A2.5 2.5 0 0 1 15.5 7v3.5A2.5 2.5 0 0 1 13 13H8.2l-3.2 2.8V13'
           'A2.5 2.5 0 0 1 2.5 10.5V7A2.5 2.5 0 0 1 5 4.5z"/>'
@@ -799,7 +799,7 @@ def patch_barglass(html):
     orig = html
     # 0) 舊版個股 icon（放大鏡，語意跑掉）→ 上升趨勢線（就地遷移，absent-after）
     html = html.replace('<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
-                        '<path d="M3 17l5.5-5.5 4 4L20 8"/><path d="M15 8h5v5"/>')
+                        '<path d="M3 18l5.5-6.5 4 4L20 6.5"/><path d="M15 6.5h5v5"/>')
     # 0c) 觀點 icon 單泡泡 → 雙泡泡（已部署頁面的就地遷移）
     html = html.replace(
         '<path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v8a1.5 1.5 0 0 1-1.5 '
@@ -808,6 +808,9 @@ def patch_barglass(html):
         'A2.5 2.5 0 0 1 2.5 10.5V7A2.5 2.5 0 0 1 5 4.5z"/>'
         '<path d="M18.2 9.2A2.5 2.5 0 0 1 20.7 11.7v3.4a2.5 2.5 0 0 1-2.5 2.5h-.3v2.6'
         'l-3-2.6h-3.2"/>')
+    # 0a2) 個股趨勢線加高（原高度僅 9/24，全場最扁，與其他 icon 視覺重量不一致）
+    html = html.replace('<path d="M3 17l5.5-5.5 4 4L20 8"/><path d="M15 8h5v5"/>',
+                        '<path d="M3 18l5.5-6.5 4 4L20 6.5"/><path d="M15 6.5h5v5"/>')
     # 0b) 進場 icon 長條圖 → 儀表指針（與「個股」的趨勢線區隔；呼應首頁儀表）
     html = html.replace('<path d="M5 20V11"/><path d="M12 20V4"/><path d="M19 20v-6"/>',
                         '<path d="M4.4 17.2a8.6 8.6 0 1 1 15.2 0"/>'

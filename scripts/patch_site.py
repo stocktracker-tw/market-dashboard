@@ -715,7 +715,7 @@ def patch_stocklink(html):
 # 分頁文字以 CSS 隱藏(display:none) → 連結會失去 accessible name，所以同時
 # 在 <a> 上補 aria-label、SVG 標 aria-hidden（裝飾用），螢幕閱讀器才唸得出來。
 _BAR_LINE = {                                     # 各分頁的線條 path
-    '📊': '<path d="M5 20V11"/><path d="M12 20V4"/><path d="M19 20v-6"/>',
+    '📊': '<path d="M4.4 17.2a8.6 8.6 0 1 1 15.2 0"/><path d="M12 16.4l3.8-6.2"/><circle cx="12" cy="16.4" r="1.35"/>',
     '📈': '<path d="M3 17l5.5-5.5 4 4L20 8"/><path d="M15 8h5v5"/>',
     '🗣️': '<path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v8a1.5 1.5 0 0 1-1.5 '
           '1.5H9l-4 4v-4H5.5A1.5 1.5 0 0 1 4 13.5z"/>',
@@ -797,6 +797,11 @@ def patch_barglass(html):
     # 0) 舊版個股 icon（放大鏡，語意跑掉）→ 上升趨勢線（就地遷移，absent-after）
     html = html.replace('<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
                         '<path d="M3 17l5.5-5.5 4 4L20 8"/><path d="M15 8h5v5"/>')
+    # 0b) 進場 icon 長條圖 → 儀表指針（與「個股」的趨勢線區隔；呼應首頁儀表）
+    html = html.replace('<path d="M5 20V11"/><path d="M12 20V4"/><path d="M19 20v-6"/>',
+                        '<path d="M4.4 17.2a8.6 8.6 0 1 1 15.2 0"/>'
+                        '<path d="M12 16.4l3.8-6.2"/>'
+                        '<circle cx="12" cy="16.4" r="1.35"/>')
     for emoji, newsvg in BAR_ICON_SVGS.items():   # 1) emoji → 線條 SVG（aria-hidden）
         html = html.replace(emoji, newsvg)
     html = TAB_ARIA_RE.sub(                       # 2) icon-only 連結補 accessible name

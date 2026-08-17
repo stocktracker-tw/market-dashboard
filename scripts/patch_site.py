@@ -925,15 +925,28 @@ TABTHUMB = (
     # 那顆分頁為中心撐開。原本按下只換成 .grab（變透明），放大是移動時才由
     # follow() 做的——真實觸控因為手指一定有幾 px 位移所以看起來像有放大，
     # 但純粹的點擊沒有。移除 .drag 讓這一下走過場動畫（follow 之後會加回去）。
+    # 回傳目標 left：up() 要用它算位移。不能在設完 style.left 之後讀 offsetLeft
+    # ——過場還沒開始跑，讀到的是動畫前的舊值，位移會算成 0、收尾就提早了。
     'function grow(i){var br=bar.getBoundingClientRect(),r=tabs[i].getBoundingClientRect();'
     'var w=r.width+26,h=r.height+16;'
     'cap.style.width=w+"px";cap.style.height=h+"px";'
     'cap.style.top=(r.top-br.top-8)+"px";'
-    'cap.style.left=(r.left+r.width/2-br.left-w/2)+"px";}'
+    'var L=r.left+r.width/2-br.left-w/2;cap.style.left=L+"px";return L;}'
     'function down(x,e){dragging=true;over=nearest(x);cap.classList.add("grab");'
     'cap.classList.remove("drag");grow(over);hl(over);}'
     'function move(x,e){if(!dragging)return;follow(x);if(e.cancelable)e.preventDefault();}'
-    'function up(){if(!dragging)return;dragging=false;cap.classList.remove("grab");var t=over;place(t,true);hl(t);'
+    # 放開之後的收尾：膠囊「維持放大＋全透」滑到目標分頁，等它真的到位了，才在
+    # 那顆 icon 上方縮回原本大小、恢復不透明度。原本是放開當下就 remove("grab")
+    # 並 place() 回正常尺寸，於是縮回與滑動同時發生——移動途中就變回不透明，
+    # 形變也發生在兩顆 icon 之間的半路上。
+    'var settling=false,settleTimer=0;'
+    'function endSettle(t){settling=false;cap.classList.remove("grab");place(t,true);}'
+    'function up(){if(!dragging)return;dragging=false;var t=over;hl(t);'
+    'cap.classList.remove("drag");'          # 打開過場，讓它滑過去
+    'var before=cap.offsetLeft;var L=grow(t);'     # 仍在 .grab：全程維持放大＋全透
+    'var travel=Math.abs(L-before);'
+    'settling=true;clearTimeout(settleTimer);'
+    'settleTimer=setTimeout(function(){endSettle(t);},travel>2?780:240);'
     # 有 SPA 換頁時直接交給它：內容是即時抽換的，分頁列不重建，膠囊的滑動
     # 動畫會一路播完，所以完全不需要延遲。沒有 SPA（或它初始化失敗）才退回
     # 整頁重載，那時仍要等一下讓動畫播到一段落。
@@ -953,7 +966,10 @@ TABTHUMB = (
     'addEventListener("pageshow",function(){place(curIdx(),false);hl(curIdx());});'
     # 給 SPA 換頁用：內容抽換後（尤其是上一頁／頁內連結那種不是從分頁列發起的），
     # 把膠囊與琥珀高亮重新對到目前網址對應的分頁上。
-    'window.__tabSync=function(anim){var i=curIdx();place(i,anim!==false);hl(i);};'
+    # 收尾動畫進行中就別動：膠囊正維持放大＋全透滑向目標分頁，這時 place()
+    # 會把它拉回正常尺寸，等於又變回「邊滑邊縮」。
+    'window.__tabSync=function(anim){if(settling)return;'
+    'var i=curIdx();place(i,anim!==false);hl(i);};'
     '}'
     'if(document.readyState!=="loading")start();else addEventListener("DOMContentLoaded",start);'
     '})();</script>'

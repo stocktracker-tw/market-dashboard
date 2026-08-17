@@ -1111,17 +1111,44 @@ SPANAV_JS = (
     # 內嵌的那幾支（圖表初始化）在頂層用 const/let 宣告全域變數，直接重跑會撞
     # 「Identifier 'X' has already been declared」→ 把它們串成一支包在 IIFE 裡，
     # 既隔離掉上一頁的全域，彼此之間又還是共用同一個作用域。
-    'function rerun(root){var list=[].slice.call(root.querySelectorAll("script"));'
-    'var inline=[];'
+    # 不重跑的基礎設施：這些是跨頁常駐的，重跑只會重複綁事件或直接壞掉
+    'var SKIP={spanav:1,tabthumb:1,nativemode:1,zoomlock:1,brandbarjs:1};'
+    'function rerun(doc){'
+    # 外部腳本要連 <head> 一起掃：echarts 的 <script src> 就放在 head，
+    # 只掃 body 會漏掉——從「沒有 echarts 的頁」（消息、個股）換到進場頁時，
+    # 那顆庫因此永遠不會被載進來，圖表自然畫不出來。
+    'var list=[].slice.call(doc.querySelectorAll("script"));'
+    'var inline=[],ext=[];'
     'for(var i=0;i<list.length;i++){var s=list[i];'
-    'if(s.src){var n=document.createElement("script");'
-    'for(var j=0;j<s.attributes.length;j++)n.setAttribute(s.attributes[j].name,s.attributes[j].value);'
-    's.parentNode.replaceChild(n,s);}'
-    'else{if(!s.type||/javascript/i.test(s.type))inline.push(s.textContent);'
-    's.parentNode.removeChild(s);}}'
-    'if(inline.length){var n2=document.createElement("script");'
-    'n2.text="(function(){try{"+inline.join("\\n;\\n")+"}catch(e){console.error(e);}})();";'
-    'document.body.appendChild(n2);}}'
+    'if(s.id&&SKIP[s.id])continue;'
+    'if(s.src){ext.push(s.src);continue;}'
+    # head 裡的 inline 不重跑（那些是 meta 層級的設定，重跑沒意義）
+    'if(!doc.body.contains(s))continue;'
+    'if(s.type&&!/javascript/i.test(s.type))continue;'
+    # service worker 註冊掛在 window load 上，換頁時那個事件不會再來，跳過
+    'if(/serviceWorker/.test(s.textContent))continue;'
+    'inline.push(s.textContent);}'
+    # 外部腳本：live 文件沒有同一支才補進去（例如從 news 換到進場頁時
+    # echarts 還沒被載過），載完再跑 inline
+    'var need=[];'
+    # 用 document.scripts 逐一比對，避免在字串裡再包一層引號（先前那版
+    # querySelector 的巢狀引號被多跳脫了一層，整支 spanav 直接語法錯誤，
+    # SPA 等於沒作用、每次換頁都悄悄退回整頁重載）
+    'for(var e=0;e<ext.length;e++){var have=false,ss=document.scripts;'
+    'for(var z=0;z<ss.length;z++){if(ss[z].src===ext[e]){have=true;break;}}'
+    'if(!have)need.push(ext[e]);}'
+    'function runInline(){'
+    'var prev=document.getElementById("spa-page-js");'
+    'if(prev)prev.parentNode.removeChild(prev);'
+    'if(!inline.length)return;'
+    'var n=document.createElement("script");n.id="spa-page-js";'
+    # 每一支各自包一層 try，前面那支拋錯不會把後面全部帶走
+    'n.text=inline.map(function(t){return "try{"+t+"\\n}catch(e){console.error(e);}";}).join("\\n");'
+    'document.body.appendChild(n);}'
+    'if(!need.length)return runInline();'
+    'var left=need.length,done=function(){if(--left<=0)runInline();};'
+    'for(var q=0;q<need.length;q++){var sc=document.createElement("script");'
+    'sc.src=need[q];sc.onload=done;sc.onerror=done;document.head.appendChild(sc);}}'
     # 玻璃重整：暫時拿掉 backdrop-filter 再還原，逼 WebKit 重建背景層。
     # maxglass 那組規則帶 !important，所以這裡也必須用 important 才蓋得過。
     'function glassEls(){return document.querySelectorAll(".tabbar,.topglass,.brandbar");}'
@@ -1145,11 +1172,12 @@ SPANAV_JS = (
     'if(!oldW||!newW)throw new Error("no wrap");'
     'document.title=doc.title;'
     'oldW.parentNode.replaceChild(document.importNode(newW,true),oldW);'
-    'rerun(document.querySelector(".wrap"));'
-    'var ids=["scorecolor","emptyhide"];'
-    'for(var i=0;i<ids.length;i++){var s=document.getElementById(ids[i]);'
-    'if(s){var n=document.createElement("script");n.id=s.id;n.text=s.textContent;'
-    's.parentNode.replaceChild(n,s);}}'
+    # 重跑目標頁 body 裡「所有」頁面級腳本，而不是只有 .wrap 內的那些。
+    # 這是圖表換頁後不見的根因：儀表、走勢、K 線的初始化腳本其實放在
+    # </div>（.wrap 收尾）之後，只換 .wrap 完全碰不到它們——實測 SPA 換到
+    # 個股頁時 [data-k] 容器有 8 個、但 echarts.init 呼叫 0 次、
+    # IntersectionObserver 建立 0 個。
+    'rerun(doc);'
     # 分頁列不重建，只把 .on 換到新的分頁上（tabthumb 的膠囊照舊跟著跑）
     'var f=(new URL(href)).pathname.split("/").pop()||"index.html";'
     'var tabs=document.querySelectorAll(".tabbar a.tab");'

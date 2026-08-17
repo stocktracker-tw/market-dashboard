@@ -861,10 +861,10 @@ TABTHUMB = (
     'inset 0 0 0 1px rgba(255,255,255,.45),'
     'inset 0 -1px 2px -1px rgba(70,95,125,.18),'
     '0 2px 8px -3px rgba(90,105,120,.3);'
-    # 滑動刻意放慢（.26s → .46s）：這段動畫在點擊時只播得到前半段就被 pointerup
+    # 滑動刻意放慢（.26s → .58s）：這段動畫在點擊時只播得到前半段就被 pointerup
     # 打斷，太快的話根本看不出膠囊有「滑」過去。放大也一起放慢到 .24s。
     # 與 Mindrise 的 .lens.drag 用同一組數值。
-    'transition:left .46s cubic-bezier(.22,.8,.24,1),top .24s,width .24s,height .24s}'
+    'transition:left .58s cubic-bezier(.22,.8,.24,1),top .3s,width .3s,height .3s}'
     '.tabbar .tabcap.drag{transition:none}'
     # 拖曳中：整顆放大、中央全透（底下內容直接透出）、只有四周折射亮環。
     # 淺色主題下亮環用帶藍的灰，白 bar 上才看得見；不用 transform／
@@ -934,9 +934,11 @@ TABTHUMB = (
     'cap.classList.remove("drag");grow(over);hl(over);}'
     'function move(x,e){if(!dragging)return;follow(x);if(e.cancelable)e.preventDefault();}'
     'function up(){if(!dragging)return;dragging=false;cap.classList.remove("grab");var t=over;place(t,true);hl(t);'
-    # 導頁延遲 130→260ms：滑動放慢到 .46s 之後，130ms 就換頁會把動畫砍在
-    # 三分之一。260ms 讓膠囊滑完大半再走。代價是換頁前多等約 130ms。
-    'if(t!==curIdx())setTimeout(function(){location.href=order[t];},260);}'
+    # 有 SPA 換頁時直接交給它：內容是即時抽換的，分頁列不重建，膠囊的滑動
+    # 動畫會一路播完，所以完全不需要延遲。沒有 SPA（或它初始化失敗）才退回
+    # 整頁重載，那時仍要等一下讓動畫播到一段落。
+    'if(t!==curIdx()){if(window.__spaGo)window.__spaGo(order[t]);'
+    'else setTimeout(function(){location.href=order[t];},260);}}'
     'if(window.PointerEvent){'
     'bar.addEventListener("pointerdown",function(e){if(e.button&&e.button!==0)return;'
     'down(e.clientX,e);try{bar.setPointerCapture(e.pointerId);}catch(_){}});'
@@ -949,6 +951,9 @@ TABTHUMB = (
     'for(var k=0;k<tabs.length;k++)tabs[k].addEventListener("click",function(e){e.preventDefault();});'
     'addEventListener("resize",function(){place(curIdx(),false);hl(curIdx());});'
     'addEventListener("pageshow",function(){place(curIdx(),false);hl(curIdx());});'
+    # 給 SPA 換頁用：內容抽換後（尤其是上一頁／頁內連結那種不是從分頁列發起的），
+    # 把膠囊與琥珀高亮重新對到目前網址對應的分頁上。
+    'window.__tabSync=function(anim){var i=curIdx();place(i,anim!==false);hl(i);};'
     '}'
     'if(document.readyState!=="loading")start();else addEventListener("DOMContentLoaded",start);'
     '})();</script>'
@@ -968,18 +973,134 @@ def patch_tabthumb(html):
     return html, (html != orig)
 
 
-# --- 停用 SPA 換頁（移除已注入的 spanav）：改回整頁重載，分頁列每頁重建、
-# 毛玻璃穩定。SPA 曾把 .tabbar 保留在 DOM 跨頁不重建，一旦 iOS backdrop-filter
-# 失效就永不恢復——這是分頁列「換頁後霧消失、切回也沒有」的根因之一。
+# --- SPA 換頁（pjax）：只接管四個主分頁 -------------------------------------
+# 歷史：這東西做過一次，後來被關掉，理由是「SPA 把 .tabbar 保留在 DOM 跨頁不
+# 重建，一旦 iOS backdrop-filter 失效就永不恢復（換頁後霧消失、切回也沒有）」。
+#
+# 這一版重新打開，但針對那個根因做了處理：
+#   1) 每次換頁後對 .tabbar／.topglass／.brandbar 做一次「玻璃重整」——用
+#      !important 把 backdrop-filter 暫時設成 none、下一幀再拿掉，強迫 WebKit
+#      重建背景層。等同重建元素的效果，但不動 DOM，所以膠囊的滑動動畫不會被
+#      打斷（那正是保留分頁列的目的）。
+#   2) 重整刻意排在滑動動畫走完之後（GLASSFIX_MS），萬一真的閃一下，也是閃在
+#      使用者視線已經移到新內容的時候。
+#   3) 只接管同目錄下的四個主分頁。個股頁、ETF、回測、外部連結一律走正常導頁，
+#      風險面積壓到最小。
+#   4) 任何一步出錯就 location.href 退回整頁重載。
+#
+# 要停用：把 SPANAV_JS 設成 ''，重跑一次腳本即可（patch 會把已注入的移除）。
+GLASSFIX_MS = 620          # 玻璃重整時機；比膠囊滑動的 .58s 稍晚
+SPANAV_JS = (
+    '<script id="spanav">(function(){'
+    'if(window.__spanav)return;window.__spanav=1;'
+    'if(!window.fetch||!window.DOMParser||!history.pushState)return;'
+    # 只接管「同一層目錄」下的這四個檔名
+    'var TABS={"index.html":1,"stocks.html":1,"perspectives.html":1,"news.html":1};'
+    'function dirOf(p){return p.slice(0,p.length-(p.split("/").pop()||"").length);}'
+    'function target(href){try{var u=new URL(href,location.href);'
+    'if(u.origin!==location.origin)return null;'
+    'if(dirOf(u.pathname)!==dirOf(location.pathname))return null;'
+    'var f=u.pathname.split("/").pop()||"index.html";'
+    'return TABS[f]?u.href:null;}catch(e){return null;}}'
+    # 抓回來的文件放記憶體快取；閒置時預抓另外三個分頁
+    'var CACHE={};'
+    'function getDoc(href){if(CACHE[href])return Promise.resolve(CACHE[href]);'
+    'return fetch(href,{credentials:"same-origin"}).then(function(r){'
+    'if(!r.ok)throw new Error(r.status);return r.text();}).then(function(t){'
+    'var d=new DOMParser().parseFromString(t,"text/html");CACHE[href]=d;return d;});}'
+    # 換進來的 <script> 是惰性的，要換成新節點才會執行。
+    # 內嵌的那幾支（圖表初始化）在頂層用 const/let 宣告全域變數，直接重跑會撞
+    # 「Identifier 'X' has already been declared」→ 把它們串成一支包在 IIFE 裡，
+    # 既隔離掉上一頁的全域，彼此之間又還是共用同一個作用域。
+    'function rerun(root){var list=[].slice.call(root.querySelectorAll("script"));'
+    'var inline=[];'
+    'for(var i=0;i<list.length;i++){var s=list[i];'
+    'if(s.src){var n=document.createElement("script");'
+    'for(var j=0;j<s.attributes.length;j++)n.setAttribute(s.attributes[j].name,s.attributes[j].value);'
+    's.parentNode.replaceChild(n,s);}'
+    'else{if(!s.type||/javascript/i.test(s.type))inline.push(s.textContent);'
+    's.parentNode.removeChild(s);}}'
+    'if(inline.length){var n2=document.createElement("script");'
+    'n2.text="(function(){try{"+inline.join("\\n;\\n")+"}catch(e){console.error(e);}})();";'
+    'document.body.appendChild(n2);}}'
+    # 玻璃重整：暫時拿掉 backdrop-filter 再還原，逼 WebKit 重建背景層。
+    # maxglass 那組規則帶 !important，所以這裡也必須用 important 才蓋得過。
+    'function glassEls(){return document.querySelectorAll(".tabbar,.topglass,.brandbar");}'
+    'function restoreGlass(){var e=glassEls();for(var i=0;i<e.length;i++){'
+    'e[i].style.removeProperty("backdrop-filter");'
+    'e[i].style.removeProperty("-webkit-backdrop-filter");}}'
+    'function refreshGlass(){var e=glassEls();for(var i=0;i<e.length;i++){'
+    'e[i].style.setProperty("backdrop-filter","none","important");'
+    'e[i].style.setProperty("-webkit-backdrop-filter","none","important");}'
+    # 還原用 setTimeout 而不是 requestAnimationFrame：rAF 在背景分頁會被節流、
+    # 甚至整個不觸發，只要漏掉一次，毛玻璃就「永久」消失——那比原本要修的問題
+    # 更糟。再補兩道保險：晚一點再掃一次、以及回到前景時掃一次。
+    'setTimeout(restoreGlass,40);setTimeout(restoreGlass,400);}'
+    'document.addEventListener("visibilitychange",function(){'
+    'if(!document.hidden)restoreGlass();});'
+    'var glassTimer=0;'
+    # 換頁本體：只換 .wrap，分頁列留著（膠囊動畫才不會被打斷），
+    # 再把新內容裡的 script 與兩個全站補丁腳本重跑一次
+    'function swap(href,doc){'
+    'var oldW=document.querySelector(".wrap"),newW=doc.querySelector(".wrap");'
+    'if(!oldW||!newW)throw new Error("no wrap");'
+    'document.title=doc.title;'
+    'oldW.parentNode.replaceChild(document.importNode(newW,true),oldW);'
+    'rerun(document.querySelector(".wrap"));'
+    'var ids=["scorecolor","emptyhide"];'
+    'for(var i=0;i<ids.length;i++){var s=document.getElementById(ids[i]);'
+    'if(s){var n=document.createElement("script");n.id=s.id;n.text=s.textContent;'
+    's.parentNode.replaceChild(n,s);}}'
+    # 分頁列不重建，只把 .on 換到新的分頁上（tabthumb 的膠囊照舊跟著跑）
+    'var f=(new URL(href)).pathname.split("/").pop()||"index.html";'
+    'var tabs=document.querySelectorAll(".tabbar a.tab");'
+    'for(var k=0;k<tabs.length;k++){'
+    'var tf=(tabs[k].getAttribute("href")||"").split("/").pop()||"index.html";'
+    'tabs[k].classList.toggle("on",tf===f);}'
+    # 膠囊與琥珀高亮：從分頁列點的那次它已經滑到定位了，這裡是為了上一頁／
+    # 頁內連結那種不是從分頁列發起的換頁，不然高亮會留在舊分頁上
+    'if(window.__tabSync)window.__tabSync(true);'
+    'window.scrollTo(0,0);'
+    'clearTimeout(glassTimer);glassTimer=setTimeout(refreshGlass,' + str(GLASSFIX_MS) + ');}'
+    'var busy=false;'
+    'function go(href,push){if(busy)return;busy=true;'
+    'getDoc(href).then(function(doc){'
+    'if(push)history.pushState({spa:1},"",href);'
+    'swap(href,doc);busy=false;}).catch(function(){location.href=href;});}'
+    'window.__spaGo=function(href){var t=target(href);if(t)go(t,true);else location.href=href;};'
+    # 一般連結（例如頁內指到其他分頁的按鈕）也接管
+    'document.addEventListener("click",function(e){'
+    'if(e.defaultPrevented||e.button||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;'
+    'var a=e.target&&e.target.closest?e.target.closest("a[href]"):null;'
+    'if(!a||a.target||a.hasAttribute("download"))return;'
+    'if(a.classList.contains("tab"))return;'   # 分頁列由 tabthumb 經 __spaGo 處理
+    'var t=target(a.getAttribute("href"));'
+    'if(!t||t===location.href)return;'
+    'e.preventDefault();go(t,true);});'
+    'addEventListener("popstate",function(){'
+    'var t=target(location.href);if(!t)return;'
+    'getDoc(t).then(function(doc){swap(t,doc);}).catch(function(){location.reload();});});'
+    # 閒置時把另外三個分頁先抓回來，之後切換就是純記憶體操作
+    'var idle=window.requestIdleCallback||function(f){return setTimeout(f,1200);};'
+    'idle(function(){var d=dirOf(location.href);'
+    'for(var f in TABS){var u=d+f;if(u!==location.href)getDoc(u).catch(function(){});}});'
+    '})();</script>'
+)
 SPANAV_RE = re.compile(r'<script id="spanav">.*?</script>', re.S)
 
 
 def patch_spanav(html):
-    """停用 SPA 換頁：改回整頁重載。SPA 會把 .tabbar 保留在 DOM 跨頁不重建，
-    一旦 iOS 上它的 backdrop-filter 失效就永遠不會恢復（換頁後霧消失、切回也沒有）。
-    整頁重載讓分頁列每次重新產生→毛玻璃每頁都在。此函式改為「移除已注入的 spanav」。"""
-    new = SPANAV_RE.sub('', html)
-    return new, (new != html)
+    """注入 pjax 換頁（只接管四個主分頁）。移除舊版再重插，冪等。
+    SPANAV_JS 設成 '' 就等於停用——已注入的會被移除，站點回到整頁重載。"""
+    if '</body>' not in html or '<nav class="tabbar">' not in html:
+        return SPANAV_RE.sub('', html), (SPANAV_RE.search(html) is not None)
+    if SPANAV_JS and SPANAV_JS in html:
+        return html, False
+    orig = html
+    html = SPANAV_RE.sub('', html)
+    if SPANAV_JS:
+        html = html.replace('</body>', SPANAV_JS + '</body>', 1)
+    return html, (html != orig)
 
 
 # --- 原生殼模式：?native=1 時隱藏網頁自己的分頁列 --------------------------
@@ -1692,8 +1813,8 @@ def patch(html, fname):
     html, bg = patch_barglass(html)
     changed = changed or bg
 
-    # 12a2) 停用 SPA 換頁（移除已注入的 spanav）→ 改回整頁重載，分頁列每頁重建、
-    # 玻璃穩定；並拆掉引擎的拖曳膠囊（合成子元素會讓 iOS backdrop-filter 失效）。
+    # 12a2) SPA 換頁（pjax）：只接管四個主分頁，換頁後對玻璃做一次重整，
+    # 避免上一版「分頁列跨頁不重建、iOS 毛玻璃失效後回不來」的老問題。
     html, sn = patch_spanav(html)
     changed = changed or sn
     html, std = patch_striptabdrag(html)

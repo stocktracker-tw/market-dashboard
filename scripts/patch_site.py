@@ -967,6 +967,37 @@ def patch_spanav(html):
     return new, (new != html)
 
 
+# --- 原生殼模式：?native=1 時隱藏網頁自己的分頁列 --------------------------
+# 包在 WKWebView 裡、由 SwiftUI TabView 提供真・SF Symbols 分頁列時，網頁不該
+# 再畫一條玻璃 bar（會兩條疊在一起）。一般訪客沒有這個參數，完全不受影響。
+# 旗標記在 sessionStorage：站內是整頁重載，點進個股頁時網址不會再帶 native=1，
+# 靠 sessionStorage 讓同一個 WebView 內的後續頁面也維持無 bar。
+# 注入在 </head> 之前 → 樣式在 bar 畫出來之前就生效，不會閃一下。
+NATIVEMODE_JS = (
+    '<script id="nativemode">(function(){try{'
+    'var on=/[?&]native=1\\b/.test(location.search);'
+    'if(on)sessionStorage.setItem("nativeshell","1");'
+    'else on=sessionStorage.getItem("nativeshell")==="1";'
+    'if(!on)return;'
+    'document.documentElement.classList.add("nativeshell");'
+    'var st=document.createElement("style");'
+    'st.textContent="html.nativeshell .tabbar{display:none!important}"'
+    '+"html.nativeshell .wrap{padding-bottom:24px!important}";'
+    'document.head.appendChild(st);}catch(e){}})();</script>'
+)
+NATIVEMODE_RE = re.compile(r'<script id="nativemode">.*?</script>', re.S)
+
+
+def patch_nativemode(html):
+    """?native=1 時隱藏網頁分頁列（給原生殼用）。移除舊版再重插（冪等）。"""
+    if '</head>' not in html:
+        return html, False
+    orig = html
+    html = NATIVEMODE_RE.sub('', html)
+    html = html.replace('</head>', NATIVEMODE_JS + '</head>', 1)
+    return html, (html != orig)
+
+
 # --- 台股配色：漲跌「紅漲綠跌」+ 進場分數用「極光冷色」漸進色帶 -------------
 #   1) 漲跌/報酬（bare .green/.red，只用在 +x%／報酬）→ 台股慣例 紅漲綠跌
 #      （引擎沿用美股式：+ 標 green、− 標 red；這裡把顏色對調過來）。
@@ -1676,6 +1707,10 @@ def patch(html, fname):
     # 16) 空的動態容器/卡片自動收合，避免空白框
     html, eh = patch_emptyhide(html)
     changed = changed or eh
+
+    # 17) 原生殼模式：?native=1 隱藏網頁分頁列
+    html, nm = patch_nativemode(html)
+    changed = changed or nm
 
     return html, changed
 

@@ -147,14 +147,34 @@ ECHARTS_STUB = (
     # 「現在就畫」的逃生口（個股頁 K 線自己有每幀迴圈，不需要再排一次）。
     'if(!E.__sched){var R=E.init;E.__sched=1;var W=[],pump=0;'
     'var RA=g.requestAnimationFrame||function(f){return setTimeout(f,16);};'
-    'function drain(){pump=0;var j=W.shift();'
-    'if(j&&!j[0]._x)bind(j[0],R.apply(E,j[1]));'
+    'function drain(){pump=0;var j=W.shift();if(!j)return;'
+    # 版面還沒算出來就先別建圖：echarts 在 0x0 的容器上什麼都畫不出來，而且不會
+    # 自己重試——畫面就是一片空白，連錯誤都沒有。SPA 換頁時 rerun 緊接在 swap
+    # 後面執行，這時容器往往還是 0x0，整頁圖表就這樣靜靜死掉。等它有尺寸再建。
+    'var el=j[1][0];'
+    'if(el&&el.nodeType===1&&!(el.clientWidth>0&&el.clientHeight>0)){'
+    'j[2]=(j[2]||0)+1;if(j[2]<120){W.push(j);kick();return;}}'
+    'if(!j[0]._x)bind(j[0],R.apply(E,j[1]));'
     'if(W.length)kick();}'
     'function kick(){if(pump)return;pump=1;RA(drain);}'
     'E.init=function(el){var a=arguments;if(!el||el.__forceEager)return R.apply(E,a);'
     'var p=P();W.push([p,a]);kick();return p};}'
     'for(var i=0;i<Q.length;i++){if(!Q[i][2]._x)bind(Q[i][2],E.init.apply(E,Q[i][1]));}'
-    'Q.length=0;};})(window);</script>'
+    'Q.length=0;};'
+    # 看門狗：真庫沒進來的話，圖表就靜靜卡在排隊狀態（畫面上是空的，沒有任何
+    # 錯誤）。載完 1.5 秒還是 stub 就自己再載一次；回到前景時也再看一眼。
+    # 兩支備援 CDN 輪流試，最多三次，避免網路一直不通時無限重試。
+    'var SRC=["https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js",'
+    '"https://unpkg.com/echarts@5.5.0/dist/echarts.min.js"],tries=0,busy=0;'
+    'function retry(){'
+    'if(busy||tries>=3||!g.echarts||!g.echarts.__stub)return;'
+    'busy=1;var s=document.createElement("script");s.src=SRC[tries++%2];'
+    's.onload=function(){busy=0;g.__ecReady();};s.onerror=function(){busy=0;};'
+    'document.head.appendChild(s);}'
+    'addEventListener("load",function(){setTimeout(retry,1500);});'
+    'document.addEventListener("visibilitychange",function(){'
+    'if(!document.hidden)setTimeout(retry,300);});'
+    '})(window);</script>'
 )
 ECHARTS_DEFER = (
     '<script defer src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js" '
@@ -213,12 +233,14 @@ KCHART_LAZY_RE = re.compile(
     re.S)
 KCHART_EAGER = (
     'function run(){'
-    'var i=0,R=window.requestAnimationFrame||function(f){return setTimeout(f,16);};'
+    'var i=0,tries=0,R=window.requestAnimationFrame||function(f){return setTimeout(f,16);};'
     '(function step(){'
     'if(i>=els.length)return;'
-    'var el=els[i++];'
-    'if(el.isConnected===false)return;'
-    'el.__forceEager=1;draw(el);'
+    'var el=els[i];'
+    'if(el.isConnected===false){i++;return R(step);}'
+    # 同樣要等容器有尺寸：0x0 建出來的 echarts 是空的，而且不會自己補畫。
+    'if(!(el.clientWidth>0&&el.clientHeight>0)&&tries<120){tries++;return R(step);}'
+    'i++;tries=0;el.__forceEager=1;draw(el);'
     'R(step);'
     '})();}'
 )
@@ -1253,10 +1275,36 @@ SPANAV_JS = (
     'var glassTimer=0;'
     # 換頁本體：只換 .wrap，分頁列留著（膠囊動畫才不會被打斷），
     # 再把新內容裡的 script 與兩個全站補丁腳本重跑一次
+    # 目標頁 <head> 裡的樣式也要帶過來。只換 .wrap 的話，新頁面專屬的 CSS 完全
+    # 沒有進來——實測 SPA 換到個股頁時，K 線容器從 316x170 塌成 150x0
+    # （css height 0px），echarts 在 0x0 上什麼都畫不出來，於是「換頁後圖表
+    # 不見、重新整理就好」。上一頁補進來的用 data-spa-css 標記，換頁時先撤掉，
+    # 免得一頁一頁疊上去互相打架。
+    'function css(doc){'
+    'var live=document.head;'
+    # 沒有 id 的 <style> ＝ 引擎給「那一頁」的樣式，換頁要整組換掉；不換的話會
+    # 兩頁疊著打架（實測：換到個股頁時 .card 仍吃到首頁的 display:grid，
+    # K 線容器被壓成 150x0）。有 id 的是補丁層的共用基礎建設（twcolor /
+    # barglass / tabthumbcss…），跨頁常駐，留著。
+    'var old=live.querySelectorAll("style:not([id]),link[data-spa-css]");'
+    'for(var i=0;i<old.length;i++)old[i].parentNode.removeChild(old[i]);'
+    # 插在第一個「有 id 的補丁樣式」之前，維持原本「引擎樣式在前、補丁在後」的
+    # 層疊順序——直接附在最後的話補丁樣式會反過來被蓋掉。
+    'var anchor=live.querySelector("style[id]");'
+    'var want=doc.head.querySelectorAll(\'style:not([id]),link[rel="stylesheet"]\');'
+    'for(var j=0;j<want.length;j++){var n=want[j];'
+    'if(n.tagName==="LINK"){var dup=false,ls=live.querySelectorAll(\'link[rel="stylesheet"]\');'
+    'for(var k=0;k<ls.length;k++){if(ls[k].href===n.href){dup=true;break;}}'
+    'if(dup)continue;var l=document.createElement("link");l.rel="stylesheet";l.href=n.href;'
+    'l.setAttribute("data-spa-css","1");'
+    'if(anchor)live.insertBefore(l,anchor);else live.appendChild(l);}'
+    'else{var s=document.createElement("style");s.textContent=n.textContent;'
+    'if(anchor)live.insertBefore(s,anchor);else live.appendChild(s);}}}'
     'function swap(href,doc){'
     'var oldW=document.querySelector(".wrap"),newW=doc.querySelector(".wrap");'
     'if(!oldW||!newW)throw new Error("no wrap");'
     'document.title=doc.title;'
+    'css(doc);'
     'oldW.parentNode.replaceChild(document.importNode(newW,true),oldW);'
     # 重跑目標頁 body 裡「所有」頁面級腳本，而不是只有 .wrap 內的那些。
     # 這是圖表換頁後不見的根因：儀表、走勢、K 線的初始化腳本其實放在
@@ -2197,9 +2245,17 @@ SW_FETCH_SWR = (
     'self.addEventListener("fetch", (e) => {\n'
     '  if (e.request.method !== "GET") return;\n'
     '  if (e.request.mode === "navigate") { e.respondWith(pageFirst(e.request)); return; }\n'
+    '  const sameOrigin = new URL(e.request.url).origin === self.location.origin;\n'
     '  e.respondWith(\n'
     '    caches.match(e.request).then((hit) => {\n'
-    '      const net = fromNet(e.request).catch(() => hit || caches.match("./index.html"));\n'
+    '      // 跨網域的資源都帶版本號（echarts@5.5.0），內容不會變：命中就直接用，\n'
+    '      // 不再回頭抓，省掉每次開頁都重抓 1MB。\n'
+    '      if (hit && !sameOrigin) return hit;\n'
+    '      // 失敗時「絕對不能」拿 index.html 頂替：那是給導頁用的離線退路，\n'
+    '      // 拿去回應 <script> 會讓瀏覽器以為載入成功（拿到一坨 HTML），\n'
+    '      // onerror 不觸發、備援 CDN 不會跑、echarts 永遠停在 stub，\n'
+    '      // 於是指針和 K 線整片消失，而且沒有任何錯誤訊息。\n'
+    '      const net = fromNet(e.request).catch(() => hit || Response.error());\n'
     '      return hit || net;\n'
     '    })\n'
     '  );\n'
@@ -2255,14 +2311,22 @@ def fix_sw_activate():
 # 新 SW 有可能把「瀏覽器快取裡的舊 HTML」原封不動存進新版快取——版本號換了、
 # 內容還是舊的，使用者依然看不到更新，而且因為版本已經換過，之後也不會再試。
 # 改成逐檔 fetch(..., {cache:"reload"})，強制繞過 HTTP 快取。
+# 順便把 echarts 也收進快取。它是帶版本號的網址（@5.5.0），內容不會變，收一次
+# 就能永遠即開即用、離線也有圖——不必每次開頁都賭 CDN 通不通。跨網域只能拿到
+# opaque 回應，cache.put 收得下，之後餵給 no-cors 的 <script> 也照樣執行。
 SW_INSTALL_FRESH = (
+    'const CDN = ["https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"];\n'
     'self.addEventListener("install", (e) => {\n'
-    '  e.waitUntil(caches.open(C).then((c) => Promise.all(ASSETS.map((a) =>\n'
-    '    fetch("./" + a, { cache: "reload" }).then((r) => c.put("./" + a, r)))))\n'
-    '    .catch(() => {}).then(() => self.skipWaiting()));\n'
+    '  e.waitUntil(caches.open(C).then((c) => Promise.all(\n'
+    '    ASSETS.map((a) => fetch("./" + a, { cache: "reload" }).then((r) => c.put("./" + a, r)))\n'
+    '      .concat(CDN.map((u) => fetch(u, { mode: "no-cors" })\n'
+    '        .then((r) => c.put(u, r)).catch(() => {})))\n'
+    '  )).catch(() => {}).then(() => self.skipWaiting()));\n'
     '});\n'
 )
-SW_INSTALL_RE = re.compile(r'self\.addEventListener\("install",.*?\n\}\);\n', re.S)
+SW_INSTALL_RE = re.compile(
+    r'(?:const CDN = \[[^\]]*\];\n)?'
+    r'self\.addEventListener\("install",.*?\n\}\);\n', re.S)
 
 
 def fix_sw_install():

@@ -136,3 +136,92 @@ struct WebView: UIViewRepresentable {
   ```
 - 控制列放左下角，不會撞到網站本身置中的玻璃導覽列。
 - App 圖示／名稱在 Swift Playgrounds 的專案設定裡改；圖示可用 repo 的 `icon-512.png`。
+
+---
+
+## 進階：改用**原生分頁列**（真・SF Symbols ＋ 系統 Liquid Glass）
+
+上面的版本是「網頁自己畫的玻璃分頁列」。想要**真正的 Apple 原生**——真的 SF Symbols、
+系統級 Liquid Glass、原生的捲動morph 行為——就要把分頁列搬到原生層。
+
+> 為什麼網頁做不到：SF Symbols 的授權只允許用於 **Apple 平台 App 的 UI**，
+> 不能嵌進網頁。網頁端只能照它的視覺語言重畫。搬到 SwiftUI 就沒這個限制。
+
+作法：用 `TabView` 包四個 `WebView`，每個分頁載入對應網址，並在網址後面加
+`?native=1` 讓網頁**自動隱藏自己那條玻璃 bar**（避免兩條 bar 疊在一起）。
+
+好處：四個分頁各自保留捲動位置與載入狀態，切換是**瞬間**的（比網頁版的 pjax 還快）。
+
+```swift
+import SwiftUI
+import WebKit
+
+enum Tab: String, CaseIterable, Identifiable {
+    case entry, stocks, views, news
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .entry:  "進場"
+        case .stocks: "個股"
+        case .views:  "觀點"
+        case .news:   "消息"
+        }
+    }
+
+    /// 真・SF Symbols（在 App 內合法可用）
+    var symbol: String {
+        switch self {
+        case .entry:  "gauge.with.needle"
+        case .stocks: "chart.line.uptrend.xyaxis"
+        case .views:  "bubble.left.and.bubble.right"
+        case .news:   "newspaper"
+        }
+    }
+
+    var url: URL {
+        let base = "https://stocktracker-tw.github.io/market-dashboard/"
+        let file: String
+        switch self {
+        case .entry:  file = "index.html"
+        case .stocks: file = "stocks.html"
+        case .views:  file = "perspectives.html"
+        case .news:   file = "news.html"
+        }
+        // native=1 → 網頁端自動隱藏自己的玻璃分頁列
+        return URL(string: base + file + "?native=1")!
+    }
+}
+
+struct ContentView: View {
+    @State private var tab: Tab = .entry
+
+    var body: some View {
+        TabView(selection: $tab) {
+            ForEach(Tab.allCases) { t in
+                SimpleWeb(url: t.url)
+                    .ignoresSafeArea(edges: .bottom)
+                    .tabItem { Label(t.title, systemImage: t.symbol) }
+                    .tag(t)
+            }
+        }
+        // iOS 26 的 TabView 本身就是 Liquid Glass，不需要自己套 .glassEffect()
+    }
+}
+
+struct SimpleWeb: UIViewRepresentable {
+    let url: URL
+    func makeUIView(context: Context) -> WKWebView {
+        let v = WKWebView()
+        v.scrollView.contentInsetAdjustmentBehavior = .always
+        v.load(URLRequest(url: url))
+        return v
+    }
+    func updateUIView(_ v: WKWebView, context: Context) {}
+}
+```
+
+### 網頁端的配合（已內建）
+
+網址帶 `?native=1` 時，網頁會自己把玻璃分頁列隱藏、並把內容底部留白收掉。
+一般訪客不受任何影響。

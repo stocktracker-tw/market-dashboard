@@ -918,7 +918,17 @@ TABTHUMB = (
     'cap.classList.add("drag");cap.style.left=L+"px";'
     'var o=nearest(x);if(o!==over){over=o;hl(o);}}'
     'requestAnimationFrame(function(){place(cur,false);hl(cur);});'
-    'function down(x,e){dragging=true;over=nearest(x);cap.classList.add("grab");place(over,true);hl(over);}'
+    # 按下就放大：把 follow() 的放大尺寸也套在 pointerdown 當下，膠囊以按到的
+    # 那顆分頁為中心撐開。原本按下只換成 .grab（變透明），放大是移動時才由
+    # follow() 做的——真實觸控因為手指一定有幾 px 位移所以看起來像有放大，
+    # 但純粹的點擊沒有。移除 .drag 讓這一下走過場動畫（follow 之後會加回去）。
+    'function grow(i){var br=bar.getBoundingClientRect(),r=tabs[i].getBoundingClientRect();'
+    'var w=r.width+26,h=r.height+16;'
+    'cap.style.width=w+"px";cap.style.height=h+"px";'
+    'cap.style.top=(r.top-br.top-8)+"px";'
+    'cap.style.left=(r.left+r.width/2-br.left-w/2)+"px";}'
+    'function down(x,e){dragging=true;over=nearest(x);cap.classList.add("grab");'
+    'cap.classList.remove("drag");grow(over);hl(over);}'
     'function move(x,e){if(!dragging)return;follow(x);if(e.cancelable)e.preventDefault();}'
     'function up(){if(!dragging)return;dragging=false;cap.classList.remove("grab");var t=over;place(t,true);hl(t);'
     'if(t!==curIdx())setTimeout(function(){location.href=order[t];},130);}'

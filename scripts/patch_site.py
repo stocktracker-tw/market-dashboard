@@ -861,7 +861,10 @@ TABTHUMB = (
     'inset 0 0 0 1px rgba(255,255,255,.45),'
     'inset 0 -1px 2px -1px rgba(70,95,125,.18),'
     '0 2px 8px -3px rgba(90,105,120,.3);'
-    'transition:left .26s cubic-bezier(.2,.8,.2,1),top .2s,width .2s,height .2s}'
+    # 滑動刻意放慢（.26s → .46s）：這段動畫在點擊時只播得到前半段就被 pointerup
+    # 打斷，太快的話根本看不出膠囊有「滑」過去。放大也一起放慢到 .24s。
+    # 與 Mindrise 的 .lens.drag 用同一組數值。
+    'transition:left .46s cubic-bezier(.22,.8,.24,1),top .24s,width .24s,height .24s}'
     '.tabbar .tabcap.drag{transition:none}'
     # 拖曳中：整顆放大、中央全透（底下內容直接透出）、只有四周折射亮環。
     # 淺色主題下亮環用帶藍的灰，白 bar 上才看得見；不用 transform／
@@ -931,7 +934,9 @@ TABTHUMB = (
     'cap.classList.remove("drag");grow(over);hl(over);}'
     'function move(x,e){if(!dragging)return;follow(x);if(e.cancelable)e.preventDefault();}'
     'function up(){if(!dragging)return;dragging=false;cap.classList.remove("grab");var t=over;place(t,true);hl(t);'
-    'if(t!==curIdx())setTimeout(function(){location.href=order[t];},130);}'
+    # 導頁延遲 130→260ms：滑動放慢到 .46s 之後，130ms 就換頁會把動畫砍在
+    # 三分之一。260ms 讓膠囊滑完大半再走。代價是換頁前多等約 130ms。
+    'if(t!==curIdx())setTimeout(function(){location.href=order[t];},260);}'
     'if(window.PointerEvent){'
     'bar.addEventListener("pointerdown",function(e){if(e.button&&e.button!==0)return;'
     'down(e.clientX,e);try{bar.setPointerCapture(e.pointerId);}catch(_){}});'

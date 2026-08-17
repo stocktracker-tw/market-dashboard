@@ -502,28 +502,10 @@ MAXGLASS_SVG = (
     '<feColorMatrix in="dB" type="matrix" values="0 0 0 0 0  0 0 0 0 0  '
     '0 0 1 0 0  0 0 0 1 0" result="cB"/>'
     '<feBlend in="cR" in2="cG" mode="screen" result="rg"/>'
-    '<feBlend in="rg" in2="cB" mode="screen"/></filter>'
-    # 膠囊專用：位移量縮小（30/34/38 → 10/12/14）。主濾鏡的位移是為整條
-    # bar／卡片設計，套在 112x72 的小膠囊上會超出取樣範圍、留下方形殘影。
-    # 濾鏡區域放大到 160%：位移需要取樣到元件外圍，否則邊界會出現方形殘影
-    '<filter id="lglass-cap" x="-30%" y="-30%" width="160%" height="160%" '
-    'color-interpolation-filters="sRGB">'
-    '<feImage href="glassmap.png" preserveAspectRatio="none" x="0%" y="0%" '
-    'width="100%" height="100%" result="map"/>'
-    '<feDisplacementMap in="SourceGraphic" in2="map" scale="10" '
-    'xChannelSelector="R" yChannelSelector="G" result="dR"/>'
-    '<feDisplacementMap in="SourceGraphic" in2="map" scale="12" '
-    'xChannelSelector="R" yChannelSelector="G" result="dG"/>'
-    '<feDisplacementMap in="SourceGraphic" in2="map" scale="14" '
-    'xChannelSelector="R" yChannelSelector="G" result="dB"/>'
-    '<feColorMatrix in="dR" type="matrix" values="1 0 0 0 0  0 0 0 0 0  '
-    '0 0 0 0 0  0 0 0 1 0" result="cR"/>'
-    '<feColorMatrix in="dG" type="matrix" values="0 0 0 0 0  0 1 0 0 0  '
-    '0 0 0 0 0  0 0 0 1 0" result="cG"/>'
-    '<feColorMatrix in="dB" type="matrix" values="0 0 0 0 0  0 0 0 0 0  '
-    '0 0 1 0 0  0 0 0 1 0" result="cB"/>'
-    '<feBlend in="cR" in2="cG" mode="screen" result="rg"/>'
     '<feBlend in="rg" in2="cB" mode="screen"/></filter></svg>'
+    # 這裡原本還有一顆 #lglass-cap（膠囊專用、位移縮小成 10/12/14、濾鏡區域
+    # 放大到 160%）。已移除：淺色主題下它不是折射背景，而是把 glassmap 這張
+    # 法線貼圖本身畫出來，拖曳中的膠囊就成了一坨不透明灰。沒有其他地方用它。
 )
 MAXGLASS_CSS = (
     '<style id="maxglass">'
@@ -891,16 +873,17 @@ TABTHUMB = (
     'inset 0 1.5px 1px rgba(255,255,255,1),'
     'inset 0 -1px 2px -1px rgba(70,95,125,.28),'
     '0 4px 14px -5px rgba(30,60,100,.35)!important}'
-    # 實驗：拖曳當下讓膠囊自己吃 #lglass 折射（真的扭曲背後內容）。這是規則
-    # 點名的「巢狀玻璃」，iOS 上可能讓分頁列毛玻璃閃一下——只在拖曳期間套用。
-    '@supports (backdrop-filter: url("#lglass-cap")) or '
-    '(-webkit-backdrop-filter: url("#lglass-cap")){'
-    '.tabbar .tabcap.grab{'
-    '-webkit-backdrop-filter:url(#lglass-cap) blur(.5px) saturate(1.5)!important;'
-    'backdrop-filter:url(#lglass-cap) blur(.5px) saturate(1.5)!important}}'
+    # 曾經在這裡讓膠囊自己吃 #lglass-cap 折射（真的扭曲背後內容）。已移除：
+    # 淺色主題下那顆濾鏡不是折射背景，而是把 glassmap 這張法線貼圖本身畫出來
+    # ——拖曳中的膠囊變成一坨帶斜向漸層的不透明灰。桌機、手機寬度都重現得到。
+    # 「放大＋中央全透＋周圍折射亮環」本來就由上面的 radial-gradient 與內外
+    # 陰影完成，不需要巢狀玻璃（那本來就是本專案自己列的 iOS 地雷）。
     # 圖示確保在膠囊之上、且選取時不再另加靜態底（由膠囊表示）
     '.tabbar a.tab{position:relative;z-index:1}'
     '.tabbar.hasthumb a.tab.on{background:transparent!important}'
+    # 桌機用滑鼠按分頁時，連結會拿到焦點、瀏覽器畫出一圈粗黑外框（手機不會）。
+    # 只在「非鍵盤操作」時取消，鍵盤 Tab 過去仍然看得到焦點框。
+    '.tabbar a.tab:focus:not(:focus-visible){outline:none}'
     '</style>'
     '<script id="tabthumb">(function(){'
     'if(window.__tabthumb)return;window.__tabthumb=1;'

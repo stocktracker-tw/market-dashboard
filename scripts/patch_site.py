@@ -2119,18 +2119,16 @@ SW_ASSETS = ["index.html", "stocks.html", "perspectives.html", "news.html",
              "icon-192-maskable.png", "icon-512-maskable.png"]
 
 
-# --- SW 註冊：讓 PWA 自己換新版（手機 app 沒辦法「硬重整」）------------------
-# 引擎原本只有一行 register()。問題是：sw.js 換版之後新的 SW 雖然會裝好、
-# 接管（install 有 skipWaiting、activate 有 clients.claim），但「已經開著的
-# 那個畫面不會重畫」——桌機可以硬重整，手機 PWA 沒有那顆按鈕，使用者只能
-# 一直看到舊版。
-# 補三件事：
-#   1) controllerchange → 自己 reload 一次。這是新版真的接管的訊號，重載後
-#      拿到的就是新 SW 在 install 時抓下來的新內容。
-#   2) 第一次安裝也會觸發 controllerchange（本來沒有 controller），那次不能
-#      重載，不然每個新使用者都白白多一次。用 had 記住進頁時有沒有 controller。
-#   3) 每次回到前景就 update() 檢查一次。PWA 常常一開就是好幾天不關，不主動
+# --- SW 註冊：讓 PWA／網頁自己換新版（手機 app 沒辦法「硬重整」）-------------
+# 換版這件事真正的主力在 sw.js 那邊（activate 直接把開著的分頁 navigate 掉，
+# 見 fix_sw_activate）——那條路連「頁面上根本沒有這支腳本的舊版 HTML」都救得到，
+# 這才是打破雞生蛋的關鍵。這裡負責兩件配套：
+#   1) 每次回到前景就 update() 檢查一次。PWA 常常一開就是好幾天不關，不主動
 #      問的話瀏覽器不一定會去看 sw.js 有沒有換版。
+#   2) 收 SW 的 reload 訊息（client.navigate 不支援時的退路），外加
+#      controllerchange 延遲重載當最後一道保險。三條路都設了 done 旗標，
+#      只會重載一次。第一次安裝不重載（had 記住進頁時有沒有 controller），
+#      不然每個新使用者都白白多一次。
 SWREG_RE = re.compile(r'<script id="swreg">.*?</script>', re.S)
 SWREG_ENGINE = ('<script>if("serviceWorker" in navigator){addEventListener("load",'
                 'function(){navigator.serviceWorker.register("sw.js")'
@@ -2139,8 +2137,11 @@ SWREG_NEW = (
     '<script id="swreg">(function(){'
     'if(!("serviceWorker" in navigator))return;'
     'var had=!!navigator.serviceWorker.controller,done=false;'
+    'function bye(){if(done)return;done=true;location.reload();}'
+    'navigator.serviceWorker.addEventListener("message",function(e){'
+    'if(e.data&&e.data.swreload)bye();});'
     'navigator.serviceWorker.addEventListener("controllerchange",function(){'
-    'if(!had||done)return;done=true;location.reload();});'
+    'if(had)setTimeout(bye,1500);});'
     'function chk(){try{navigator.serviceWorker.getRegistration().then(function(r){'
     'if(r)r.update();}).catch(function(){});}catch(e){}}'
     'addEventListener("load",function(){'
@@ -2164,26 +2165,90 @@ def patch_swreg(html):
     return html, (html != orig)
 
 
-# --- SW 抓取策略：快取優先、背景更新（stale-while-revalidate） --------------
-# 原本是「網路優先」：每次點分頁都要等 HTML 的網路往返才渲染，切頁的等待感
-# 多半來自這裡。改為快取先回、同時在背景抓新版更新快取：切頁即開，資料最多
-# 舊一次瀏覽，下次切頁或重開就是新的（fix_sw 的內容雜湊版本也會促發背景更新）。
+# --- SW 抓取策略 -------------------------------------------------------------
+# 頁面本身（navigate）＝網路優先，其餘資源＝快取優先＋背景更新。
+#
+# 為什麼頁面要改回網路優先：純快取優先的話，「打開」看到的永遠是上一次那份
+# ——新版只是在背景寫進快取，要等下一次打開才看得到。桌機還能硬重整，手機
+# PWA 沒那顆按鈕，體感就是「怎麼改都沒上」。這正是使用者回報的症狀。
+# 但不能無腦網路優先（原本就是這樣，才被改掉的）：網路慢或斷線時會空等。
+# 所以加 2 秒天花板，逾時就用快取先把畫面撐起來，網路回來了再寫回快取。
+# 圖片／JSON／manifest 這些不影響「看到的是不是新版」，維持快取優先＝切頁即開。
 SW_FETCH_SWR = (
+    'const NETMS = 2000;\n'
+    'function fromNet(req) {\n'
+    '  return fetch(req).then((r) => {\n'
+    '    const cp = r.clone();\n'
+    '    caches.open(C).then((c) => c.put(req, cp)).catch(() => {});\n'
+    '    return r;\n'
+    '  });\n'
+    '}\n'
+    'function pageFirst(req) {\n'
+    '  return new Promise((resolve) => {\n'
+    '    let settled = false;\n'
+    '    const give = (r) => { if (!settled && r) { settled = true; resolve(r); } };\n'
+    '    const fallback = () => caches.match(req)\n'
+    '      .then((h) => h || caches.match("./index.html")).then(give);\n'
+    '    const timer = setTimeout(fallback, NETMS);\n'
+    '    fromNet(req).then((r) => { clearTimeout(timer); give(r); })\n'
+    '      .catch(() => { clearTimeout(timer); fallback(); });\n'
+    '  });\n'
+    '}\n'
     'self.addEventListener("fetch", (e) => {\n'
     '  if (e.request.method !== "GET") return;\n'
+    '  if (e.request.mode === "navigate") { e.respondWith(pageFirst(e.request)); return; }\n'
     '  e.respondWith(\n'
     '    caches.match(e.request).then((hit) => {\n'
-    '      const net = fetch(e.request).then((r) => {\n'
-    '        const cp = r.clone();\n'
-    '        caches.open(C).then((c) => c.put(e.request, cp)).catch(() => {});\n'
-    '        return r;\n'
-    '      }).catch(() => hit || caches.match("./index.html"));\n'
+    '      const net = fromNet(e.request).catch(() => hit || caches.match("./index.html"));\n'
     '      return hit || net;\n'
     '    })\n'
     '  );\n'
     '});\n'
 )
-SW_FETCH_RE = re.compile(r'self\.addEventListener\("fetch",.*', re.S)
+SW_FETCH_RE = re.compile(r'(?:const NETMS[\s\S]*?)?self\.addEventListener\("fetch",.*', re.S)
+
+# --- 新版 SW 一活過來就把開著的分頁換掉 --------------------------------------
+# skipWaiting + clients.claim 只是「換掉控制者」，畫面不會重畫。client.navigate()
+# 才會真的讓那個分頁重新載入——而且是 SW 單方面做的，**不需要頁面上有任何腳本
+# 配合**。這點很重要：使用者手機裡快取的那份 HTML 是舊的、沒有 swreg，只能靠
+# 這條路救。navigate 不支援時退回 postMessage（新版 HTML 有收）。
+# 只有「真的是升級」才動：first install 沒有舊快取可刪，那次不重載，免得每個
+# 新使用者一進來就被彈一次。
+SW_ACTIVATE_NAV = (
+    'function reloadClients() {\n'
+    '  self.clients.matchAll({ type: "window" }).then((cs) => cs.forEach((c) => {\n'
+    '    try { c.navigate(c.url).catch(() => c.postMessage({ swreload: 1 })); }\n'
+    '    catch (err) { try { c.postMessage({ swreload: 1 }); } catch (e2) {} }\n'
+    '  })).catch(() => {});\n'
+    '}\n'
+    'self.addEventListener("activate", (e) => {\n'
+    '  e.waitUntil(caches.keys().then((ks) => {\n'
+    '    const old = ks.filter((k) => k !== C);\n'
+    '    return Promise.all(old.map((k) => caches.delete(k))).then(() => old.length > 0);\n'
+    '  }).then((upgraded) => self.clients.claim().then(() => {\n'
+    '    // 這裡刻意「不」回傳 promise：navigate 會觸發導頁的 fetch，而 fetch 要等\n'
+    '    // activate 結束才會被處理——放進 waitUntil 就是互相等，頁面永遠載不完。\n'
+    '    if (upgraded) reloadClients();\n'
+    '  })).catch(() => {}));\n'
+    '});\n'
+)
+SW_ACTIVATE_RE = re.compile(
+    r'(?:function reloadClients[\s\S]*?\n\}\n)?'
+    r'self\.addEventListener\("activate",.*?\n\}\);\n', re.S)
+
+
+def fix_sw_activate():
+    """新版 SW 活過來就把開著的分頁 navigate 掉，不必等使用者自己重整。"""
+    try:
+        sw = open("sw.js", encoding="utf-8").read()
+    except Exception:                      # noqa: BLE001 — 缺檔就跳過
+        return False
+    if SW_ACTIVATE_NAV in sw or not SW_ACTIVATE_RE.search(sw):
+        return False
+    new = SW_ACTIVATE_RE.sub(SW_ACTIVATE_NAV, sw, count=1)
+    with open("sw.js", "w", encoding="utf-8") as fh:
+        fh.write(new)
+    return True
 
 # --- SW 預快取要真的去網路拿 -------------------------------------------------
 # cache.addAll 走的是預設的 HTTP 快取，Pages 給 HTML 的 max-age 期間內，
@@ -2214,9 +2279,14 @@ def fix_sw_install():
     return True
 
 
+SW_HEADER = ('/* 市場儀表板 PWA service worker：頁面網路優先（逾時退快取）、'
+             '其餘快取優先＋背景更新、離線退回快取。 */')
+SW_HEADER_RE = re.compile(r'^/\* 市場儀表板 PWA service worker：[^*]*\*/')
+
+
 def fix_sw_strategy():
-    """把 sw.js 的 fetch 策略改成快取優先＋背景更新。冪等：已是新版就不動；
-    引擎重產 sw.js 退回網路優先時，每日執行會自動修回。"""
+    """頁面走網路優先（2 秒逾時退快取）、其餘快取優先＋背景更新。冪等：已是新版
+    就不動；引擎重產 sw.js 蓋回舊策略時，每日執行會自動修回。"""
     try:
         sw = open("sw.js", encoding="utf-8").read()
     except Exception:                      # noqa: BLE001 — 缺檔就跳過
@@ -2224,7 +2294,7 @@ def fix_sw_strategy():
     if SW_FETCH_SWR in sw or not SW_FETCH_RE.search(sw):
         return False
     new = SW_FETCH_RE.sub(SW_FETCH_SWR, sw, count=1)
-    new = new.replace("網路優先、離線退回快取", "快取優先、背景更新、離線退回快取", 1)
+    new = SW_HEADER_RE.sub(SW_HEADER, new, count=1)
     with open("sw.js", "w", encoding="utf-8") as fh:
         fh.write(new)
     return True
@@ -2283,6 +2353,8 @@ def main():
         touched.append("sw.js(策略)")
     if fix_sw_install():
         touched.append("sw.js(預快取)")
+    if fix_sw_activate():
+        touched.append("sw.js(換版重載)")
     if fix_sw():                           # 必須最後：雜湊要涵蓋以上全部產出
         touched.append("sw.js")
     print("已補丁：" + (", ".join(touched) if touched else "(無需變更)"))

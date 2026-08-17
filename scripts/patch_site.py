@@ -935,30 +935,42 @@ TABTHUMB = (
     '.tabbar .tabcap{position:absolute;z-index:0;top:6px;left:6px;pointer-events:none;'
     'margin:-1px 0 0 -1px;'
     'border-radius:999px;'
-    # 膠囊也做成玻璃：降低灰底不透明度（原 .92 像一坨實心灰，與周圍玻璃打架）、
+    # 速度對齊 iOS 原生（約 .35s，Apple 慣用的 cubic-bezier(.32,.72,0,1)）：這段動畫在點擊時只播得到前半段就被 pointerup
+    # 打斷，太快的話根本看不出膠囊有「滑」過去。放大也一起放慢到 .24s。
+    # 與 Mindrise 的 .lens 用同一組數值。
+    'transition:left .35s cubic-bezier(.32,.72,0,1),top .18s,width .18s,height .18s}'
+    # 靜止外觀與拖曳外觀各自一層，用 opacity 交叉淡入，而不是換 background。
+    # CSS 不能在 linear-gradient 和 radial-gradient 之間內插（box-shadow 清單長度
+    # 不同也一樣），直接切 background 的話外觀會在第一格就硬跳完、尺寸卻還要
+    # .18s 才長好——兩件事完全不同步，那就是「變化的瞬間」看起來卡的原因。
+    # 交叉淡入之後，外觀和尺寸走同一條 .18s 曲線。與 Mindrise 的 .lens 同作法。
+    '.tabbar .tabcap::before,.tabbar .tabcap::after{content:"";position:absolute;'
+    'inset:0;border-radius:inherit;transition:opacity .18s}'
+    # 靜止：膠囊也做成玻璃：降低灰底不透明度（原 .92 像一坨實心灰，與周圍玻璃打架）、
     # 加自己的上緣亮線與內光環 → 讀起來像「更厚的一片玻璃」浮在 bar 裡。
     # 不用 backdrop-filter（玻璃裡再放玻璃＝iOS 毛玻璃失效的老地雷）。
+    '.tabbar .tabcap::before{opacity:1;'
     'background:linear-gradient(180deg,rgba(255,255,255,.62),rgba(255,255,255,.18)),'
     'rgba(196,208,220,.55);'
     'box-shadow:inset 0 1.5px 0 rgba(255,255,255,.9),'
     'inset 0 0 0 1px rgba(255,255,255,.45),'
     'inset 0 -1px 2px -1px rgba(70,95,125,.18),'
-    '0 2px 8px -3px rgba(90,105,120,.3);'
-    # 速度對齊 iOS 原生（約 .35s，Apple 慣用的 cubic-bezier(.32,.72,0,1)）：這段動畫在點擊時只播得到前半段就被 pointerup
-    # 打斷，太快的話根本看不出膠囊有「滑」過去。放大也一起放慢到 .24s。
-    # 與 Mindrise 的 .lens.drag 用同一組數值。
-    'transition:left .35s cubic-bezier(.32,.72,0,1),top .18s,width .18s,height .18s}'
-    '.tabbar .tabcap.drag{transition:none}'
+    '0 2px 8px -3px rgba(90,105,120,.3)}'
     # 拖曳中：整顆放大、中央全透（底下內容直接透出）、只有四周折射亮環。
     # 淺色主題下亮環用帶藍的灰，白 bar 上才看得見；不用 transform／
     # backdrop-filter（合成觸發＋巢狀玻璃＝iOS 毛玻璃失效）。
-    '.tabbar .tabcap.grab{'
+    '.tabbar .tabcap::after{opacity:0;'
     'background:radial-gradient(closest-side,rgba(255,255,255,0) 58%,'
-    'rgba(120,140,165,.10) 84%,rgba(120,140,165,.24) 100%)!important;'
+    'rgba(120,140,165,.10) 84%,rgba(120,140,165,.24) 100%);'
     'box-shadow:inset 0 0 0 1px rgba(255,255,255,.9),'
     'inset 0 1.5px 1px rgba(255,255,255,1),'
     'inset 0 -1px 2px -1px rgba(70,95,125,.28),'
-    '0 4px 14px -5px rgba(30,60,100,.35)!important}'
+    '0 4px 14px -5px rgba(30,60,100,.35)}'
+    '.tabbar .tabcap.grab::before{opacity:0}'
+    '.tabbar .tabcap.grab::after{opacity:1}'
+    # 手指真的在拖的時候要即時跟手：只停掉膠囊自己的幾何過場，兩層外觀的
+    # 交叉淡入要留著，不然按下後馬上滑動，外觀又會變回瞬間硬跳。
+    '.tabbar .tabcap.drag{transition:none}'
     # 曾經在這裡讓膠囊自己吃 #lglass-cap 折射（真的扭曲背後內容）。已移除：
     # 淺色主題下那顆濾鏡不是折射背景，而是把 glassmap 這張法線貼圖本身畫出來
     # ——拖曳中的膠囊變成一坨帶斜向漸層的不透明灰。桌機、手機寬度都重現得到。

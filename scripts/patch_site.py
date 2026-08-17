@@ -503,9 +503,6 @@ MAXGLASS_SVG = (
     '0 0 1 0 0  0 0 0 1 0" result="cB"/>'
     '<feBlend in="cR" in2="cG" mode="screen" result="rg"/>'
     '<feBlend in="rg" in2="cB" mode="screen"/></filter></svg>'
-    # 這裡原本還有一顆 #lglass-cap（膠囊專用、位移縮小成 10/12/14、濾鏡區域
-    # 放大到 160%）。已移除：淺色主題下它不是折射背景，而是把 glassmap 這張
-    # 法線貼圖本身畫出來，拖曳中的膠囊就成了一坨不透明灰。沒有其他地方用它。
 )
 MAXGLASS_CSS = (
     '<style id="maxglass">'
@@ -607,6 +604,7 @@ BRANDBAR_HTML = (
     '<header class="brandbar"><span class="brandlogo">'
     '<img src="icon-180.png" alt=""><i aria-hidden="true"></i></span>'
     '<span class="brandname">Stock Tracker<small>台股進場儀表板</small></span>'
+    '__STAT__'
     '</header>'
     '<script id="brandbarjs">(function(){var b=document.querySelector(".brandbar");'
     'if(!b)return;var f=function(){b.classList.toggle("scrolled",(window.scrollY||0)>6)};'
@@ -615,6 +613,7 @@ BRANDBAR_HTML = (
 BRANDBAR_CSS = (
     '<style id="brandlogo">'
     '.brandbar{position:fixed;top:0;left:0;right:0;z-index:90;display:flex;'
+    'view-transition-name:brandbar;'
     'align-items:center;gap:10px;pointer-events:none;'
     'padding:calc(14px + env(safe-area-inset-top,0px)) max(16px,calc((100vw - 1288px)/2)) 10px;'
     'background:transparent;transition:background .25s ease,box-shadow .25s ease}'
@@ -622,6 +621,14 @@ BRANDBAR_CSS = (
     '-webkit-backdrop-filter:blur(60px) saturate(1.7);'
     'backdrop-filter:blur(60px) saturate(1.7);'
     'box-shadow:0 1px 0 rgba(30,60,100,.08),0 14px 34px -22px rgba(30,60,100,.35)}'
+    # 右側統計 chip：圓點＋短文字的膠囊（與頂欄同款玻璃質感）
+    '.brandstat{margin-left:auto;display:inline-flex;align-items:center;gap:7px;'
+    'padding:6px 13px;border-radius:999px;font-size:13px;font-weight:700;'
+    'color:#17293a;white-space:nowrap;flex:none;'
+    'background:rgba(255,255,255,.5);border:1px solid rgba(216,226,236,.95);'
+    'box-shadow:inset 0 1px 0 rgba(255,255,255,.95),0 1px 3px rgba(30,60,100,.06)}'
+    '.brandstat i{width:9px;height:9px;border-radius:50%;flex:none}'
+    '.brandstat b{font-size:15px;font-weight:800;letter-spacing:.01em}'
     '.brandname{font-weight:800;font-size:20px;color:#17293a;letter-spacing:.03em;'
     'line-height:1.7}'
     '.brandname small{display:block;font-size:11px;font-weight:600;color:#5b6d80;'
@@ -640,6 +647,41 @@ BRANDBAR_CSS = (
     '</style>'
 )
 BRANDLOGO_RE = re.compile(r'<style id="brandlogo">.*?</style>', re.S)
+
+# --- 頂欄右側統計 chip -------------------------------------------------------
+# 資料來源＝index.html（引擎每天重生的權威數字），patch 每次跑都重讀 →
+# 全站各頁的頂欄都顯示同一個今日分數。抓不到就不出 chip（不影響版面）。
+_STAT_CACHE = None
+
+
+def _site_stat():
+    global _STAT_CACHE
+    if _STAT_CACHE is None:
+        _STAT_CACHE = ()
+        try:
+            with open('index.html', encoding='utf-8') as f:
+                h = f.read()
+            m = re.search(r'進場分數\s*([\d.]+)', h)
+            b = re.search(r'class="badge"[^>]*>([^<]{2,12})<', h)
+            if m:
+                _STAT_CACHE = (float(m.group(1)), (b.group(1).strip() if b else ''))
+        except Exception:                      # noqa: BLE001 — 抓不到就不顯示
+            pass
+    return _STAT_CACHE or None
+
+
+def _brandstat_html():
+    st = _site_stat()
+    if not st:
+        return ''
+    score, _band = st
+    # 圓點顏色沿用儀表色帶：低分＝琥珀（過熱危險）→ 高分＝天藍（遍地黃金）
+    col = ('#1a9bdf' if score >= 70 else '#2478c8' if score >= 58
+           else '#2f7cc4' if score >= 45 else '#c98a1e')
+    return ('<span class="brandstat"><i style="background:%s"></i>'
+            '進場 <b>%s</b></span>' % (col, ('%g' % score)))
+
+
 BRANDBAR_RE = re.compile(r'<header class="brandbar">.*?</header>', re.S)
 BRANDBARJS_RE = re.compile(r'<script id="brandbarjs">.*?</script>', re.S)
 BRANDLOGO_IMG_RE = re.compile(
@@ -653,7 +695,8 @@ def patch_brandlogo(html, fname):
         return html, False
     pre = '../' if '/' in fname else ''
     ins = BRANDBAR_CSS + BRANDBAR_HTML.replace(
-        'src="icon-180.png"', 'src="' + pre + 'icon-180.png"')
+        'src="icon-180.png"', 'src="' + pre + 'icon-180.png"'
+    ).replace('__STAT__', _brandstat_html())
     if ins in html:
         return html, False
     orig = html
@@ -697,13 +740,10 @@ def patch_stocklink(html):
 # 分頁文字以 CSS 隱藏(display:none) → 連結會失去 accessible name，所以同時
 # 在 <a> 上補 aria-label、SVG 標 aria-hidden（裝飾用），螢幕閱讀器才唸得出來。
 _BAR_LINE = {                                     # 各分頁的線條 path
-    '📊': '<path d="M4.4 17.2a8.6 8.6 0 1 1 15.2 0"/><path d="M12 16.4l3.8-6.2"/><circle cx="12" cy="16.4" r="1.35"/>',
-    '📈': '<path d="M3 18l5.5-6.5 4 4L20 6.5"/><path d="M15 6.5h5v5"/>',
-    # 觀點：雙泡泡（該頁是三派立場，單泡泡表達不出多方觀點）
-    '🗣️': '<path d="M5 4.5h8A2.5 2.5 0 0 1 15.5 7v3.5A2.5 2.5 0 0 1 13 13H8.2l-3.2 2.8V13'
-          'A2.5 2.5 0 0 1 2.5 10.5V7A2.5 2.5 0 0 1 5 4.5z"/>'
-          '<path d="M18.2 9.2A2.5 2.5 0 0 1 20.7 11.7v3.4a2.5 2.5 0 0 1-2.5 2.5h-.3v2.6'
-          'l-3-2.6h-3.2"/>',
+    '📊': '<path d="M5 20V11"/><path d="M12 20V4"/><path d="M19 20v-6"/>',
+    '📈': '<path d="M3 17l5.5-5.5 4 4L20 8"/><path d="M15 8h5v5"/>',
+    '🗣️': '<path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v8a1.5 1.5 0 0 1-1.5 '
+          '1.5H9l-4 4v-4H5.5A1.5 1.5 0 0 1 4 13.5z"/>',
     '📰': '<path d="M4 5a1 1 0 0 1 1-1h11a1 1 0 0 1 1 1v13a2 2 0 0 0 2 2H6a2 2 0 0 1-2-2z"/>'
           '<path d="M17 8h2a1 1 0 0 1 1 1v9a2 2 0 0 1-2 2"/>'
           '<path d="M7 8h7M7 11.5h7M7 15h4"/>',
@@ -781,23 +821,7 @@ def patch_barglass(html):
     orig = html
     # 0) 舊版個股 icon（放大鏡，語意跑掉）→ 上升趨勢線（就地遷移，absent-after）
     html = html.replace('<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
-                        '<path d="M3 18l5.5-6.5 4 4L20 6.5"/><path d="M15 6.5h5v5"/>')
-    # 0c) 觀點 icon 單泡泡 → 雙泡泡（已部署頁面的就地遷移）
-    html = html.replace(
-        '<path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v8a1.5 1.5 0 0 1-1.5 '
-        '1.5H9l-4 4v-4H5.5A1.5 1.5 0 0 1 4 13.5z"/>',
-        '<path d="M5 4.5h8A2.5 2.5 0 0 1 15.5 7v3.5A2.5 2.5 0 0 1 13 13H8.2l-3.2 2.8V13'
-        'A2.5 2.5 0 0 1 2.5 10.5V7A2.5 2.5 0 0 1 5 4.5z"/>'
-        '<path d="M18.2 9.2A2.5 2.5 0 0 1 20.7 11.7v3.4a2.5 2.5 0 0 1-2.5 2.5h-.3v2.6'
-        'l-3-2.6h-3.2"/>')
-    # 0a2) 個股趨勢線加高（原高度僅 9/24，全場最扁，與其他 icon 視覺重量不一致）
-    html = html.replace('<path d="M3 17l5.5-5.5 4 4L20 8"/><path d="M15 8h5v5"/>',
-                        '<path d="M3 18l5.5-6.5 4 4L20 6.5"/><path d="M15 6.5h5v5"/>')
-    # 0b) 進場 icon 長條圖 → 儀表指針（與「個股」的趨勢線區隔；呼應首頁儀表）
-    html = html.replace('<path d="M5 20V11"/><path d="M12 20V4"/><path d="M19 20v-6"/>',
-                        '<path d="M4.4 17.2a8.6 8.6 0 1 1 15.2 0"/>'
-                        '<path d="M12 16.4l3.8-6.2"/>'
-                        '<circle cx="12" cy="16.4" r="1.35"/>')
+                        '<path d="M3 17l5.5-5.5 4 4L20 8"/><path d="M15 8h5v5"/>')
     for emoji, newsvg in BAR_ICON_SVGS.items():   # 1) emoji → 線條 SVG（aria-hidden）
         html = html.replace(emoji, newsvg)
     html = TAB_ARIA_RE.sub(                       # 2) icon-only 連結補 accessible name
@@ -861,32 +885,11 @@ TABTHUMB = (
     'inset 0 0 0 1px rgba(255,255,255,.45),'
     'inset 0 -1px 2px -1px rgba(70,95,125,.18),'
     '0 2px 8px -3px rgba(90,105,120,.3);'
-    # 滑動刻意放慢（.26s → .78s）：這段動畫在點擊時只播得到前半段就被 pointerup
-    # 打斷，太快的話根本看不出膠囊有「滑」過去。放大也一起放慢到 .24s。
-    # 與 Mindrise 的 .lens.drag 用同一組數值。
-    'transition:left .78s cubic-bezier(.22,.8,.24,1),top .38s,width .38s,height .38s}'
+    'transition:left .26s cubic-bezier(.2,.8,.2,1),top .2s,width .2s,height .2s}'
     '.tabbar .tabcap.drag{transition:none}'
-    # 拖曳中：整顆放大、中央全透（底下內容直接透出）、只有四周折射亮環。
-    # 淺色主題下亮環用帶藍的灰，白 bar 上才看得見；不用 transform／
-    # backdrop-filter（合成觸發＋巢狀玻璃＝iOS 毛玻璃失效）。
-    '.tabbar .tabcap.grab{'
-    'background:radial-gradient(closest-side,rgba(255,255,255,0) 58%,'
-    'rgba(120,140,165,.10) 84%,rgba(120,140,165,.24) 100%)!important;'
-    'box-shadow:inset 0 0 0 1px rgba(255,255,255,.9),'
-    'inset 0 1.5px 1px rgba(255,255,255,1),'
-    'inset 0 -1px 2px -1px rgba(70,95,125,.28),'
-    '0 4px 14px -5px rgba(30,60,100,.35)!important}'
-    # 曾經在這裡讓膠囊自己吃 #lglass-cap 折射（真的扭曲背後內容）。已移除：
-    # 淺色主題下那顆濾鏡不是折射背景，而是把 glassmap 這張法線貼圖本身畫出來
-    # ——拖曳中的膠囊變成一坨帶斜向漸層的不透明灰。桌機、手機寬度都重現得到。
-    # 「放大＋中央全透＋周圍折射亮環」本來就由上面的 radial-gradient 與內外
-    # 陰影完成，不需要巢狀玻璃（那本來就是本專案自己列的 iOS 地雷）。
     # 圖示確保在膠囊之上、且選取時不再另加靜態底（由膠囊表示）
     '.tabbar a.tab{position:relative;z-index:1}'
     '.tabbar.hasthumb a.tab.on{background:transparent!important}'
-    # 桌機用滑鼠按分頁時，連結會拿到焦點、瀏覽器畫出一圈粗黑外框（手機不會）。
-    # 只在「非鍵盤操作」時取消，鍵盤 Tab 過去仍然看得到焦點框。
-    '.tabbar a.tab:focus:not(:focus-visible){outline:none}'
     '</style>'
     '<script id="tabthumb">(function(){'
     'if(window.__tabthumb)return;window.__tabthumb=1;'
@@ -908,37 +911,17 @@ TABTHUMB = (
     'if(d<bd){bd=d;best=k;}}return best;}'
     # 高亮跟著膠囊走：膠囊滑到誰身上，誰的圖示就變琥珀色（原本那顆同時退回灰）
     'function hl(i){for(var k=0;k<tabs.length;k++)tabs[k].classList.toggle("hl",k===i);}'
-    'function follow(x){var br=bar.getBoundingClientRect();'
-    'var r0=tabs[0].getBoundingClientRect();'
-    'cap.style.width=(r0.width+26)+"px";cap.style.height=(r0.height+16)+"px";'
-    'cap.style.top=(tabs[over].getBoundingClientRect().top-br.top-8)+"px";'
-    'var w=cap.offsetWidth;'
-    # 夾限用「膠囊中心」對齊頭尾分頁中心：放大後的膠囊會微微超出 bar 兩端，
-    # 但拖到底時正好以第一顆／最後一顆 icon 為中心（夾膠囊邊緣會偏向內側）
-    'var r1=tabs[0].getBoundingClientRect(),rN=tabs[tabs.length-1].getBoundingClientRect();'
-    'var loC=r1.left+r1.width/2-br.left,hiC=rN.left+rN.width/2-br.left;'
-    'var cx=Math.max(loC,Math.min(hiC,x-br.left));var L=cx-w/2;'
+    'function follow(x){var br=bar.getBoundingClientRect(),w=cap.offsetWidth;'
+    'var lo=tabs[0].getBoundingClientRect().left-br.left;'
+    'var hi=tabs[tabs.length-1].getBoundingClientRect().left-br.left;'
+    'var L=Math.max(lo,Math.min(hi,x-br.left-w/2));'
     'cap.classList.add("drag");cap.style.left=L+"px";'
     'var o=nearest(x);if(o!==over){over=o;hl(o);}}'
     'requestAnimationFrame(function(){place(cur,false);hl(cur);});'
-    # 按下就放大：把 follow() 的放大尺寸也套在 pointerdown 當下，膠囊以按到的
-    # 那顆分頁為中心撐開。原本按下只換成 .grab（變透明），放大是移動時才由
-    # follow() 做的——真實觸控因為手指一定有幾 px 位移所以看起來像有放大，
-    # 但純粹的點擊沒有。移除 .drag 讓這一下走過場動畫（follow 之後會加回去）。
-    'function grow(i){var br=bar.getBoundingClientRect(),r=tabs[i].getBoundingClientRect();'
-    'var w=r.width+26,h=r.height+16;'
-    'cap.style.width=w+"px";cap.style.height=h+"px";'
-    'cap.style.top=(r.top-br.top-8)+"px";'
-    'cap.style.left=(r.left+r.width/2-br.left-w/2)+"px";}'
-    'function down(x,e){dragging=true;over=nearest(x);cap.classList.add("grab");'
-    'cap.classList.remove("drag");grow(over);hl(over);}'
+    'function down(x,e){dragging=true;over=nearest(x);place(over,true);hl(over);}'
     'function move(x,e){if(!dragging)return;follow(x);if(e.cancelable)e.preventDefault();}'
-    'function up(){if(!dragging)return;dragging=false;cap.classList.remove("grab");var t=over;place(t,true);hl(t);'
-    # 有 SPA 換頁時直接交給它：內容是即時抽換的，分頁列不重建，膠囊的滑動
-    # 動畫會一路播完，所以完全不需要延遲。沒有 SPA（或它初始化失敗）才退回
-    # 整頁重載，那時仍要等一下讓動畫播到一段落。
-    'if(t!==curIdx()){if(window.__spaGo)window.__spaGo(order[t]);'
-    'else setTimeout(function(){location.href=order[t];},260);}}'
+    'function up(){if(!dragging)return;dragging=false;var t=over;place(t,true);hl(t);'
+    'if(t!==curIdx())setTimeout(function(){location.href=order[t];},130);}'
     'if(window.PointerEvent){'
     'bar.addEventListener("pointerdown",function(e){if(e.button&&e.button!==0)return;'
     'down(e.clientX,e);try{bar.setPointerCapture(e.pointerId);}catch(_){}});'
@@ -951,9 +934,6 @@ TABTHUMB = (
     'for(var k=0;k<tabs.length;k++)tabs[k].addEventListener("click",function(e){e.preventDefault();});'
     'addEventListener("resize",function(){place(curIdx(),false);hl(curIdx());});'
     'addEventListener("pageshow",function(){place(curIdx(),false);hl(curIdx());});'
-    # 給 SPA 換頁用：內容抽換後（尤其是上一頁／頁內連結那種不是從分頁列發起的），
-    # 把膠囊與琥珀高亮重新對到目前網址對應的分頁上。
-    'window.__tabSync=function(anim){var i=curIdx();place(i,anim!==false);hl(i);};'
     '}'
     'if(document.readyState!=="loading")start();else addEventListener("DOMContentLoaded",start);'
     '})();</script>'
@@ -973,165 +953,18 @@ def patch_tabthumb(html):
     return html, (html != orig)
 
 
-# --- SPA 換頁（pjax）：只接管四個主分頁 -------------------------------------
-# 歷史：這東西做過一次，後來被關掉，理由是「SPA 把 .tabbar 保留在 DOM 跨頁不
-# 重建，一旦 iOS backdrop-filter 失效就永不恢復（換頁後霧消失、切回也沒有）」。
-#
-# 這一版重新打開，但針對那個根因做了處理：
-#   1) 每次換頁後對 .tabbar／.topglass／.brandbar 做一次「玻璃重整」——用
-#      !important 把 backdrop-filter 暫時設成 none、下一幀再拿掉，強迫 WebKit
-#      重建背景層。等同重建元素的效果，但不動 DOM，所以膠囊的滑動動畫不會被
-#      打斷（那正是保留分頁列的目的）。
-#   2) 重整刻意排在滑動動畫走完之後（GLASSFIX_MS），萬一真的閃一下，也是閃在
-#      使用者視線已經移到新內容的時候。
-#   3) 只接管同目錄下的四個主分頁。個股頁、ETF、回測、外部連結一律走正常導頁，
-#      風險面積壓到最小。
-#   4) 任何一步出錯就 location.href 退回整頁重載。
-#
-# 要停用：把 SPANAV_JS 設成 ''，重跑一次腳本即可（patch 會把已注入的移除）。
-GLASSFIX_MS = 820          # 玻璃重整時機；比膠囊滑動的 .78s 稍晚
-SPANAV_JS = (
-    '<script id="spanav">(function(){'
-    'if(window.__spanav)return;window.__spanav=1;'
-    'if(!window.fetch||!window.DOMParser||!history.pushState)return;'
-    # 只接管「同一層目錄」下的這四個檔名
-    'var TABS={"index.html":1,"stocks.html":1,"perspectives.html":1,"news.html":1};'
-    'function dirOf(p){return p.slice(0,p.length-(p.split("/").pop()||"").length);}'
-    'function target(href){try{var u=new URL(href,location.href);'
-    'if(u.origin!==location.origin)return null;'
-    'if(dirOf(u.pathname)!==dirOf(location.pathname))return null;'
-    'var f=u.pathname.split("/").pop()||"index.html";'
-    'return TABS[f]?u.href:null;}catch(e){return null;}}'
-    # 抓回來的文件放記憶體快取；閒置時預抓另外三個分頁
-    'var CACHE={};'
-    'function getDoc(href){if(CACHE[href])return Promise.resolve(CACHE[href]);'
-    'return fetch(href,{credentials:"same-origin"}).then(function(r){'
-    'if(!r.ok)throw new Error(r.status);return r.text();}).then(function(t){'
-    'var d=new DOMParser().parseFromString(t,"text/html");CACHE[href]=d;return d;});}'
-    # 換進來的 <script> 是惰性的，要換成新節點才會執行。
-    # 內嵌的那幾支（圖表初始化）在頂層用 const/let 宣告全域變數，直接重跑會撞
-    # 「Identifier 'X' has already been declared」→ 把它們串成一支包在 IIFE 裡，
-    # 既隔離掉上一頁的全域，彼此之間又還是共用同一個作用域。
-    'function rerun(root){var list=[].slice.call(root.querySelectorAll("script"));'
-    'var inline=[];'
-    'for(var i=0;i<list.length;i++){var s=list[i];'
-    'if(s.src){var n=document.createElement("script");'
-    'for(var j=0;j<s.attributes.length;j++)n.setAttribute(s.attributes[j].name,s.attributes[j].value);'
-    's.parentNode.replaceChild(n,s);}'
-    'else{if(!s.type||/javascript/i.test(s.type))inline.push(s.textContent);'
-    's.parentNode.removeChild(s);}}'
-    'if(inline.length){var n2=document.createElement("script");'
-    'n2.text="(function(){try{"+inline.join("\\n;\\n")+"}catch(e){console.error(e);}})();";'
-    'document.body.appendChild(n2);}}'
-    # 玻璃重整：暫時拿掉 backdrop-filter 再還原，逼 WebKit 重建背景層。
-    # maxglass 那組規則帶 !important，所以這裡也必須用 important 才蓋得過。
-    'function glassEls(){return document.querySelectorAll(".tabbar,.topglass,.brandbar");}'
-    'function restoreGlass(){var e=glassEls();for(var i=0;i<e.length;i++){'
-    'e[i].style.removeProperty("backdrop-filter");'
-    'e[i].style.removeProperty("-webkit-backdrop-filter");}}'
-    'function refreshGlass(){var e=glassEls();for(var i=0;i<e.length;i++){'
-    'e[i].style.setProperty("backdrop-filter","none","important");'
-    'e[i].style.setProperty("-webkit-backdrop-filter","none","important");}'
-    # 還原用 setTimeout 而不是 requestAnimationFrame：rAF 在背景分頁會被節流、
-    # 甚至整個不觸發，只要漏掉一次，毛玻璃就「永久」消失——那比原本要修的問題
-    # 更糟。再補兩道保險：晚一點再掃一次、以及回到前景時掃一次。
-    'setTimeout(restoreGlass,40);setTimeout(restoreGlass,400);}'
-    'document.addEventListener("visibilitychange",function(){'
-    'if(!document.hidden)restoreGlass();});'
-    'var glassTimer=0;'
-    # 換頁本體：只換 .wrap，分頁列留著（膠囊動畫才不會被打斷），
-    # 再把新內容裡的 script 與兩個全站補丁腳本重跑一次
-    'function swap(href,doc){'
-    'var oldW=document.querySelector(".wrap"),newW=doc.querySelector(".wrap");'
-    'if(!oldW||!newW)throw new Error("no wrap");'
-    'document.title=doc.title;'
-    'oldW.parentNode.replaceChild(document.importNode(newW,true),oldW);'
-    'rerun(document.querySelector(".wrap"));'
-    'var ids=["scorecolor","emptyhide"];'
-    'for(var i=0;i<ids.length;i++){var s=document.getElementById(ids[i]);'
-    'if(s){var n=document.createElement("script");n.id=s.id;n.text=s.textContent;'
-    's.parentNode.replaceChild(n,s);}}'
-    # 分頁列不重建，只把 .on 換到新的分頁上（tabthumb 的膠囊照舊跟著跑）
-    'var f=(new URL(href)).pathname.split("/").pop()||"index.html";'
-    'var tabs=document.querySelectorAll(".tabbar a.tab");'
-    'for(var k=0;k<tabs.length;k++){'
-    'var tf=(tabs[k].getAttribute("href")||"").split("/").pop()||"index.html";'
-    'tabs[k].classList.toggle("on",tf===f);}'
-    # 膠囊與琥珀高亮：從分頁列點的那次它已經滑到定位了，這裡是為了上一頁／
-    # 頁內連結那種不是從分頁列發起的換頁，不然高亮會留在舊分頁上
-    'if(window.__tabSync)window.__tabSync(true);'
-    'window.scrollTo(0,0);'
-    'clearTimeout(glassTimer);glassTimer=setTimeout(refreshGlass,' + str(GLASSFIX_MS) + ');}'
-    'var busy=false;'
-    'function go(href,push){if(busy)return;busy=true;'
-    'getDoc(href).then(function(doc){'
-    'if(push)history.pushState({spa:1},"",href);'
-    'swap(href,doc);busy=false;}).catch(function(){location.href=href;});}'
-    'window.__spaGo=function(href){var t=target(href);if(t)go(t,true);else location.href=href;};'
-    # 一般連結（例如頁內指到其他分頁的按鈕）也接管
-    'document.addEventListener("click",function(e){'
-    'if(e.defaultPrevented||e.button||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;'
-    'var a=e.target&&e.target.closest?e.target.closest("a[href]"):null;'
-    'if(!a||a.target||a.hasAttribute("download"))return;'
-    'if(a.classList.contains("tab"))return;'   # 分頁列由 tabthumb 經 __spaGo 處理
-    'var t=target(a.getAttribute("href"));'
-    'if(!t||t===location.href)return;'
-    'e.preventDefault();go(t,true);});'
-    'addEventListener("popstate",function(){'
-    'var t=target(location.href);if(!t)return;'
-    'getDoc(t).then(function(doc){swap(t,doc);}).catch(function(){location.reload();});});'
-    # 閒置時把另外三個分頁先抓回來，之後切換就是純記憶體操作
-    'var idle=window.requestIdleCallback||function(f){return setTimeout(f,1200);};'
-    'idle(function(){var d=dirOf(location.href);'
-    'for(var f in TABS){var u=d+f;if(u!==location.href)getDoc(u).catch(function(){});}});'
-    '})();</script>'
-)
+# --- 停用 SPA 換頁（移除已注入的 spanav）：改回整頁重載，分頁列每頁重建、
+# 毛玻璃穩定。SPA 曾把 .tabbar 保留在 DOM 跨頁不重建，一旦 iOS backdrop-filter
+# 失效就永不恢復——這是分頁列「換頁後霧消失、切回也沒有」的根因之一。
 SPANAV_RE = re.compile(r'<script id="spanav">.*?</script>', re.S)
 
 
 def patch_spanav(html):
-    """注入 pjax 換頁（只接管四個主分頁）。移除舊版再重插，冪等。
-    SPANAV_JS 設成 '' 就等於停用——已注入的會被移除，站點回到整頁重載。"""
-    if '</body>' not in html or '<nav class="tabbar">' not in html:
-        return SPANAV_RE.sub('', html), (SPANAV_RE.search(html) is not None)
-    if SPANAV_JS and SPANAV_JS in html:
-        return html, False
-    orig = html
-    html = SPANAV_RE.sub('', html)
-    if SPANAV_JS:
-        html = html.replace('</body>', SPANAV_JS + '</body>', 1)
-    return html, (html != orig)
-
-
-# --- 原生殼模式：?native=1 時隱藏網頁自己的分頁列 --------------------------
-# 包在 WKWebView 裡、由 SwiftUI TabView 提供真・SF Symbols 分頁列時，網頁不該
-# 再畫一條玻璃 bar（會兩條疊在一起）。一般訪客沒有這個參數，完全不受影響。
-# 旗標記在 sessionStorage：站內是整頁重載，點進個股頁時網址不會再帶 native=1，
-# 靠 sessionStorage 讓同一個 WebView 內的後續頁面也維持無 bar。
-# 注入在 </head> 之前 → 樣式在 bar 畫出來之前就生效，不會閃一下。
-NATIVEMODE_JS = (
-    '<script id="nativemode">(function(){try{'
-    'var on=/[?&]native=1\\b/.test(location.search);'
-    'if(on)sessionStorage.setItem("nativeshell","1");'
-    'else on=sessionStorage.getItem("nativeshell")==="1";'
-    'if(!on)return;'
-    'document.documentElement.classList.add("nativeshell");'
-    'var st=document.createElement("style");'
-    'st.textContent="html.nativeshell .tabbar{display:none!important}"'
-    '+"html.nativeshell .wrap{padding-bottom:24px!important}";'
-    'document.head.appendChild(st);}catch(e){}})();</script>'
-)
-NATIVEMODE_RE = re.compile(r'<script id="nativemode">.*?</script>', re.S)
-
-
-def patch_nativemode(html):
-    """?native=1 時隱藏網頁分頁列（給原生殼用）。移除舊版再重插（冪等）。"""
-    if '</head>' not in html:
-        return html, False
-    orig = html
-    html = NATIVEMODE_RE.sub('', html)
-    html = html.replace('</head>', NATIVEMODE_JS + '</head>', 1)
-    return html, (html != orig)
+    """停用 SPA 換頁：改回整頁重載。SPA 會把 .tabbar 保留在 DOM 跨頁不重建，
+    一旦 iOS 上它的 backdrop-filter 失效就永遠不會恢復（換頁後霧消失、切回也沒有）。
+    整頁重載讓分頁列每次重新產生→毛玻璃每頁都在。此函式改為「移除已注入的 spanav」。"""
+    new = SPANAV_RE.sub('', html)
+    return new, (new != html)
 
 
 # --- 台股配色：漲跌「紅漲綠跌」+ 進場分數用「極光冷色」漸進色帶 -------------
@@ -1469,6 +1302,10 @@ KEYOF_NEW = ('function keyOf(t){return (t.indexOf("價值")>=0)?"value"'
 KEYOF_RE = re.compile(r'function keyOf\(t\)\{[^}]*\}')
 
 
+# 五派配色：明顯分開的冷色寶石調（青→藍→靛→紫→洋紅），不用綠（綠留給漲跌）。
+# 獨立遷移：把先前各版（金黃版、極光版、三色版）整串換成五色版，冪等。
+PCOL_NEW = ('var PCOL={passive:"#06d6e0",chips:"#3d8bff",trend:"#5b6cff",'
+            'macro:"#c462ff",value:"#ff5fb0"};')
 
 
 # 引擎只生三張立場卡；價值派、籌碼派由 patch 端補進同一個 .grid。
@@ -1813,8 +1650,8 @@ def patch(html, fname):
     html, bg = patch_barglass(html)
     changed = changed or bg
 
-    # 12a2) SPA 換頁（pjax）：只接管四個主分頁，換頁後對玻璃做一次重整，
-    # 避免上一版「分頁列跨頁不重建、iOS 毛玻璃失效後回不來」的老問題。
+    # 12a2) 停用 SPA 換頁（移除已注入的 spanav）→ 改回整頁重載，分頁列每頁重建、
+    # 玻璃穩定；並拆掉引擎的拖曳膠囊（合成子元素會讓 iOS backdrop-filter 失效）。
     html, sn = patch_spanav(html)
     changed = changed or sn
     html, std = patch_striptabdrag(html)
@@ -1843,10 +1680,6 @@ def patch(html, fname):
     # 16) 空的動態容器/卡片自動收合，避免空白框
     html, eh = patch_emptyhide(html)
     changed = changed or eh
-
-    # 17) 原生殼模式：?native=1 隱藏網頁分頁列
-    html, nm = patch_nativemode(html)
-    changed = changed or nm
 
     return html, changed
 

@@ -140,11 +140,19 @@ ECHARTS_STUB = (
     'p.dispose=function(){return inst.dispose()};}'
     'g.echarts={__stub:1,init:function(el){var p=P();Q.push([el,arguments,p]);return p}};'
     'g.__ecReady=function(){var E=g.echarts;if(!E||E.__stub)return;'
-    'if(g.IntersectionObserver&&!E.__lazy){var R=E.init;E.__lazy=1;'
+    # 排程器：所有圖表一進頁就全部建，只是每個 animation frame 建一張，
+    # 這樣八九張疊在一起也不會把主執行緒佔住而讓首繪卡住。
+    # 舊版是 IntersectionObserver（滑到才畫）——手機 PWA 沒辦法重整，捲不到
+    # 的圖表就一直是空的，所以整條 lazy 路徑拔掉。__forceEager 保留為
+    # 「現在就畫」的逃生口（個股頁 K 線自己有每幀迴圈，不需要再排一次）。
+    'if(!E.__sched){var R=E.init;E.__sched=1;var W=[],pump=0;'
+    'var RA=g.requestAnimationFrame||function(f){return setTimeout(f,16);};'
+    'function drain(){pump=0;var j=W.shift();'
+    'if(j&&!j[0]._x)bind(j[0],R.apply(E,j[1]));'
+    'if(W.length)kick();}'
+    'function kick(){if(pump)return;pump=1;RA(drain);}'
     'E.init=function(el){var a=arguments;if(!el||el.__forceEager)return R.apply(E,a);'
-    'var p=P();var io=new g.IntersectionObserver(function(es){'
-    'for(var i=0;i<es.length;i++){if(es[i].isIntersecting){io.disconnect();'
-    'if(!p._x)bind(p,R.apply(E,a));break}}},{rootMargin:"200px"});io.observe(el);return p};}'
+    'var p=P();W.push([p,a]);kick();return p};}'
     'for(var i=0;i<Q.length;i++){if(!Q[i][2]._x)bind(Q[i][2],E.init.apply(E,Q[i][1]));}'
     'Q.length=0;};})(window);</script>'
 )
@@ -157,14 +165,24 @@ ECHARTS_DEFER = (
 )
 
 
+# 已注入的舊 stub 就地升級用。ECHARTS_TAG 在第一次補丁後就不存在了，只靠上面
+# 那條路徑的話，改了 stub 內容也只有「引擎重產的新 HTML」吃得到，已部署的頁面
+# 會一直卡在舊版（lazy IntersectionObserver 那版就是這樣留下來的）。
+ECHARTS_STUB_RE = re.compile(r'<script>/\*echarts-stub\*/.*?</script>', re.S)
+
+
 def patch_perf(html):
-    """echarts 改 defer + 載入 stub（首繪不被圖表庫卡住），建圖仍滑到才畫。"""
+    """echarts 改 defer + 載入 stub（首繪不被圖表庫卡住），建圖排程見 __ecReady。"""
     changed = False
     if ECHARTS_TAG in html:                # 阻塞版 script → stub + defer
         repl = ECHARTS_STUB + ECHARTS_DEFER
         if PRECONNECT not in html:
             repl = PRECONNECT + repl
         html = html.replace(ECHARTS_TAG, repl, 1)
+        changed = True
+    m = ECHARTS_STUB_RE.search(html)       # 舊 stub → 現行 stub（冪等：一樣就不動）
+    if m and m.group(0) != ECHARTS_STUB:
+        html = html[:m.start()] + ECHARTS_STUB + html[m.end():]
         changed = True
     return html, changed
 
@@ -2051,6 +2069,11 @@ def patch(html, fname):
     html, nm = patch_nativemode(html)
     changed = changed or nm
 
+    # 18) SW 註冊改成會自己換版（手機 PWA 沒辦法硬重整）。放最後，才會落在
+    #     </body> 前、位置穩定，重跑不會漂移。
+    html, sr = patch_swreg(html)
+    changed = changed or sr
+
     return html, changed
 
 
@@ -2096,6 +2119,51 @@ SW_ASSETS = ["index.html", "stocks.html", "perspectives.html", "news.html",
              "icon-192-maskable.png", "icon-512-maskable.png"]
 
 
+# --- SW 註冊：讓 PWA 自己換新版（手機 app 沒辦法「硬重整」）------------------
+# 引擎原本只有一行 register()。問題是：sw.js 換版之後新的 SW 雖然會裝好、
+# 接管（install 有 skipWaiting、activate 有 clients.claim），但「已經開著的
+# 那個畫面不會重畫」——桌機可以硬重整，手機 PWA 沒有那顆按鈕，使用者只能
+# 一直看到舊版。
+# 補三件事：
+#   1) controllerchange → 自己 reload 一次。這是新版真的接管的訊號，重載後
+#      拿到的就是新 SW 在 install 時抓下來的新內容。
+#   2) 第一次安裝也會觸發 controllerchange（本來沒有 controller），那次不能
+#      重載，不然每個新使用者都白白多一次。用 had 記住進頁時有沒有 controller。
+#   3) 每次回到前景就 update() 檢查一次。PWA 常常一開就是好幾天不關，不主動
+#      問的話瀏覽器不一定會去看 sw.js 有沒有換版。
+SWREG_RE = re.compile(r'<script id="swreg">.*?</script>', re.S)
+SWREG_ENGINE = ('<script>if("serviceWorker" in navigator){addEventListener("load",'
+                'function(){navigator.serviceWorker.register("sw.js")'
+                '.catch(function(){})})}</script>')
+SWREG_NEW = (
+    '<script id="swreg">(function(){'
+    'if(!("serviceWorker" in navigator))return;'
+    'var had=!!navigator.serviceWorker.controller,done=false;'
+    'navigator.serviceWorker.addEventListener("controllerchange",function(){'
+    'if(!had||done)return;done=true;location.reload();});'
+    'function chk(){try{navigator.serviceWorker.getRegistration().then(function(r){'
+    'if(r)r.update();}).catch(function(){});}catch(e){}}'
+    'addEventListener("load",function(){'
+    'navigator.serviceWorker.register("sw.js").then(chk).catch(function(){});});'
+    'document.addEventListener("visibilitychange",function(){'
+    'if(!document.hidden)chk();});'
+    '})();</script>'
+)
+
+
+def patch_swreg(html):
+    """SW 註冊換成會自己換版的版本。只動本來就有註冊的頁，不無中生有。"""
+    orig = html
+    if not SWREG_RE.search(html) and SWREG_ENGINE not in html:
+        return html, False
+    if '</body>' not in html:              # 沒地方放就別動，免得把註冊弄丟
+        return html, False
+    html = SWREG_RE.sub('', html)          # 先移除舊版（保持冪等）
+    html = html.replace(SWREG_ENGINE, '', 1)
+    html = html.replace('</body>', SWREG_NEW + '</body>', 1)
+    return html, (html != orig)
+
+
 # --- SW 抓取策略：快取優先、背景更新（stale-while-revalidate） --------------
 # 原本是「網路優先」：每次點分頁都要等 HTML 的網路往返才渲染，切頁的等待感
 # 多半來自這裡。改為快取先回、同時在背景抓新版更新快取：切頁即開，資料最多
@@ -2116,6 +2184,34 @@ SW_FETCH_SWR = (
     '});\n'
 )
 SW_FETCH_RE = re.compile(r'self\.addEventListener\("fetch",.*', re.S)
+
+# --- SW 預快取要真的去網路拿 -------------------------------------------------
+# cache.addAll 走的是預設的 HTTP 快取，Pages 給 HTML 的 max-age 期間內，
+# 新 SW 有可能把「瀏覽器快取裡的舊 HTML」原封不動存進新版快取——版本號換了、
+# 內容還是舊的，使用者依然看不到更新，而且因為版本已經換過，之後也不會再試。
+# 改成逐檔 fetch(..., {cache:"reload"})，強制繞過 HTTP 快取。
+SW_INSTALL_FRESH = (
+    'self.addEventListener("install", (e) => {\n'
+    '  e.waitUntil(caches.open(C).then((c) => Promise.all(ASSETS.map((a) =>\n'
+    '    fetch("./" + a, { cache: "reload" }).then((r) => c.put("./" + a, r)))))\n'
+    '    .catch(() => {}).then(() => self.skipWaiting()));\n'
+    '});\n'
+)
+SW_INSTALL_RE = re.compile(r'self\.addEventListener\("install",.*?\n\}\);\n', re.S)
+
+
+def fix_sw_install():
+    """預快取改成強制走網路，避免新版 SW 把舊 HTML 存進新版快取。"""
+    try:
+        sw = open("sw.js", encoding="utf-8").read()
+    except Exception:                      # noqa: BLE001 — 缺檔就跳過
+        return False
+    if SW_INSTALL_FRESH in sw or not SW_INSTALL_RE.search(sw):
+        return False
+    new = SW_INSTALL_RE.sub(SW_INSTALL_FRESH, sw, count=1)
+    with open("sw.js", "w", encoding="utf-8") as fh:
+        fh.write(new)
+    return True
 
 
 def fix_sw_strategy():
@@ -2185,6 +2281,8 @@ def main():
         touched.append("manifest.webmanifest")
     if fix_sw_strategy():
         touched.append("sw.js(策略)")
+    if fix_sw_install():
+        touched.append("sw.js(預快取)")
     if fix_sw():                           # 必須最後：雜湊要涵蓋以上全部產出
         touched.append("sw.js")
     print("已補丁：" + (", ".join(touched) if touched else "(無需變更)"))

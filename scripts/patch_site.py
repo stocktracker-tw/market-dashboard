@@ -861,10 +861,10 @@ TABTHUMB = (
     'inset 0 0 0 1px rgba(255,255,255,.45),'
     'inset 0 -1px 2px -1px rgba(70,95,125,.18),'
     '0 2px 8px -3px rgba(90,105,120,.3);'
-    # 滑動刻意放慢（.26s → .58s）：這段動畫在點擊時只播得到前半段就被 pointerup
+    # 滑動刻意放慢（.26s → .78s）：這段動畫在點擊時只播得到前半段就被 pointerup
     # 打斷，太快的話根本看不出膠囊有「滑」過去。放大也一起放慢到 .24s。
     # 與 Mindrise 的 .lens.drag 用同一組數值。
-    'transition:left .58s cubic-bezier(.22,.8,.24,1),top .3s,width .3s,height .3s}'
+    'transition:left .78s cubic-bezier(.22,.8,.24,1),top .38s,width .38s,height .38s}'
     '.tabbar .tabcap.drag{transition:none}'
     # 拖曳中：整顆放大、中央全透（底下內容直接透出）、只有四周折射亮環。
     # 淺色主題下亮環用帶藍的灰，白 bar 上才看得見；不用 transform／
@@ -989,7 +989,7 @@ def patch_tabthumb(html):
 #   4) 任何一步出錯就 location.href 退回整頁重載。
 #
 # 要停用：把 SPANAV_JS 設成 ''，重跑一次腳本即可（patch 會把已注入的移除）。
-GLASSFIX_MS = 620          # 玻璃重整時機；比膠囊滑動的 .58s 稍晚
+GLASSFIX_MS = 820          # 玻璃重整時機；比膠囊滑動的 .78s 稍晚
 SPANAV_JS = (
     '<script id="spanav">(function(){'
     'if(window.__spanav)return;window.__spanav=1;'

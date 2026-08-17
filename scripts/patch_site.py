@@ -177,20 +177,38 @@ def patch_perf(html):
 #   ② 我們 echarts-stub 在 __ecReady 裡包的那層（rootMargin 200px）——從有 stub
 #      的頁 SPA 換過來時，echarts.init 已經被換成 lazy 版。它留了 __forceEager
 #      這個逃生口，所以畫之前先把旗標插上。
-# 引擎在「沒有 IntersectionObserver」時本來就是 els.forEach(draw)，這裡等於把
-# 那條既有路徑變成唯一路徑，不是新發明的行為。
+# 一次畫 8 張會把主執行緒佔住一兩百毫秒（每張 echarts.init 都不便宜），進頁面
+# 就頓一下。改成「每幀一張」：第一張同步畫（那張本來就在第一屏），其餘每個
+# animation frame 補一張，八張約 120ms 內畫完，但每幀只用掉一張的時間，捲動與
+# 點擊都還跟得動。
+# rAF 在背景分頁會被停掉——但那也代表使用者沒在看，切回前景就會續畫，不會像
+# 之前玻璃重整那樣「漏一次就永久壞掉」。沒有 rAF 的環境退回 setTimeout。
+# 換頁（SPA）把節點換掉之後就停手，不要對著已經脫離文件的元素畫。
 KCHART_LAZY_RE = re.compile(
+    # ① 引擎原版：IntersectionObserver（rootMargin 240px）
     r"function run\(\)\{\s*"
     r"if\(typeof IntersectionObserver==='undefined'\)\{els\.forEach\(draw\);return;\}\s*"
     r"var io=new IntersectionObserver\(.*?\{rootMargin:'240px'\}\);\s*"
-    r"els\.forEach\(function\(el\)\{io\.observe\(el\);\}\);\s*\}",
+    r"els\.forEach\(function\(el\)\{io\.observe\(el\);\}\);\s*\}"
+    # ② 上一版「一次全部畫完」：已部署的頁面就地升級成每幀一張
+    r"|function run\(\)\{els\.forEach\(function\(el\)\{el\.__forceEager=1;draw\(el\);\}\);\}",
     re.S)
-KCHART_EAGER = 'function run(){els.forEach(function(el){el.__forceEager=1;draw(el);});}'
+KCHART_EAGER = (
+    'function run(){'
+    'var i=0,R=window.requestAnimationFrame||function(f){return setTimeout(f,16);};'
+    '(function step(){'
+    'if(i>=els.length)return;'
+    'var el=els[i++];'
+    'if(el.isConnected===false)return;'
+    'el.__forceEager=1;draw(el);'
+    'R(step);'
+    '})();}'
+)
 
 
 def patch_kchart_eager(html):
-    """K 線不再等捲動，一進頁就全部畫出來。只有個股頁有 .kchart[data-k]。"""
-    new = KCHART_LAZY_RE.sub(KCHART_EAGER, html, count=1)
+    """K 線不再等捲動，一進頁就每幀補一張，全部畫完。只有個股頁有 .kchart[data-k]。"""
+    new = KCHART_LAZY_RE.sub(lambda m: KCHART_EAGER, html, count=1)
     return new, (new != html)
 
 

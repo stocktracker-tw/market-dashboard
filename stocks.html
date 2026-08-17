@@ -264,7 +264,7 @@ if(ch.length&&wlBox&&wlBox.parentNode){var h='<div style="margin:0 0 12px;paddin
    ]});
   addEventListener('resize',function(){c.resize();});
  }
- function run(){els.forEach(function(el){el.__forceEager=1;draw(el);});}
+ function run(){var i=0,R=window.requestAnimationFrame||function(f){return setTimeout(f,16);};(function step(){if(i>=els.length)return;var el=els[i++];if(el.isConnected===false)return;el.__forceEager=1;draw(el);R(step);})();}
  function boot(){
   if(window.echarts)return run();
   var s=document.createElement('script');

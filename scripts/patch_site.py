@@ -1109,8 +1109,9 @@ SPANAV_JS = (
     'var d=new DOMParser().parseFromString(t,"text/html");CACHE[href]=d;return d;});}'
     # 換進來的 <script> 是惰性的，要換成新節點才會執行。
     # 內嵌的那幾支（圖表初始化）在頂層用 const/let 宣告全域變數，直接重跑會撞
-    # 「Identifier 'X' has already been declared」→ 把它們串成一支包在 IIFE 裡，
-    # 既隔離掉上一頁的全域，彼此之間又還是共用同一個作用域。
+    # 「Identifier 'X' has already been declared」→ 把它們串成一支、共用一個
+    # 區塊作用域（見下方 runInline），既隔離掉上一頁的全域，彼此之間又還是
+    # 看得見對方的 const/let。
     # 不重跑的基礎設施：這些是跨頁常駐的，重跑只會重複綁事件或直接壞掉
     'var SKIP={spanav:1,tabthumb:1,nativemode:1,zoomlock:1,brandbarjs:1};'
     'function rerun(doc){'
@@ -1142,8 +1143,20 @@ SPANAV_JS = (
     'if(prev)prev.parentNode.removeChild(prev);'
     'if(!inline.length)return;'
     'var n=document.createElement("script");n.id="spa-page-js";'
-    # 每一支各自包一層 try，前面那支拋錯不會把後面全部帶走
-    'n.text=inline.map(function(t){return "try{"+t+"\\n}catch(e){console.error(e);}";}).join("\\n");'
+    # 原生載入時，每一支 <script> 是獨立執行但「共用同一個全域語彙環境」：
+    # 前一支的 const DASH，後一支讀得到。之前為了錯誤隔離把每一支各包一層
+    # try{}，等於把那些 const 關進各自的區塊 → 後面那支變成
+    # 「ReferenceError: DASH is not defined」而整支中斷。首頁的儀表初始化正好
+    # 就在那支後面，所以進場分數的指針畫不出來（容器有、setOption 沒跑到）。
+    # 改法：整批共用「同一個」區塊 {…}。段與段之間看得見彼此的 const/let，
+    # 而每次換頁都是全新的區塊，也就不會像獨立 <script> 那樣第二次造訪
+    # 撞到「Identifier 'X' has already been declared」。
+    # 沒有頂層 const/let/class 的段落仍各自包 try{}，保留錯誤隔離；
+    # 誤判成「有」只是少一層隔離，不會出錯，所以寧可寬鬆。
+    'var LEX=/^[ \\t]*(?:const|let|class)[\\s]/m;'
+    'n.text="{"+inline.map(function(t){'
+    'return LEX.test(t)?"\\n"+t+"\\n"'
+    ':"\\ntry{"+t+"\\n}catch(e){console.error(e);}";}).join("\\n")+"\\n}";'
     'document.body.appendChild(n);}'
     'if(!need.length)return runInline();'
     'var left=need.length,done=function(){if(--left<=0)runInline();};'

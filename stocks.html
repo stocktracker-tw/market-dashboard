@@ -264,13 +264,7 @@ if(ch.length&&wlBox&&wlBox.parentNode){var h='<div style="margin:0 0 12px;paddin
    ]});
   addEventListener('resize',function(){c.resize();});
  }
- function run(){
-  if(typeof IntersectionObserver==='undefined'){els.forEach(draw);return;}
-  var io=new IntersectionObserver(function(es){
-    es.forEach(function(e){if(e.isIntersecting){draw(e.target);io.unobserve(e.target);}});
-  },{rootMargin:'240px'});
-  els.forEach(function(el){io.observe(el);});
- }
+ function run(){els.forEach(function(el){el.__forceEager=1;draw(el);});}
  function boot(){
   if(window.echarts)return run();
   var s=document.createElement('script');

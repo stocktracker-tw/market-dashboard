@@ -1,11 +1,14 @@
 /* 市場儀表板 PWA service worker：頁面網路優先（逾時退快取）、其餘快取優先＋背景更新、離線退回快取。 */
-const C = "mkt-h8796a878";
+const C = "mkt-h59ba0502";
 const ASSETS = ["index.html", "stocks.html", "perspectives.html", "news.html", "backtest.html", "rec_backtest.html", "threads.html", "stock/index.html", "etf/index.html", "universe.json", "taifex.json", "manifest.webmanifest", "icon-192.png", "icon-512.png", "icon-180.png", "icon-192-maskable.png", "icon-512-maskable.png"];
 
+const CDN = ["https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"];
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(C).then((c) => Promise.all(ASSETS.map((a) =>
-    fetch("./" + a, { cache: "reload" }).then((r) => c.put("./" + a, r)))))
-    .catch(() => {}).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(C).then((c) => Promise.all(
+    ASSETS.map((a) => fetch("./" + a, { cache: "reload" }).then((r) => c.put("./" + a, r)))
+      .concat(CDN.map((u) => fetch(u, { mode: "no-cors" })
+        .then((r) => c.put(u, r)).catch(() => {})))
+  )).catch(() => {}).then(() => self.skipWaiting()));
 });
 
 function reloadClients() {
@@ -47,9 +50,17 @@ function pageFirst(req) {
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
   if (e.request.mode === "navigate") { e.respondWith(pageFirst(e.request)); return; }
+  const sameOrigin = new URL(e.request.url).origin === self.location.origin;
   e.respondWith(
     caches.match(e.request).then((hit) => {
-      const net = fromNet(e.request).catch(() => hit || caches.match("./index.html"));
+      // 跨網域的資源都帶版本號（echarts@5.5.0），內容不會變：命中就直接用，
+      // 不再回頭抓，省掉每次開頁都重抓 1MB。
+      if (hit && !sameOrigin) return hit;
+      // 失敗時「絕對不能」拿 index.html 頂替：那是給導頁用的離線退路，
+      // 拿去回應 <script> 會讓瀏覽器以為載入成功（拿到一坨 HTML），
+      // onerror 不觸發、備援 CDN 不會跑、echarts 永遠停在 stub，
+      // 於是指針和 K 線整片消失，而且沒有任何錯誤訊息。
+      const net = fromNet(e.request).catch(() => hit || Response.error());
       return hit || net;
     })
   );

@@ -942,7 +942,7 @@ TABTHUMB = (
     # 速度對齊 iOS 原生（約 .35s，Apple 慣用的 cubic-bezier(.32,.72,0,1)）：這段動畫在點擊時只播得到前半段就被 pointerup
     # 打斷，太快的話根本看不出膠囊有「滑」過去。放大也一起放慢到 .24s。
     # 與 Mindrise 的 .lens.drag 用同一組數值。
-    'transition:left .35s cubic-bezier(.32,.72,0,1),top .22s,width .22s,height .22s}'
+    'transition:left .35s cubic-bezier(.32,.72,0,1),top .18s,width .18s,height .18s}'
     '.tabbar .tabcap.drag{transition:none}'
     # 拖曳中：整顆放大、中央全透（底下內容直接透出）、只有四周折射亮環。
     # 淺色主題下亮環用帶藍的灰，白 bar 上才看得見；不用 transform／
@@ -1024,7 +1024,7 @@ TABTHUMB = (
     'var before=cap.offsetLeft;var L=grow(t);'     # 仍在 .grab：全程維持放大＋全透
     'var travel=Math.abs(L-before);'
     'settling=true;clearTimeout(settleTimer);'
-    'settleTimer=setTimeout(function(){endSettle(t);},travel>2?360:200);'
+    'settleTimer=setTimeout(function(){endSettle(t);},travel>2?290:140);'
     # 有 SPA 換頁時直接交給它：內容是即時抽換的，分頁列不重建，膠囊的滑動
     # 動畫會一路播完，所以完全不需要延遲。沒有 SPA（或它初始化失敗）才退回
     # 整頁重載，那時仍要等一下讓動畫播到一段落。
@@ -1083,7 +1083,7 @@ def patch_tabthumb(html):
 #   4) 任何一步出錯就 location.href 退回整頁重載。
 #
 # 要停用：把 SPANAV_JS 設成 ''，重跑一次腳本即可（patch 會把已注入的移除）。
-GLASSFIX_MS = 420          # 玻璃重整時機；比膠囊滑動的 .35s 稍晚
+GLASSFIX_MS = 380          # 玻璃重整時機；比膠囊收尾（290+180ms）稍晚
 SPANAV_JS = (
     '<script id="spanav">(function(){'
     'if(window.__spanav)return;window.__spanav=1;'

@@ -169,6 +169,31 @@ def patch_perf(html):
     return html, changed
 
 
+# --- K 線一開始就畫（個股頁）------------------------------------------------
+# 引擎給 .kchart[data-k] 掛了 IntersectionObserver（rootMargin 240px），所以第一
+# 屏以外的 K 線要捲到才會出現。改成一進頁就全部畫完。
+# 兩層 lazy 都要拆：
+#   ① 引擎自己的 IO（下面這個 regex 換掉 run()）
+#   ② 我們 echarts-stub 在 __ecReady 裡包的那層（rootMargin 200px）——從有 stub
+#      的頁 SPA 換過來時，echarts.init 已經被換成 lazy 版。它留了 __forceEager
+#      這個逃生口，所以畫之前先把旗標插上。
+# 引擎在「沒有 IntersectionObserver」時本來就是 els.forEach(draw)，這裡等於把
+# 那條既有路徑變成唯一路徑，不是新發明的行為。
+KCHART_LAZY_RE = re.compile(
+    r"function run\(\)\{\s*"
+    r"if\(typeof IntersectionObserver==='undefined'\)\{els\.forEach\(draw\);return;\}\s*"
+    r"var io=new IntersectionObserver\(.*?\{rootMargin:'240px'\}\);\s*"
+    r"els\.forEach\(function\(el\)\{io\.observe\(el\);\}\);\s*\}",
+    re.S)
+KCHART_EAGER = 'function run(){els.forEach(function(el){el.__forceEager=1;draw(el);});}'
+
+
+def patch_kchart_eager(html):
+    """K 線不再等捲動，一進頁就全部畫出來。只有個股頁有 .kchart[data-k]。"""
+    new = KCHART_LAZY_RE.sub(KCHART_EAGER, html, count=1)
+    return new, (new != html)
+
+
 # --- 個股搜尋 --------------------------------------------------------------
 # ① 結果依相關度(代碼前綴 > 名稱開頭 > 名稱包含)再依分數高低排序，
 #    避免最相關/最高分的被 40 筆上限切掉。② 顯示「找到 N 筆」提示。
@@ -1925,6 +1950,10 @@ def patch(html, fname):
     # 5) 載入效能（有 echarts 的頁面）
     html, pf = patch_perf(html)
     changed = changed or pf
+
+    # 5b) K 線一開始就畫，不用捲到才出現（stocks.html）
+    html, ke = patch_kchart_eager(html)
+    changed = changed or ke
 
     # 6) 個股搜尋優化（stocks.html）
     html, st = patch_stocks(html)

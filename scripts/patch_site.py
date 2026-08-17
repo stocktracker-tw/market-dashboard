@@ -629,6 +629,10 @@ BRANDBAR_CSS = (
     'box-shadow:inset 0 1px 0 rgba(255,255,255,.95),0 1px 3px rgba(30,60,100,.06)}'
     '.brandstat i{width:9px;height:9px;border-radius:50%;flex:none}'
     '.brandstat b{font-size:15px;font-weight:800;letter-spacing:.01em}'
+    '.brandstat em{font-style:normal;font-weight:700;font-size:12px;margin-left:1px}'
+    # 第二顆（加權指數）：只在放得下的寬度顯示；窄螢幕優先保留分數
+    '.brandstat.idx{margin-left:7px;display:none}'
+    '@media(min-width:430px){.brandstat.idx{display:inline-flex}}'
     '.brandname{font-weight:800;font-size:20px;color:#17293a;letter-spacing:.03em;'
     'line-height:1.7}'
     '.brandname small{display:block;font-size:11px;font-weight:600;color:#5b6d80;'
@@ -655,6 +659,10 @@ _STAT_CACHE = None
 
 
 def _site_stat():
+    """回傳 (分數, 較昨日, 加權指數)；抓不到的欄位給 None。
+    分數／歷史／指數都取自 index.html 的 DASH payload（引擎每天重生的權威數字）：
+    - 較昨日：composite 對比 score_history 前一日（若最後一筆已是今日則往前取一筆）
+    - 加權指數：tq_twii 指標的 series 末值（引擎算趨勢時本來就帶著的收盤序列）"""
     global _STAT_CACHE
     if _STAT_CACHE is None:
         _STAT_CACHE = ()
@@ -662,9 +670,24 @@ def _site_stat():
             with open('index.html', encoding='utf-8') as f:
                 h = f.read()
             m = re.search(r'進場分數\s*([\d.]+)', h)
-            b = re.search(r'class="badge"[^>]*>([^<]{2,12})<', h)
-            if m:
-                _STAT_CACHE = (float(m.group(1)), (b.group(1).strip() if b else ''))
+            if not m:
+                return None
+            score = float(m.group(1))
+            delta = twii = None
+            mc = re.search(r'"composite":\s*([\d.]+)', h)
+            mh = re.search(r'"score_history":\s*(\[\[.*?\]\])', h, re.S)
+            if mc and mh:
+                comp = float(mc.group(1))
+                hist = json.loads(mh.group(1))
+                if len(hist) >= 2:
+                    prev = hist[-1][1] if abs(hist[-1][1] - comp) > 0.05 else hist[-2][1]
+                    delta = comp - prev
+            mt = re.search(r'"key":\s*"tq_twii",\s*"series":\s*(\[[^\]]*\])', h)
+            if mt:
+                ser = json.loads(mt.group(1))
+                if ser:
+                    twii = ser[-1]
+            _STAT_CACHE = (score, delta, twii)
         except Exception:                      # noqa: BLE001 — 抓不到就不顯示
             pass
     return _STAT_CACHE or None
@@ -674,12 +697,22 @@ def _brandstat_html():
     st = _site_stat()
     if not st:
         return ''
-    score, _band = st
+    score, delta, twii = st
     # 圓點顏色沿用儀表色帶：低分＝琥珀（過熱危險）→ 高分＝天藍（遍地黃金）
     col = ('#1a9bdf' if score >= 70 else '#2478c8' if score >= 58
            else '#2f7cc4' if score >= 45 else '#c98a1e')
-    return ('<span class="brandstat"><i style="background:%s"></i>'
-            '進場 <b>%s</b></span>' % (col, ('%g' % score)))
+    # 較昨日：台股慣例紅漲綠跌
+    d = ''
+    if delta is not None:
+        dc = '#d63838' if delta > 0 else '#1f9d55' if delta < 0 else '#5b6d80'
+        d = ('<em style="color:%s">%+.1f</em>' % (dc, delta))
+    out = ('<span class="brandstat"><i style="background:%s"></i>'
+           '進場 <b>%s</b>%s</span>' % (col, ('%g' % score), d))
+    # 第二顆：加權指數（窄螢幕以 CSS 隱藏，避免與標題擠在一起）
+    if twii:
+        out += ('<span class="brandstat idx">加權 <b>%s</b></span>'
+                % '{:,.0f}'.format(twii))
+    return out
 
 
 BRANDBAR_RE = re.compile(r'<header class="brandbar">.*?</header>', re.S)

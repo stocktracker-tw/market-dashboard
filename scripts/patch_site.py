@@ -622,15 +622,16 @@ BRANDBAR_CSS = (
     'backdrop-filter:blur(60px) saturate(1.7);'
     'box-shadow:0 1px 0 rgba(30,60,100,.08),0 14px 34px -22px rgba(30,60,100,.35)}'
     # 右側統計 chip：圓點＋短文字的膠囊（與頂欄同款玻璃質感）
-    '.brandstat{margin-left:auto;display:inline-flex;align-items:center;gap:7px;'
-    'padding:6px 13px;border-radius:999px;font-size:13px;font-weight:700;'
+    '.brandstat{margin-left:auto;display:inline-flex;align-items:center;gap:6px;'
+    'padding:5px 11px;border-radius:999px;font-size:12px;font-weight:700;'
     'color:#17293a;white-space:nowrap;flex:none;'
     'background:rgba(255,255,255,.5);border:1px solid rgba(216,226,236,.95);'
     'box-shadow:inset 0 1px 0 rgba(255,255,255,.95),0 1px 3px rgba(30,60,100,.06)}'
-    '.brandstat i{width:9px;height:9px;border-radius:50%;flex:none}'
-    '.brandstat b{font-size:15px;font-weight:800;letter-spacing:.01em}'
-    '.brandstat em{font-style:normal;font-weight:700;font-size:12px;margin-left:1px}'
+    '.brandstat i{width:8px;height:8px;border-radius:50%;flex:none}'
+    '.brandstat b{font-size:14px;font-weight:800;letter-spacing:.01em}'
+    '.brandstat em{font-style:normal;font-weight:700;font-size:11.5px;margin-left:1px}'
     '.brandname{font-weight:800;font-size:20px;color:#17293a;letter-spacing:.03em;'
+    'white-space:nowrap;'
     'line-height:1.7}'
     '.brandname small{display:block;font-size:11px;font-weight:600;color:#5b6d80;'
     'letter-spacing:.16em;margin-top:1px}'
@@ -645,6 +646,11 @@ BRANDBAR_CSS = (
     'background:linear-gradient(180deg,rgba(255,255,255,.26),rgba(255,255,255,0) 30%,'
     'rgba(255,255,255,0) 78%,rgba(255,255,255,.14))}'
     'body .wrap{padding-top:calc(80px + env(safe-area-inset-top,0px))!important}'
+    # 窄螢幕：標題縮一級，讓「標題＋指數 chip」在 390px 也並排得下
+    '@media(max-width:412px){.brandname{font-size:17px}'
+    '.brandname small{font-size:10px;letter-spacing:.12em}}'
+    # 極窄（≤380px）：連「加權」兩字都收起，只留圓點＋數字＋漲跌
+    '@media(max-width:380px){.brandstat .lbl{display:none}}'
     '</style>'
 )
 BRANDLOGO_RE = re.compile(r'<style id="brandlogo">.*?</style>', re.S)
@@ -670,7 +676,7 @@ def _site_stat():
             if not m:
                 return None
             score = float(m.group(1))
-            delta = twii = None
+            delta = twii = twii_chg = None
             mc = re.search(r'"composite":\s*([\d.]+)', h)
             mh = re.search(r'"score_history":\s*(\[\[.*?\]\])', h, re.S)
             if mc and mh:
@@ -684,7 +690,10 @@ def _site_stat():
                 ser = json.loads(mt.group(1))
                 if ser:
                     twii = ser[-1]
-            _STAT_CACHE = (score, delta, twii)
+                    # 指數自身日漲跌%：同一條收盤序列的末兩筆
+                    if len(ser) >= 2 and ser[-2]:
+                        twii_chg = (ser[-1] / ser[-2] - 1.0) * 100
+            _STAT_CACHE = (score, delta, twii, twii_chg)
         except Exception:                      # noqa: BLE001 — 抓不到就不顯示
             pass
     return _STAT_CACHE or None
@@ -694,7 +703,7 @@ def _brandstat_html():
     st = _site_stat()
     if not st:
         return ''
-    score, _delta, twii = st
+    score, _delta, twii, twii_chg = st
     # 圓點顏色沿用儀表色帶：低分＝琥珀（過熱危險）→ 高分＝天藍（遍地黃金）
     col = ('#1a9bdf' if score >= 70 else '#2478c8' if score >= 58
            else '#2f7cc4' if score >= 45 else '#c98a1e')
@@ -702,8 +711,13 @@ def _brandstat_html():
     # 圓點仍用分數色帶帶出市場溫度，delta 保留給指數旁邊的漲跌色語彙。
     if not twii:
         return ''
+    chg = ''
+    if twii_chg is not None:
+        cc = '#d63838' if twii_chg > 0 else '#1f9d55' if twii_chg < 0 else '#5b6d80'
+        chg = '<em style="color:%s">%+.1f%%</em>' % (cc, twii_chg)
     return ('<span class="brandstat"><i style="background:%s"></i>'
-            '加權 <b>%s</b></span>' % (col, '{:,.0f}'.format(twii)))
+            '<span class="lbl">加權 </span><b>%s</b>%s</span>'
+            % (col, '{:,.0f}'.format(twii), chg))
 
 
 BRANDBAR_RE = re.compile(r'<header class="brandbar">.*?</header>', re.S)

@@ -894,7 +894,10 @@ BAR_STYLE = (
     '<style id="barglass">'
     '.tabbar a.tab span:not(.ic){display:none!important}'
     '.tabbar a.tab{flex-direction:row!important;justify-content:center!important;'
-    'padding:15px 4px!important;gap:0!important}'
+    # 高度對齊原生浮動膠囊列：tab 26px icon + 上下 9px = 44px（Apple 的最小
+    # 觸控目標就是 44pt，再矮就不好按），加上 bar 自己的 6px padding 與 1px
+    # 邊框 → 整條 56px。原本 15px 讓 tab 56px、整條 70px，比原生厚了一截。
+    'padding:9px 4px!important;gap:0!important}'
     '.tabbar a.tab .ic{color:#51606f!important;opacity:.8;transition:color .16s,opacity .18s,transform .18s}'
     # 有膠囊(JS 在)時，選取色只跟著 .hl 走；.on 但沒 .hl 的退回灰
     '.tabbar.hasthumb a.tab.on:not(.hl) .ic{color:#51606f!important;opacity:.8}'

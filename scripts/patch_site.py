@@ -921,6 +921,12 @@ BAR_STYLE = (
         # 寬度對齊頂欄：brandbar 左右內距 16px，分頁列原本卻各留 33px → 兩條 bar 的
     # 邊界線對不齊，看起來「不夠寬/縮成一團」。改成同樣 16px（桌面上限 440px）。
 '.tabbar{width:min(440px,calc(100vw - 32px))!important;'
+    # 位置：原本是 11px + safe-area。iPhone 的 safe-area-inset-bottom 約 34px，
+    # 兩個相加＝離螢幕底部 45px，浮太高。改成從安全區往下收 8px：
+    #   iPhone 26px（原 45）／沒有 home indicator 的裝置 8px（原 11）
+    # 浮動膠囊列本來就會稍微進到安全區裡（Threads 那種），貼齊安全區邊界反而
+    # 會顯得懸空。max() 保底，避免小螢幕貼到見底。與 Mindrise 用同一條規則。
+    'bottom:max(8px,calc(env(safe-area-inset-bottom,0px) - 8px))!important;'
     'left:0!important;right:0!important;transform:none!important;'
     'margin-left:auto!important;margin-right:auto!important;'
     'view-transition-name:none!important;'

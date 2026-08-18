@@ -948,12 +948,18 @@ BAR_STYLE = (
     '.searchpane-head b{font-size:17px;color:#17293a}'
     '.searchpane .searchwrap{margin:0 0 8px}'
 # 搜尋框拿掉長方形描邊與 focus 外框，改成 iOS 搜尋列那種「圓角填色」。
-    '.searchpane .searchwrap input{border:0!important;border-radius:999px!important;'
-    'background:rgba(120,140,165,.12)!important;box-shadow:none!important;'
-    'outline:none!important;padding:13px 18px!important;'
-    '-webkit-appearance:none;appearance:none}'
-    '.searchpane .searchwrap input:focus{background:rgba(120,140,165,.16)!important;'
-    'box-shadow:none!important;outline:none!important}'
+    '.searchpane .searchwrap input,'
+    '.searchpane .searchwrap input:focus,'
+    '.searchpane .searchwrap input:focus-visible{'
+    'border:0 none transparent!important;border-color:transparent!important;'
+    'border-radius:999px!important;'
+    'outline:0 none transparent!important;outline-color:transparent!important;'
+    'box-shadow:none!important;'
+    'background:rgba(120,140,165,.12)!important;'
+    'padding:13px 18px!important;'
+    '-webkit-appearance:none!important;appearance:none!important;'
+    '-webkit-tap-highlight-color:transparent}'
+    '.searchpane .searchwrap input:focus{background:rgba(120,140,165,.17)!important}'
     '.tabbar a.tab{flex-direction:row!important;justify-content:center!important;'
     # 高度對齊原生浮動膠囊列：tab 26px icon + 上下 9px = 44px（Apple 的最小
     # 觸控目標就是 44pt，再矮就不好按），加上 bar 自己的 6px padding 與 1px
@@ -1159,8 +1165,10 @@ TABTHUMB = (
 # 展開上限必須讓 sheet 的頂端停在頂欄「底下」——頂欄是 fixed 且 z-index 比
     # sheet 高，滑過頭的話橫桿會被它蓋住，就再也抓不回來了（實測會卡死）。
     'function MAXH(){var t=0;'
-    '[".brandbar",".topglass"].forEach(function(sel){var e=document.querySelector(sel);'
-    'if(e){var r=e.getBoundingClientRect();if(r.bottom>t)t=r.bottom;}});'
+    '[".brandbar",".topglass",".top"].forEach(function(sel){'
+    'var e=document.querySelector(sel);'
+    'if(e&&getComputedStyle(e).position==="fixed"){'
+    'var r=e.getBoundingClientRect();if(r.bottom>t)t=r.bottom;}});'
     'var pad=parseFloat(getComputedStyle(box.parentNode).paddingBottom)||10;'
     'return Math.max(200,innerHeight-Math.max(t+12,44)-pad);}'
     'var sy=0,dy=0,baseH=0,moved=false,on=false;'

@@ -960,6 +960,7 @@ BAR_STYLE = (
     'box-shadow:none!important;'
     'background:rgba(120,140,165,.12)!important;'
     'padding:13px 18px!important;'
+    'font-size:16px!important;'
     '-webkit-appearance:none!important;appearance:none!important;'
     '-webkit-tap-highlight-color:transparent}'
     '.searchpane .searchwrap input:focus{background:rgba(120,140,165,.17)!important}'

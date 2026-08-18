@@ -893,6 +893,24 @@ TAB_ARIA_RE = re.compile(
 BAR_STYLE = (
     '<style id="barglass">'
     '.tabbar a.tab span:not(.ic){display:none!important}'
+# 右邊那顆獨立圓鈕：跟分頁列同高、同一套淺色玻璃，貼群組右緣。
+    '.baract{position:fixed;right:calc(50% - var(--bargrp)/2);bottom:var(--barbot);'
+    'z-index:60;width:var(--barh);height:var(--barh);border-radius:999px;'
+    'display:flex;align-items:center;justify-content:center;padding:0;'
+    'background:rgba(245,248,251,.72);'
+    'border:1px solid rgba(216,226,236,.9);'
+    'box-shadow:0 10px 30px rgba(30,60,100,.14),0 2px 6px rgba(30,60,100,.07),'
+    'inset 0 0 0 1px rgba(255,255,255,.30),inset 0 1.5px 0 rgba(255,255,255,.95),'
+    'inset 3px 4px 10px -6px rgba(255,255,255,.95),'
+    'inset -3px -4px 10px -7px rgba(255,255,255,.55),'
+    'inset 0 -1.5px 3px -1px rgba(70,95,125,.26);'
+    'color:#51606f;cursor:pointer;'
+    'transition:color .16s,filter .16s}'
+    '.baract:active{filter:brightness(.97)}'
+    '.baract:hover{color:#c98a1e}'
+    '.baract svg{width:26px;height:26px;display:block;fill:none;'
+    'stroke:currentColor;stroke-width:2;stroke-linecap:round}'
+    '.baract:focus:not(:focus-visible){outline:none}'
     '.tabbar a.tab{flex-direction:row!important;justify-content:center!important;'
     # 高度對齊原生浮動膠囊列：tab 26px icon + 上下 9px = 44px（Apple 的最小
     # 觸控目標就是 44pt，再矮就不好按），加上 bar 自己的 6px padding 與 1px
@@ -923,15 +941,24 @@ BAR_STYLE = (
     #   3) 厚度：底緣內陰影，讓它從「貼紙」變成「有厚度的玻璃板」
         # 寬度對齊頂欄：brandbar 左右內距 16px，分頁列原本卻各留 33px → 兩條 bar 的
     # 邊界線對不齊，看起來「不夠寬/縮成一團」。改成同樣 16px（桌面上限 440px）。
-'.tabbar{width:min(440px,calc(100vw - 32px))!important;'
+# 底部這一組＝左邊的分頁膠囊 ＋ 右邊一顆獨立圓鈕（iOS 相簿那種排法）。
+    # 兩者各自 fixed，靠 --bargrp 這條共同的「群組寬度」對齊：膠囊貼群組左緣、
+    # 圓鈕貼群組右緣。刻意不用共同的 flex 容器包起來——分頁列是 backdrop-filter
+    # 元素，多包一層容器容易連帶影響它的合成層。與 Mindrise 同一套變數。
+    ':root{--bargrp:min(440px,calc(100vw - 32px));--barh:58px;'
+    '--bargap:20px;'
+    '--barpill:calc(var(--bargrp) - var(--barh) - var(--bargap));'
+    '--barbot:max(8px,calc(env(safe-area-inset-bottom,0px) - 8px))}'
+    '.tabbar{width:var(--barpill)!important;'
     # 位置：原本是 11px + safe-area。iPhone 的 safe-area-inset-bottom 約 34px，
     # 兩個相加＝離螢幕底部 45px，浮太高。改成從安全區往下收 8px：
     #   iPhone 26px（原 45）／沒有 home indicator 的裝置 8px（原 11）
     # 浮動膠囊列本來就會稍微進到安全區裡（Threads 那種），貼齊安全區邊界反而
     # 會顯得懸空。max() 保底，避免小螢幕貼到見底。與 Mindrise 用同一條規則。
-    'bottom:max(8px,calc(env(safe-area-inset-bottom,0px) - 8px))!important;'
-    'left:0!important;right:0!important;transform:none!important;'
-    'margin-left:auto!important;margin-right:auto!important;'
+    'bottom:var(--barbot)!important;'
+    'left:calc(50% - var(--bargrp)/2)!important;right:auto!important;'
+    'transform:none!important;'
+    'margin-left:0!important;margin-right:0!important;'
     'view-transition-name:none!important;'
     'background:rgba(245,248,251,.72)!important;'
     'border:1px solid rgba(216,226,236,.9)!important;'
@@ -1077,11 +1104,29 @@ TABTHUMB = (
     '</style>'
     '<script id="tabthumb">(function(){'
     'if(window.__tabthumb)return;window.__tabthumb=1;'
+    'function mkAction(){'
+    'if(document.querySelector(".baract"))return;'
+    'if(!document.querySelector(".tabbar"))return;'
+    'var a=document.createElement("button");a.className="baract";'
+    'a.type="button";a.setAttribute("aria-label","搜尋個股");'
+    'a.title="搜尋個股";'
+    'a.innerHTML=\'<svg viewBox="0 0 24 24" aria-hidden="true">'
+    '<circle cx="11" cy="11" r="6.6"/><path d="M16 16l4.6 4.6"/></svg>\';'
+    'function focusQ(){var q=document.getElementById("q");'
+    'if(!q)return false;q.scrollIntoView({block:"center"});'
+    'try{q.focus({preventScroll:true});}catch(e){q.focus();}return true;}'
+    'a.addEventListener("click",function(){'
+    'if(focusQ())return;'
+    'if(window.__spaGo){window.__spaGo("stocks.html");'
+    'var n=0,t=setInterval(function(){if(focusQ()||++n>20)clearInterval(t);},100);}'
+    'else{location.href="stocks.html#q";}});'
+    'document.body.appendChild(a);}'
     'var order=["index.html","stocks.html","perspectives.html","news.html"];'
     'function curIdx(){var f=(location.pathname.split("/").pop()||"").toLowerCase();'
     'return f==="stocks.html"?1:f==="perspectives.html"?2:f==="news.html"?3:0;}'
     'function start(){'
     'var bar=document.querySelector(".tabbar");if(!bar)return;'
+    'mkAction();'
     'var tabs=[].slice.call(bar.querySelectorAll("a.tab"));if(tabs.length<2)return;'
     'bar.classList.add("hasthumb");'
     'var cap=document.createElement("span");cap.className="tabcap";bar.insertBefore(cap,bar.firstChild);'

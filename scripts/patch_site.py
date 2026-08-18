@@ -899,8 +899,8 @@ BAR_STYLE = (
     # 自己的 ✕／點空白處／Esc，這是原生 sheet 的收法。
     'z-index:60;width:var(--barh);height:var(--barh);border-radius:999px;'
     'display:flex;align-items:center;justify-content:center;padding:0;'
-    'background:rgba(245,248,251,.72);'
-    'border:1px solid rgba(216,226,236,.9);'
+    'background:rgba(245,248,251,.72)!important;'
+    'border:1px solid rgba(216,226,236,.9)!important;'
     'box-shadow:0 10px 30px rgba(30,60,100,.14),0 2px 6px rgba(30,60,100,.07),'
     'inset 0 0 0 1px rgba(255,255,255,.30),inset 0 1.5px 0 rgba(255,255,255,.95),'
     'inset 3px 4px 10px -6px rgba(255,255,255,.95),'
@@ -936,7 +936,8 @@ BAR_STYLE = (
 # grabber 要能被抓，所以是真的元素不是 ::before（偽元素掛不上事件）。
     # 它同時也是關閉鈕：點一下＝關掉，鍵盤與讀螢幕也走得通，所以拿掉 ✕ 不會少一條路。
     '.sheet-grab{display:block;position:sticky;top:0;z-index:3;width:100%;'
-    'background:none;border:0;padding:6px 0 12px;cursor:grab;touch-action:none}'
+    'background:none!important;border:0!important;color:inherit!important;'
+    'padding:6px 0 12px;cursor:grab;touch-action:none}'
     '.sheet-grab:active{cursor:grabbing}'
     '.sheet-grab i{display:block;width:38px;height:5px;margin:0 auto;'
     'border-radius:999px;background:rgba(90,110,130,.32);transition:background .15s}'

@@ -947,6 +947,13 @@ BAR_STYLE = (
     '.searchpane-head{margin-bottom:10px}'
     '.searchpane-head b{font-size:17px;color:#17293a}'
     '.searchpane .searchwrap{margin:0 0 8px}'
+# 搜尋框拿掉長方形描邊與 focus 外框，改成 iOS 搜尋列那種「圓角填色」。
+    '.searchpane .searchwrap input{border:0!important;border-radius:999px!important;'
+    'background:rgba(120,140,165,.12)!important;box-shadow:none!important;'
+    'outline:none!important;padding:13px 18px!important;'
+    '-webkit-appearance:none;appearance:none}'
+    '.searchpane .searchwrap input:focus{background:rgba(120,140,165,.16)!important;'
+    'box-shadow:none!important;outline:none!important}'
     '.tabbar a.tab{flex-direction:row!important;justify-content:center!important;'
     # 高度對齊原生浮動膠囊列：tab 26px icon + 上下 9px = 44px（Apple 的最小
     # 觸控目標就是 44pt，再矮就不好按），加上 bar 自己的 6px padding 與 1px
@@ -1149,7 +1156,13 @@ TABTHUMB = (
     'a.innerHTML=\'<svg viewBox="0 0 24 24" aria-hidden="true">'
     '<circle cx="11" cy="11" r="6.6"/><path d="M16 16l4.6 4.6"/></svg>\';'
     'function grabDrag(box,grab){if(!box||!grab)return;'
-    'function MAXH(){return Math.min(innerHeight*0.86,innerHeight-90);}'
+# 展開上限必須讓 sheet 的頂端停在頂欄「底下」——頂欄是 fixed 且 z-index 比
+    # sheet 高，滑過頭的話橫桿會被它蓋住，就再也抓不回來了（實測會卡死）。
+    'function MAXH(){var t=0;'
+    '[".brandbar",".topglass"].forEach(function(sel){var e=document.querySelector(sel);'
+    'if(e){var r=e.getBoundingClientRect();if(r.bottom>t)t=r.bottom;}});'
+    'var pad=parseFloat(getComputedStyle(box.parentNode).paddingBottom)||10;'
+    'return Math.max(200,innerHeight-Math.max(t+12,44)-pad);}'
     'var sy=0,dy=0,baseH=0,moved=false,on=false;'
     'grab.addEventListener("pointerdown",function(e){'
     'if(e.pointerType==="mouse"&&e.button!==0)return;'

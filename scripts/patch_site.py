@@ -929,6 +929,9 @@ BAR_STYLE = (
     '.searchwrap,#res{display:none}'
     '.searchpane .searchwrap,.searchpane #res{display:block}'
     '.searchpane{position:fixed;inset:0;z-index:70;display:none;'
+# 這頁沒有全域 box-sizing 重置，不寫的話 fitVV 設的 height 會再加上一份
+    # 內距（含安全區），面板整個比可見區高，貼底的 sheet 被推出畫面。
+    'box-sizing:border-box;'
     'background:rgba(23,41,58,0);transition:background-color .26s ease;'
     '-webkit-backdrop-filter:blur(10px) saturate(1.2);'
     'backdrop-filter:blur(10px) saturate(1.2);'
@@ -938,6 +941,9 @@ BAR_STYLE = (
     '.searchpane.shown{background:rgba(23,41,58,.42)}'
     '@media(min-width:560px){.searchpane{align-items:center;padding:10px}}'
     '.searchsheet{background:rgba(245,248,251,.97);width:100%;max-width:560px;'
+# sheet 自己也要 border-box：不然 fitVV 算出來的 max-height 只框到內容盒，
+    # 上下內距 30px 與 2px 邊框都是外加的，整張會比上限高 32px 而頂出畫面。
+    'box-sizing:border-box;'
 # min-height:0 一定要寫：sheet 是 flex item，flex item 的自動最小尺寸是內容高度，
     # 不寫的話 height／max-height 都會被內容撐破（實測 height:734 卻算出 766）。
     'max-height:calc(100vh - 100px);min-height:0;overflow-y:auto;border-radius:28px;'
@@ -1208,7 +1214,9 @@ TABTHUMB = (
     'pn.style.top=vv.offsetTop+"px";pn.style.height=vv.height+"px";'
     'pn.style.bottom="auto";'
     'var shv=pn.querySelector(".searchsheet");'
-    'if(shv)shv.style.maxHeight=Math.max(160,vv.height-24)+"px";}'
+    'if(shv){var pcs=getComputedStyle(pn);'
+    'var pt=parseFloat(pcs.paddingTop)||0,pb=parseFloat(pcs.paddingBottom)||0;'
+    'shv.style.maxHeight=Math.max(160,vv.height-pt-pb-24)+"px";}}'
     'function bindVV(){var vv=window.visualViewport;if(!vv)return;'
     'vv.addEventListener("resize",fitVV);vv.addEventListener("scroll",fitVV);}'
     'function unbindVV(){var vv=window.visualViewport;if(!vv)return;'

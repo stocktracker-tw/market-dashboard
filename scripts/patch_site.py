@@ -914,8 +914,12 @@ BAR_STYLE = (
     'inset 0 1.5px 1px rgba(255,255,255,1),'
     'inset 0 -1px 2px -1px rgba(70,95,125,.28),'
     '0 4px 14px -5px rgba(30,60,100,.35)}'
-    '.baract.press{width:calc(var(--barh) + 6px);height:calc(var(--barh) + 6px);'
-    'margin:0 -3px -3px 0}'
+# 原本只長 6px（1.10 倍），跟選取膠囊的變化幅度差太多——膠囊按下是每邊長
+    # 8px（44→60，1.36 倍），圓鈕只有它的 38%，按下去幾乎看不出來。加倍成
+    # 每邊 6px（58→70，1.21 倍）。沒有照抄 8px 是因為圓鈕已經是整條 bar 的
+    # 高度，再長下去會頂到螢幕底緣。
+    '.baract.press{width:calc(var(--barh) + 12px);height:calc(var(--barh) + 12px);'
+    'margin:0 -6px -6px 0}'
     '.baract.press::before{opacity:0}'
     '.baract.press::after{opacity:1}'
     '.baract svg{width:26px;height:26px;display:block;fill:none;position:relative;z-index:1;'

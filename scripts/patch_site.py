@@ -1053,6 +1053,24 @@ BAR_STYLE = (
 BAR_STYLE_RE = re.compile(r'<style id="barglass">.*?</style>', re.S)
 
 
+# --- 拿掉舊的「加入自選股」浮動 ＋ 鈕 ------------------------------------
+# 個股頁右下角原本就有一顆 54px 的 ＋（focus 自選股輸入框），現在放大鏡圓鈕
+# 也在同一個角落：兩顆圓鈕上下疊著、相距 20px，大小還差 4px（54 vs 58）、
+# 左緣也沒對齊，看起來就是多出來的東西。
+# ＋ 的功能只是捲到並 focus #wlq，那個輸入框本來就在頁面上，拿掉只少一個
+# 捷徑、不會少一條路。
+FAB_RE = re.compile(
+    r'<button class="fab".*?</button>\s*'
+    r'<script>\s*\(function\(\)\{var f=document\.getElementById\(.fab.\).*?\}\);\}\)\(\);\s*</script>',
+    re.S)
+
+
+def patch_fab(html):
+    """移除舊的浮動 ＋ 鈕（與右下角的放大鏡圓鈕重複）。"""
+    out = FAB_RE.sub('', html)
+    return out, (out != html)
+
+
 def patch_barglass(html):
     """導覽列：emoji 換 SF 風線條 SVG + 無字 + 玻璃；補 aria-label。有 tabbar 的頁面。"""
     if '<nav class="tabbar">' not in html:
@@ -2301,6 +2319,10 @@ def patch(html, fname):
 
     html, bg = patch_barglass(html)
     changed = changed or bg
+
+    # 12a1) 舊的浮動 ＋ 鈕與右下角放大鏡圓鈕重複，移掉
+    html, fb = patch_fab(html)
+    changed = changed or fb
 
     # 12a2) SPA 換頁（pjax）：只接管四個主分頁，換頁後對玻璃做一次重整，
     # 避免上一版「分頁列跨頁不重建、iOS 毛玻璃失效後回不來」的老問題。

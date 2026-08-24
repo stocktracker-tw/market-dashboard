@@ -1249,8 +1249,10 @@ TABTHUMB = (
     '<button class="sheet-grab" type="button" '
     'aria-label="關閉搜尋（也可以往下滑關掉、往上滑展開）"><i></i></button>'
     '<div class="searchpane-head"><b>搜尋個股</b></div>'
-    '<p class="searchpane-sub">輸入代碼或名稱即時查全市場，共 1972 檔。'
-    '點結果可以展開明細。</p></div>\';'
+# 說明這行不要再寫檔數與「點結果展開明細」——底下輸入框的 placeholder 已經
+    # 有了（而且那個數字是引擎從 universe.json 算的，會跟著更新）。原本這裡寫死
+    # 1972，實際是 1968，兩行上下並排卻報不同的數字。
+    '<p class="searchpane-sub">輸入代碼或名稱，即時查全市場。</p></div>\';'
     'pn.addEventListener("click",function(e){if(e.target===pn)closePane();});'
     'grabDrag(pn.querySelector(".searchsheet"),pn.querySelector(".sheet-grab"));'
     'document.body.appendChild(pn);return pn;}'

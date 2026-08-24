@@ -1274,13 +1274,17 @@ TABTHUMB = (
     # 當上邊距（getBoundingClientRect 已含安全區），比寫死數值可靠。
     'pn.classList.add("on");document.body.style.overflow="hidden";'
     'fitVV();bindVV();'
+# 自動聚焦要在 sheet 還沒被推到畫面外之前做。iOS 只有在使用者手勢當下、
+    # 而且目標真的在畫面上時才肯把鍵盤叫起來；等 sheet 挪到畫面外之後再
+    # focus，WebKit 會安靜地不理你（Chromium 兩種順序都給焦點，所以這個
+    # 差別只在真機上看得出來）。
+    'var q0=document.getElementById("q");'
+    'if(q0){try{q0.focus({preventScroll:true});}catch(e){q0.focus();}}'
     'sh.classList.add("dragging");'
     'sh.style.marginBottom=(-(sh.offsetHeight+40))+"px";'
     'requestAnimationFrame(function(){'
     'sh.classList.remove("dragging");sh.style.marginBottom="";'
     'pn.classList.add("shown");});'
-    'var q=document.getElementById("q");'
-    'if(q){try{q.focus({preventScroll:true});}catch(e){q.focus();}}'
     'return true;}'
     'function closePane(){var pn=document.querySelector(".searchpane");'
     'if(!pn||!pn.classList.contains("on")||pn.__closing)return;'

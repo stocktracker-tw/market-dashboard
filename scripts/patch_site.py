@@ -1236,6 +1236,12 @@ TABTHUMB = (
     'var vv=window.visualViewport;if(!vv)return;'
     'pn.style.top=vv.offsetTop+"px";pn.style.height=vv.height+"px";'
     'pn.style.bottom="auto";'
+# 鍵盤升起時 home indicator 那塊安全區已經被鍵盤蓋住，但
+    # env(safe-area-inset-bottom) 還是回報 34px，面板繼續替它留位 →
+    # sheet 底部和鍵盤之間多出 34px 空隙。鍵盤在的時候只留 10px。
+    # 用 layout viewport 判斷：它不會隨鍵盤縮，只有 visual viewport 會。
+    'var kbUp=vv.height<document.documentElement.clientHeight-80;'
+    'pn.style.paddingBottom=kbUp?"10px":"";'
     'var shv=pn.querySelector(".searchsheet");'
     'if(shv){var pcs=getComputedStyle(pn);'
     'var pt=parseFloat(pcs.paddingTop)||0,pb=parseFloat(pcs.paddingBottom)||0;'
@@ -1291,6 +1297,7 @@ TABTHUMB = (
     'var sh=pn.querySelector(".searchsheet");'
     'if(sh){sh.style.marginBottom="";sh.style.maxHeight="";sh.classList.remove("dragging");}'
     'unbindVV();pn.style.top="";pn.style.height="";pn.style.bottom="";'
+    'pn.style.paddingBottom="";'
     'pn.classList.remove("on");document.body.style.overflow="";}'
     'document.addEventListener("keydown",function(e){'
     'if(e.key==="Escape")closePane();});'

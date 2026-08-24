@@ -952,7 +952,8 @@ BAR_STYLE = (
     # 不寫的話 height／max-height 都會被內容撐破（實測 height:734 卻算出 766）。
     'max-height:calc(100vh - 100px);min-height:0;overflow-y:auto;border-radius:28px;'
     'border:1px solid rgba(190,206,222,.95);'
-    'padding:10px 18px 20px;'
+# 內距對齊 Mindrise 的 sheet（20/22），兩邊打開來留白一致。
+    'padding:10px 20px 22px;'
     'box-shadow:0 18px 50px -14px rgba(30,60,100,.45),'
     'inset 0 1.5px 0 rgba(255,255,255,1)}'
 # grabber 要能被抓，所以是真的元素不是 ::before（偽元素掛不上事件）。
@@ -971,7 +972,7 @@ BAR_STYLE = (
 # 說明文字放在標題與輸入框之間（與 Mindrise 的 sheet 同一個結構）。
     # 引擎原本那段說明在 #res 裡、位置在輸入框「下面」；搜尋前它是 #res 的
     # 唯一內容，用 :only-child 把它藏起來就不會重複，一有結果它本來就會被換掉。
-    '.searchpane-sub{margin:0 0 12px;font-size:13.5px;line-height:1.55;color:#5b6d80}'
+    '.searchpane-sub{margin:0 0 12px;font-size:13.5px;line-height:1.7;color:#5b6d80}'
     '.searchpane #res>.muted:only-child{display:none}'
     '.searchpane .searchwrap{margin:0 0 8px}'
 # 搜尋框拿掉長方形描邊與 focus 外框，改成 iOS 搜尋列那種「圓角填色」。

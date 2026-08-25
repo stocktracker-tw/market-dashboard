@@ -5,10 +5,10 @@
     "pcr_oi": 1.04,
     "pcr_vol": 1.11
   },
-  "updated": "2026-08-24 16:41",
+  "updated": "2026-08-25 16:35",
   "inst": {
-    "date": "20260821",
-    "inst_net_oi": -4579,
-    "foreign_net_oi": -82594
+    "date": "20260824",
+    "inst_net_oi": -4406,
+    "foreign_net_oi": -82529
   }
 }

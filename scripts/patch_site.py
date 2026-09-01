@@ -899,21 +899,10 @@ BAR_STYLE = (
     'justify-content:center;position:relative;background:none!important;'
     'border:0!important;padding:9px 4px!important;border-radius:999px;'
     'color:#51606f;cursor:pointer;transition:color .16s}'
-# 按住時浮出來的泡泡＝選取膠囊拖曳時的那一層，尺寸也對齊：膠囊靜止 44px
-    # 高、按住長到 60px。這顆按鈕自己就是 44px 高，所以靜止 inset:0（＝44）、
-    # 按住 inset:-8px（＝60）。注意 inset 是相對這顆按鈕算的，不是相對 bar
-    # 的內容區——照抄膠囊的 6px/-2px 只會得到 32/48。
-    '.baract::after{content:"";position:absolute;inset:0 2px;border-radius:999px;'
-    'opacity:0;pointer-events:none;'
-    'background:radial-gradient(closest-side,rgba(255,255,255,0) 58%,'
-    'rgba(120,140,165,.10) 84%,rgba(120,140,165,.24) 100%);'
-    'box-shadow:inset 0 0 0 1px rgba(255,255,255,.9),'
-    'inset 0 1.5px 1px rgba(255,255,255,1),'
-    'inset 0 -1px 2px -1px rgba(70,95,125,.28),'
-    '0 4px 14px -5px rgba(30,60,100,.35);'
-    'transition:opacity .18s ease,inset .18s ease}'
-    '.baract.press{color:#17293a}'
-    '.baract.press::after{opacity:1;inset:-8px 2px}'
+# 按住時的外觀完全交給真正的膠囊（.tabcap）——它會滑過來、放大、變成全透
+    # 折射環，跟停在任何一個分頁上時一模一樣。這裡不再自己畫泡泡。
+    '.baract.hl{color:#c98a1e!important}'
+    '.baract.hl svg{opacity:1}'
     '.baract svg{position:relative;z-index:1}'
 # 描邊粗細與淡度要跟其他分頁 icon 一致（.ic 是 opacity .8、stroke-width 1.8）。
     # 原本是全不透明加 stroke 2，並排時明顯比鄰居黑一階，一看就不是同一組。
@@ -1300,19 +1289,18 @@ TABTHUMB = (
     'pn.classList.remove("on");document.body.style.overflow="";}'
     'document.addEventListener("keydown",function(e){'
     'if(e.key==="Escape")closePane();});'
-    'a.addEventListener("click",function(){'
+# 動作本體掛在元素上，讓 bar 的膠囊邏輯在 pointerup 直接呼叫——bar 會
+    # setPointerCapture，按鈕自己的 click 不一定收得到。click 只留給沒有
+    # 指標的情況（鍵盤 Enter／輔助技術，那時 detail===0）。
+    'a.__act=function(){'
     'var pn=document.querySelector(".searchpane");'
     'if(pn&&pn.classList.contains("on")){closePane();return;}'
     'if(openPane())return;'
     'if(window.__spaGo){window.__spaGo("stocks.html");'
     'var n=0,t=setInterval(function(){if(openPane()||++n>20)clearInterval(t);},100);}'
-    'else{location.href="stocks.html";}});'
-# 按壓效果：按下長大＋換成全透折射環，放開還原。pointercancel／pointerleave
-    # 也要收，不然手指滑開會卡在按住的樣子。與 Mindrise 的 ＋ 同一套。
-    'a.addEventListener("pointerdown",function(e){'
-    'if(e.pointerType==="mouse"&&e.button!==0)return;a.classList.add("press");});'
-    '["pointerup","pointercancel","pointerleave"].forEach(function(ev){'
-    'a.addEventListener(ev,function(){a.classList.remove("press");});});'
+    'else{location.href="stocks.html";}};'
+    'a.addEventListener("click",function(e){if(e.detail===0)a.__act();});'
+
 # 放進 bar 裡面，第 2、3 個分頁中間。找不到第 3 個分頁就退回接在最後，
     # 至少不會整顆消失。
     'var nav=document.querySelector(".tabbar");'
@@ -1326,38 +1314,44 @@ TABTHUMB = (
     'var bar=document.querySelector(".tabbar");if(!bar)return;'
     'mkAction();'
     'var tabs=[].slice.call(bar.querySelectorAll("a.tab"));if(tabs.length<2)return;'
+# 膠囊會停的每一站：四個分頁 ＋ 中間那顆動作鈕。動作鈕不是分頁（place()
+    # 仍只認 tabs），但拖曳時膠囊照樣滑得過去、停得住，手感跟分頁一樣。
+    'var stops=[].slice.call(bar.querySelectorAll("a.tab,.baract"));'
+    'function isAct(i){return !!(stops[i]&&stops[i].classList.contains("baract"));}'
+    'function tabIdx(i){return tabs.indexOf(stops[i]);}'
+    'function stopIdx(t){return stops.indexOf(tabs[t]);}'
     'bar.classList.add("hasthumb");'
     'var cap=document.createElement("span");cap.className="tabcap";bar.insertBefore(cap,bar.firstChild);'
-    'var cur=curIdx(),over=cur,dragging=false;'
+    'var cur=curIdx(),over=0,dragging=false;'
     'function place(i,anim){var br=bar.getBoundingClientRect(),r=tabs[i].getBoundingClientRect();'
     'cap.classList.toggle("drag",!anim);'
     'cap.style.width=r.width+"px";cap.style.height=r.height+"px";'
     'cap.style.top=(r.top-br.top)+"px";cap.style.left=(r.left-br.left)+"px";}'
-    'function nearest(x){var best=0,bd=1e9;for(var k=0;k<tabs.length;k++){'
-    'var r=tabs[k].getBoundingClientRect(),c=r.left+r.width/2,d=Math.abs(x-c);'
+    'function nearest(x){var best=0,bd=1e9;for(var k=0;k<stops.length;k++){'
+    'var r=stops[k].getBoundingClientRect(),c=r.left+r.width/2,d=Math.abs(x-c);'
     'if(d<bd){bd=d;best=k;}}return best;}'
     # 高亮跟著膠囊走：膠囊滑到誰身上，誰的圖示就變琥珀色（原本那顆同時退回灰）
-    'function hl(i){for(var k=0;k<tabs.length;k++)tabs[k].classList.toggle("hl",k===i);}'
+    'function hl(i){for(var k=0;k<stops.length;k++)stops[k].classList.toggle("hl",k===i);}'
     'function follow(x){var br=bar.getBoundingClientRect();'
-    'var r0=tabs[0].getBoundingClientRect();'
+    'var r0=stops[0].getBoundingClientRect();'
     'cap.style.width=(r0.width+26)+"px";cap.style.height=(r0.height+16)+"px";'
-    'cap.style.top=(tabs[over].getBoundingClientRect().top-br.top-8)+"px";'
+    'cap.style.top=(stops[over].getBoundingClientRect().top-br.top-8)+"px";'
     'var w=cap.offsetWidth;'
     # 夾限用「膠囊中心」對齊頭尾分頁中心：放大後的膠囊會微微超出 bar 兩端，
     # 但拖到底時正好以第一顆／最後一顆 icon 為中心（夾膠囊邊緣會偏向內側）
-    'var r1=tabs[0].getBoundingClientRect(),rN=tabs[tabs.length-1].getBoundingClientRect();'
+    'var r1=stops[0].getBoundingClientRect(),rN=stops[stops.length-1].getBoundingClientRect();'
     'var loC=r1.left+r1.width/2-br.left,hiC=rN.left+rN.width/2-br.left;'
     'var cx=Math.max(loC,Math.min(hiC,x-br.left));var L=cx-w/2;'
     'cap.classList.add("drag");cap.style.left=L+"px";'
     'var o=nearest(x);if(o!==over){over=o;hl(o);}}'
-    'requestAnimationFrame(function(){place(cur,false);hl(cur);});'
+    'requestAnimationFrame(function(){place(cur,false);hl(stopIdx(cur));});'
     # 按下就放大：把 follow() 的放大尺寸也套在 pointerdown 當下，膠囊以按到的
     # 那顆分頁為中心撐開。原本按下只換成 .grab（變透明），放大是移動時才由
     # follow() 做的——真實觸控因為手指一定有幾 px 位移所以看起來像有放大，
     # 但純粹的點擊沒有。移除 .drag 讓這一下走過場動畫（follow 之後會加回去）。
     # 回傳目標 left：up() 要用它算位移。不能在設完 style.left 之後讀 offsetLeft
     # ——過場還沒開始跑，讀到的是動畫前的舊值，位移會算成 0、收尾就提早了。
-    'function grow(i){var br=bar.getBoundingClientRect(),r=tabs[i].getBoundingClientRect();'
+    'function grow(i){var br=bar.getBoundingClientRect(),r=stops[i].getBoundingClientRect();'
     'var w=r.width+26,h=r.height+16;'
     'cap.style.width=w+"px";cap.style.height=h+"px";'
     'cap.style.top=(r.top-br.top-8)+"px";'
@@ -1371,29 +1365,31 @@ TABTHUMB = (
     # 形變也發生在兩顆 icon 之間的半路上。
     'var settling=false,settleTimer=0;'
     'function endSettle(t){settling=false;cap.classList.remove("grab");place(t,true);}'
-    'function up(){if(!dragging)return;dragging=false;var t=over;hl(t);'
+    'function up(){if(!dragging)return;dragging=false;var t=over;'
+# 停在動作鈕上：它不是分頁，不換頁也不留住膠囊——開 sheet，膠囊滑回目前選取
+    # 的那個分頁。bar 的 setPointerCapture 會吃掉按鈕自己的 click，所以動作要
+    # 在這裡發（a.__act 就是為此掛上去的）。
+    'var act=isAct(t),home=act?stopIdx(curIdx()):t;'
+    'hl(home);'
     'cap.classList.remove("drag");'          # 打開過場，讓它滑過去
-    'var before=cap.offsetLeft;var L=grow(t);'     # 仍在 .grab：全程維持放大＋全透
+    'var before=cap.offsetLeft;var L=grow(home);'     # 仍在 .grab：全程維持放大＋全透
     'var travel=Math.abs(L-before);'
     'settling=true;clearTimeout(settleTimer);'
-    'settleTimer=setTimeout(function(){endSettle(t);},travel>2?175:100);'
+    'settleTimer=setTimeout(function(){endSettle(tabIdx(home));},travel>2?175:100);'
+    'if(act){var el=stops[t];if(el&&el.__act)el.__act();return;}'
     # 有 SPA 換頁時直接交給它：內容是即時抽換的，分頁列不重建，膠囊的滑動
     # 動畫會一路播完，所以完全不需要延遲。沒有 SPA（或它初始化失敗）才退回
     # 整頁重載，那時仍要等一下讓動畫播到一段落。
-    'if(t!==curIdx()){if(window.__spaGo)window.__spaGo(order[t]);'
-    'else setTimeout(function(){location.href=order[t];},260);}}'
+    'var ti=tabIdx(t);'
+    'if(ti>=0&&ti!==curIdx()){if(window.__spaGo)window.__spaGo(order[ti]);'
+    'else setTimeout(function(){location.href=order[ti];},260);}}'
     'if(window.PointerEvent){'
     'bar.addEventListener("pointerdown",function(e){if(e.button&&e.button!==0)return;'
-# 中間那顆動作鈕也在 bar 裡了。它不是分頁，按它不能觸發膠囊拖曳——而且
-    # 下面會 setPointerCapture，把後續事件都收到 bar 上，click 就不會落在
-    # 按鈕上。所以在這裡讓路。touchstart 那條也一樣。
-    'if(e.target.closest(".baract"))return;'
     'down(e.clientX,e);try{bar.setPointerCapture(e.pointerId);}catch(_){}});'
     'bar.addEventListener("pointermove",function(e){move(e.clientX,e);});'
     'bar.addEventListener("pointerup",up);bar.addEventListener("pointercancel",up);'
     '}else{'
-    'bar.addEventListener("touchstart",function(e){if(e.target.closest(".baract"))return;'
-    'if(e.touches.length===1)down(e.touches[0].clientX,e);},{passive:true});'
+    'bar.addEventListener("touchstart",function(e){if(e.touches.length===1)down(e.touches[0].clientX,e);},{passive:true});'
     'bar.addEventListener("touchmove",function(e){if(e.touches.length===1)move(e.touches[0].clientX,e);},{passive:false});'
     'bar.addEventListener("touchend",up);bar.addEventListener("touchcancel",up);}'
     'for(var k=0;k<tabs.length;k++)tabs[k].addEventListener("click",function(e){e.preventDefault();});'

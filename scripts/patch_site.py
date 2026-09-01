@@ -893,37 +893,34 @@ TAB_ARIA_RE = re.compile(
 BAR_STYLE = (
     '<style id="barglass">'
     '.tabbar a.tab span:not(.ic){display:none!important}'
-# 右邊那顆獨立圓鈕：跟分頁列同高、同一套淺色玻璃，貼群組右緣。
-    '.baract{position:fixed;right:calc(50% - var(--bargrp)/2);bottom:var(--barbot);'
-    'z-index:60;width:var(--barh);height:var(--barh);border-radius:999px;'
-    'display:flex;align-items:center;justify-content:center;padding:0;'
-    'background:none!important;border:0!important;color:#51606f;cursor:pointer;'
-    'transition:color .16s,width .18s ease,height .18s ease,margin .18s ease}'
-    '.baract::before,.baract::after{content:"";position:absolute;inset:0;'
-    'border-radius:inherit;transition:opacity .18s ease;pointer-events:none}'
-    '.baract::before{opacity:1;background:rgba(245,248,251,.72);'
-    'box-shadow:0 10px 30px rgba(30,60,100,.14),0 2px 6px rgba(30,60,100,.07),'
-    'inset 0 0 0 1px rgba(255,255,255,.30),inset 0 1.5px 0 rgba(255,255,255,.95),'
-    'inset 3px 4px 10px -6px rgba(255,255,255,.95),'
-    'inset -3px -4px 10px -7px rgba(255,255,255,.55),'
-    'inset 0 -1.5px 3px -1px rgba(70,95,125,.26)}'
-    '.baract::after{opacity:0;'
+# bar 中間那顆動作鈕：外觀就是一般 icon，跟其他分頁一樣的排法與尺寸，只是
+    # 點下去開搜尋 sheet 而不是換頁。沒有圓底、沒有自己的玻璃。
+    '.baract{flex:1 1 0;min-width:0;display:flex;align-items:center;'
+    'justify-content:center;position:relative;background:none!important;'
+    'border:0!important;padding:9px 4px!important;border-radius:999px;'
+    'color:#51606f;cursor:pointer;transition:color .16s}'
+# 按住時浮出來的泡泡＝選取膠囊拖曳時的那一層，尺寸也對齊：膠囊靜止 44px
+    # 高、按住長到 60px。這顆按鈕自己就是 44px 高，所以靜止 inset:0（＝44）、
+    # 按住 inset:-8px（＝60）。注意 inset 是相對這顆按鈕算的，不是相對 bar
+    # 的內容區——照抄膠囊的 6px/-2px 只會得到 32/48。
+    '.baract::after{content:"";position:absolute;inset:0 2px;border-radius:999px;'
+    'opacity:0;pointer-events:none;'
     'background:radial-gradient(closest-side,rgba(255,255,255,0) 58%,'
     'rgba(120,140,165,.10) 84%,rgba(120,140,165,.24) 100%);'
     'box-shadow:inset 0 0 0 1px rgba(255,255,255,.9),'
     'inset 0 1.5px 1px rgba(255,255,255,1),'
     'inset 0 -1px 2px -1px rgba(70,95,125,.28),'
-    '0 4px 14px -5px rgba(30,60,100,.35)}'
-# 原本只長 6px（1.10 倍），跟選取膠囊的變化幅度差太多——膠囊按下是每邊長
-    # 8px（44→60，1.36 倍），圓鈕只有它的 38%，按下去幾乎看不出來。加倍成
-    # 每邊 6px（58→70，1.21 倍）。沒有照抄 8px 是因為圓鈕已經是整條 bar 的
-    # 高度，再長下去會頂到螢幕底緣。
-    '.baract.press{width:calc(var(--barh) + 12px);height:calc(var(--barh) + 12px);'
-    'margin:0 -6px -6px 0}'
-    '.baract.press::before{opacity:0}'
-    '.baract.press::after{opacity:1}'
+    '0 4px 14px -5px rgba(30,60,100,.35);'
+    'transition:opacity .18s ease,inset .18s ease}'
+    '.baract.press{color:#17293a}'
+    '.baract.press::after{opacity:1;inset:-8px 2px}'
+    '.baract svg{position:relative;z-index:1}'
+# 描邊粗細與淡度要跟其他分頁 icon 一致（.ic 是 opacity .8、stroke-width 1.8）。
+    # 原本是全不透明加 stroke 2，並排時明顯比鄰居黑一階，一看就不是同一組。
     '.baract svg{width:26px;height:26px;display:block;fill:none;position:relative;z-index:1;'
-    'stroke:currentColor;stroke-width:2;stroke-linecap:round}'
+    'opacity:.8;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;'
+    'stroke-linejoin:round}'
+    '.baract.press svg{opacity:1}'
     '.baract:hover{color:#c98a1e}'
     '.baract:focus:not(:focus-visible){outline:none}'
 # 搜尋只留一個入口：頁面上原本那個搜尋框收起來，改由右下角放大鏡開啟的
@@ -1024,10 +1021,8 @@ BAR_STYLE = (
     # 圓鈕貼群組右緣。刻意不用共同的 flex 容器包起來——分頁列是 backdrop-filter
     # 元素，多包一層容器容易連帶影響它的合成層。與 Mindrise 同一套變數。
     ':root{--bargrp:min(440px,calc(100vw - 32px));--barh:58px;'
-    '--bargap:20px;'
-    '--barpill:calc(var(--bargrp) - var(--barh) - var(--bargap));'
     '--barbot:max(8px,calc(env(safe-area-inset-bottom,0px) - 8px))}'
-    '.tabbar{width:var(--barpill)!important;'
+    '.tabbar{width:var(--bargrp)!important;'
     # 位置：原本是 11px + safe-area。iPhone 的 safe-area-inset-bottom 約 34px，
     # 兩個相加＝離螢幕底部 45px，浮太高。改成從安全區往下收 8px：
     #   iPhone 26px（原 45）／沒有 home indicator 的裝置 8px（原 11）
@@ -1318,7 +1313,12 @@ TABTHUMB = (
     'if(e.pointerType==="mouse"&&e.button!==0)return;a.classList.add("press");});'
     '["pointerup","pointercancel","pointerleave"].forEach(function(ev){'
     'a.addEventListener(ev,function(){a.classList.remove("press");});});'
-    'document.body.appendChild(a);}'
+# 放進 bar 裡面，第 2、3 個分頁中間。找不到第 3 個分頁就退回接在最後，
+    # 至少不會整顆消失。
+    'var nav=document.querySelector(".tabbar");'
+    'var host=nav.querySelector(".inner")||nav;'
+    'var tabs=host.querySelectorAll("a.tab");'
+    'if(tabs.length>2)host.insertBefore(a,tabs[2]);else host.appendChild(a);}'
     'var order=["index.html","stocks.html","perspectives.html","news.html"];'
     'function curIdx(){var f=(location.pathname.split("/").pop()||"").toLowerCase();'
     'return f==="stocks.html"?1:f==="perspectives.html"?2:f==="news.html"?3:0;}'
@@ -1384,11 +1384,16 @@ TABTHUMB = (
     'else setTimeout(function(){location.href=order[t];},260);}}'
     'if(window.PointerEvent){'
     'bar.addEventListener("pointerdown",function(e){if(e.button&&e.button!==0)return;'
+# 中間那顆動作鈕也在 bar 裡了。它不是分頁，按它不能觸發膠囊拖曳——而且
+    # 下面會 setPointerCapture，把後續事件都收到 bar 上，click 就不會落在
+    # 按鈕上。所以在這裡讓路。touchstart 那條也一樣。
+    'if(e.target.closest(".baract"))return;'
     'down(e.clientX,e);try{bar.setPointerCapture(e.pointerId);}catch(_){}});'
     'bar.addEventListener("pointermove",function(e){move(e.clientX,e);});'
     'bar.addEventListener("pointerup",up);bar.addEventListener("pointercancel",up);'
     '}else{'
-    'bar.addEventListener("touchstart",function(e){if(e.touches.length===1)down(e.touches[0].clientX,e);},{passive:true});'
+    'bar.addEventListener("touchstart",function(e){if(e.target.closest(".baract"))return;'
+    'if(e.touches.length===1)down(e.touches[0].clientX,e);},{passive:true});'
     'bar.addEventListener("touchmove",function(e){if(e.touches.length===1)move(e.touches[0].clientX,e);},{passive:false});'
     'bar.addEventListener("touchend",up);bar.addEventListener("touchcancel",up);}'
     'for(var k=0;k<tabs.length;k++)tabs[k].addEventListener("click",function(e){e.preventDefault();});'

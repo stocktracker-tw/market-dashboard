@@ -897,7 +897,7 @@ BAR_STYLE = (
     # 點下去開搜尋 sheet 而不是換頁。沒有圓底、沒有自己的玻璃。
     '.baract{flex:1 1 0;min-width:0;display:flex;align-items:center;'
     'justify-content:center;position:relative;background:none!important;'
-    'border:0!important;padding:11px 4px!important;border-radius:999px;'
+    'border:0!important;padding:6px 4px!important;border-radius:999px;'
 # color 一定要帶 !important：全域有 button{color:#17293a!important}，不帶的話
     # 這顆 icon 會變成深藍黑，比旁邊的分頁 icon 暗一大截（實測筆畫亮度 78 vs
     # 123，差 45）。background 與 border 之前已經踩過同一個坑，color 漏掉了。
@@ -909,7 +909,7 @@ BAR_STYLE = (
     '.baract svg{position:relative;z-index:1}'
 # 描邊粗細與淡度要跟其他分頁 icon 一致（.ic 是 opacity .8、stroke-width 1.8）。
     # 原本是全不透明加 stroke 2，並排時明顯比鄰居黑一階，一看就不是同一組。
-    '.baract svg{width:22px;height:22px;display:block;fill:none;position:relative;z-index:1;'
+    '.baract svg{width:32px;height:32px;display:block;fill:none;position:relative;z-index:1;'
     'opacity:.8;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;'
     'stroke-linejoin:round}'
     '.baract.press svg{opacity:1}'
@@ -982,11 +982,11 @@ BAR_STYLE = (
     # 高度對齊原生浮動膠囊列：tab 26px icon + 上下 9px = 44px（Apple 的最小
     # 觸控目標就是 44pt，再矮就不好按），加上 bar 自己的 6px padding 與 1px
     # 邊框 → 整條 56px。原本 15px 讓 tab 56px、整條 70px，比原生厚了一截。
-    'padding:11px 4px!important;gap:0!important}'
+    'padding:6px 4px!important;gap:0!important}'
     '.tabbar a.tab .ic{color:#51606f!important;opacity:.8;transition:color .16s,opacity .18s,transform .18s}'
     # 有膠囊(JS 在)時，選取色只跟著 .hl 走；.on 但沒 .hl 的退回灰
     '.tabbar.hasthumb a.tab.on:not(.hl) .ic{color:#51606f!important;opacity:.8}'
-    '.tabbar a.tab .ic svg{width:22px;height:22px;display:block}'
+    '.tabbar a.tab .ic svg{width:32px;height:32px;display:block}'
     # liquid glass 不變；選中＝線條圖示上色（不再上移 1px：icon 要正對膠囊中心）
     '.tabbar a.tab.on .ic,.tabbar a.tab.hl .ic'
     '{color:#c98a1e!important;opacity:1;filter:none!important}'
@@ -1338,10 +1338,13 @@ TABTHUMB = (
     'bar.classList.add("hasthumb");'
     'var cap=document.createElement("span");cap.className="tabcap";bar.insertBefore(cap,bar.firstChild);'
     'var cur=curIdx(),over=0,dragging=false;'
+# 膠囊要跟著 bar 一起長。bar 這幾輪從 58 長到 62，膠囊卻一直跟著 tab 停在 44，
+    # 比例從 76% 掉到 71%，看起來就縮水了。靜止改成比 tab 高 4px（48，佔 bar
+    # 77%，貼回最初的 76%），上下各外擴 2px 保持置中。
     'function place(i,anim){var br=bar.getBoundingClientRect(),r=tabs[i].getBoundingClientRect();'
     'cap.classList.toggle("drag",!anim);'
-    'cap.style.width=r.width+"px";cap.style.height=r.height+"px";'
-    'cap.style.top=(r.top-br.top)+"px";cap.style.left=(r.left-br.left)+"px";}'
+    'cap.style.width=r.width+"px";cap.style.height=(r.height+4)+"px";'
+    'cap.style.top=(r.top-br.top-2)+"px";cap.style.left=(r.left-br.left)+"px";}'
     'function nearest(x){var best=0,bd=1e9;for(var k=0;k<stops.length;k++){'
     'var r=stops[k].getBoundingClientRect(),c=r.left+r.width/2,d=Math.abs(x-c);'
     'if(d<bd){bd=d;best=k;}}return best;}'
@@ -1349,8 +1352,8 @@ TABTHUMB = (
     'function hl(i){for(var k=0;k<stops.length;k++)stops[k].classList.toggle("hl",k===i);}'
     'function follow(x){var br=bar.getBoundingClientRect();'
     'var r0=stops[0].getBoundingClientRect();'
-    'cap.style.width=(r0.width+26)+"px";cap.style.height=(r0.height+16)+"px";'
-    'cap.style.top=(stops[over].getBoundingClientRect().top-br.top-8)+"px";'
+    'cap.style.width=(r0.width+26)+"px";cap.style.height=(r0.height+20)+"px";'
+    'cap.style.top=(stops[over].getBoundingClientRect().top-br.top-10)+"px";'
     'var w=cap.offsetWidth;'
     # 夾限用「膠囊中心」對齊頭尾分頁中心：放大後的膠囊會微微超出 bar 兩端，
     # 但拖到底時正好以第一顆／最後一顆 icon 為中心（夾膠囊邊緣會偏向內側）
@@ -1367,9 +1370,9 @@ TABTHUMB = (
     # 回傳目標 left：up() 要用它算位移。不能在設完 style.left 之後讀 offsetLeft
     # ——過場還沒開始跑，讀到的是動畫前的舊值，位移會算成 0、收尾就提早了。
     'function grow(i){var br=bar.getBoundingClientRect(),r=stops[i].getBoundingClientRect();'
-    'var w=r.width+26,h=r.height+16;'
+    'var w=r.width+26,h=r.height+20;'
     'cap.style.width=w+"px";cap.style.height=h+"px";'
-    'cap.style.top=(r.top-br.top-8)+"px";'
+    'cap.style.top=(r.top-br.top-10)+"px";'
     'var L=r.left+r.width/2-br.left-w/2;cap.style.left=L+"px";return L;}'
     'function down(x,e){dragging=true;over=nearest(x);cap.classList.add("grab");'
     'cap.classList.remove("drag");grow(over);hl(over);}'

@@ -904,12 +904,18 @@ BAR_STYLE = (
     'color:#51606f!important;cursor:pointer;transition:color .16s}'
 # 按住時的外觀完全交給真正的膠囊（.tabcap）——它會滑過來、放大、變成全透
     # 折射環，跟停在任何一個分頁上時一模一樣。這裡不再自己畫泡泡。
+# 膠囊底下的圖示要縮一階——liquid glass 的一部分：玻璃壓在上面，底下的東西
+    # 跟著被推小。用 width/height 不用 transform：transform 會把元素推上合成層，
+    # iOS 的 backdrop-filter 就沒了（整條 bar 的毛玻璃都靠它）。
+    # .hl 就是膠囊當下停的那一站，靜止與拖曳都適用。
+    '.tabbar a.tab.hl .ic svg,.baract.hl svg{width:29px!important;height:29px!important}'
     '.baract.hl{color:#c98a1e!important}'
     '.baract.hl svg{opacity:1}'
     '.baract svg{position:relative;z-index:1}'
 # 描邊粗細與淡度要跟其他分頁 icon 一致（.ic 是 opacity .8、stroke-width 1.8）。
     # 原本是全不透明加 stroke 2，並排時明顯比鄰居黑一階，一看就不是同一組。
     '.baract svg{width:32px;height:32px;display:block;fill:none;position:relative;z-index:1;'
+    'transition:width .18s ease,height .18s ease;'
     'opacity:.8;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;'
     'stroke-linejoin:round}'
     '.baract.press svg{opacity:1}'
@@ -983,7 +989,10 @@ BAR_STYLE = (
     # 觸控目標就是 44pt，再矮就不好按），加上 bar 自己的 6px padding 與 1px
     # 邊框 → 整條 56px。原本 15px 讓 tab 56px、整條 70px，比原生厚了一截。
     'padding:6px 4px!important;gap:0!important}'
-    '.tabbar a.tab .ic{color:#51606f!important;opacity:.8;transition:color .16s,opacity .18s,transform .18s}'
+# 原本這裡宣告了 transform .18s，但沒有任何規則會設 transform——舊版的殘留。
+    # 換成 width/height 的過場，給下面「膠囊底下的圖示縮一階」用。
+    '.tabbar a.tab .ic{color:#51606f!important;opacity:.8;transition:color .16s,opacity .18s}'
+    '.tabbar a.tab .ic svg{transition:width .18s ease,height .18s ease}'
     # 有膠囊(JS 在)時，選取色只跟著 .hl 走；.on 但沒 .hl 的退回灰
     '.tabbar.hasthumb a.tab.on:not(.hl) .ic{color:#51606f!important;opacity:.8}'
     '.tabbar a.tab .ic svg{width:32px;height:32px;display:block}'

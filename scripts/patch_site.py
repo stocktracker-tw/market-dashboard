@@ -897,7 +897,7 @@ BAR_STYLE = (
     # 點下去開搜尋 sheet 而不是換頁。沒有圓底、沒有自己的玻璃。
     '.baract{flex:1 1 0;min-width:0;display:flex;align-items:center;'
     'justify-content:center;position:relative;background:none!important;'
-    'border:0!important;padding:9px 4px!important;border-radius:999px;'
+    'border:0!important;padding:11px 4px!important;border-radius:999px;'
 # color 一定要帶 !important：全域有 button{color:#17293a!important}，不帶的話
     # 這顆 icon 會變成深藍黑，比旁邊的分頁 icon 暗一大截（實測筆畫亮度 78 vs
     # 123，差 45）。background 與 border 之前已經踩過同一個坑，color 漏掉了。
@@ -909,7 +909,7 @@ BAR_STYLE = (
     '.baract svg{position:relative;z-index:1}'
 # 描邊粗細與淡度要跟其他分頁 icon 一致（.ic 是 opacity .8、stroke-width 1.8）。
     # 原本是全不透明加 stroke 2，並排時明顯比鄰居黑一階，一看就不是同一組。
-    '.baract svg{width:26px;height:26px;display:block;fill:none;position:relative;z-index:1;'
+    '.baract svg{width:22px;height:22px;display:block;fill:none;position:relative;z-index:1;'
     'opacity:.8;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;'
     'stroke-linejoin:round}'
     '.baract.press svg{opacity:1}'
@@ -982,11 +982,11 @@ BAR_STYLE = (
     # 高度對齊原生浮動膠囊列：tab 26px icon + 上下 9px = 44px（Apple 的最小
     # 觸控目標就是 44pt，再矮就不好按），加上 bar 自己的 6px padding 與 1px
     # 邊框 → 整條 56px。原本 15px 讓 tab 56px、整條 70px，比原生厚了一截。
-    'padding:9px 4px!important;gap:0!important}'
+    'padding:11px 4px!important;gap:0!important}'
     '.tabbar a.tab .ic{color:#51606f!important;opacity:.8;transition:color .16s,opacity .18s,transform .18s}'
     # 有膠囊(JS 在)時，選取色只跟著 .hl 走；.on 但沒 .hl 的退回灰
     '.tabbar.hasthumb a.tab.on:not(.hl) .ic{color:#51606f!important;opacity:.8}'
-    '.tabbar a.tab .ic svg{width:26px;height:26px;display:block}'
+    '.tabbar a.tab .ic svg{width:22px;height:22px;display:block}'
     # liquid glass 不變；選中＝線條圖示上色（不再上移 1px：icon 要正對膠囊中心）
     '.tabbar a.tab.on .ic,.tabbar a.tab.hl .ic'
     '{color:#c98a1e!important;opacity:1;filter:none!important}'
@@ -1018,8 +1018,11 @@ BAR_STYLE = (
     ':root{--bargrp:min(440px,calc(100vw - 42px));'
     '--barbot:max(8px,calc(env(safe-area-inset-bottom,0px) - 12px))}'
     '.tabbar{width:var(--bargrp)!important;'
-# 1px 邊框 + 7 + tab 44 + 7 + 1px = 60，對齊 Threads 的 60.3。
-    'padding:7px!important;'
+# 1px 邊框 + 8 + tab 44 + 8 + 1px = 62。Threads 量到 61.3，而且它的圖示只有
+    # 22px、上下各留 19.5px——留白比圖示還寬。我們原本 26px 圖示擠在同樣高度
+    # 裡，看起來就侷促，侷促讀起來就矮。圖示改 22、tab 內距補到 11（維持 44px
+    # 觸控目標），留白就跟 Threads 一樣是 20/22/20。
+    'padding:8px!important;'
     # 位置：原本是 11px + safe-area。iPhone 的 safe-area-inset-bottom 約 34px，
     # 兩個相加＝離螢幕底部 45px，浮太高。改成從安全區往下收 8px：
     #   iPhone 26px（原 45）／沒有 home indicator 的裝置 8px（原 11）

@@ -1012,9 +1012,14 @@ BAR_STYLE = (
     # 兩者各自 fixed，靠 --bargrp 這條共同的「群組寬度」對齊：膠囊貼群組左緣、
     # 圓鈕貼群組右緣。刻意不用共同的 flex 容器包起來——分頁列是 backdrop-filter
     # 元素，多包一層容器容易連帶影響它的合成層。與 Mindrise 同一套變數。
-    ':root{--bargrp:min(440px,calc(100vw - 32px));--barh:58px;'
-    '--barbot:max(8px,calc(env(safe-area-inset-bottom,0px) - 8px))}'
+# 尺寸對齊 iOS 原生浮動列（量 Threads 截圖 1179x2556、3x）：高 60.3px、
+    # 左右邊距各 21px、離螢幕底 22px。以下就是照這組來的。
+    # --barh 拿掉：圓鈕搬進 bar 之後就沒有東西參照它了。
+    ':root{--bargrp:min(440px,calc(100vw - 42px));'
+    '--barbot:max(8px,calc(env(safe-area-inset-bottom,0px) - 12px))}'
     '.tabbar{width:var(--bargrp)!important;'
+# 1px 邊框 + 7 + tab 44 + 7 + 1px = 60，對齊 Threads 的 60.3。
+    'padding:7px!important;'
     # 位置：原本是 11px + safe-area。iPhone 的 safe-area-inset-bottom 約 34px，
     # 兩個相加＝離螢幕底部 45px，浮太高。改成從安全區往下收 8px：
     #   iPhone 26px（原 45）／沒有 home indicator 的裝置 8px（原 11）

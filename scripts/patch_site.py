@@ -1022,7 +1022,11 @@ BAR_STYLE = (
     'transform:none!important;'
     'margin-left:0!important;margin-right:0!important;'
     'view-transition-name:none!important;'
-    'background:rgba(245,248,251,.72)!important;'
+# bar 的底色要跟膠囊同一種材質。原本 .72 太透，底下的字直接穿出來，膠囊那塊
+    # 卻是糊的——量出來 bar 區的像素變異是膠囊區的 2.5 倍，看起來就像「半透明
+    # 的 bar 上面貼了一塊不透明的白」。提到 .90 之後兩區的遮蔽程度相同（1.0 倍），
+    # 整條讀起來才是同一片玻璃。
+    'background:rgba(245,248,251,.90)!important;'
     'border:1px solid rgba(216,226,236,.9)!important;'
     'box-shadow:'
     '0 10px 30px rgba(30,60,100,.14),'                      # 落影

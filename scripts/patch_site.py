@@ -1182,11 +1182,23 @@ TABTHUMB = (
     # 拖曳中：整顆放大、中央全透（底下內容直接透出）、只有四周折射亮環。
     # 淺色主題下亮環用帶藍的灰，白 bar 上才看得見；不用 transform／
     # backdrop-filter（合成觸發＋巢狀玻璃＝iOS 毛玻璃失效）。
+    # 折射環要分光：真的液態玻璃邊緣會把背後的光拆成冷暖兩側。量 LINE 參考圖的
+    # 膠囊邊緣（3x 截圖、環寬約 5-6px＝2pt）：上緣 rgb(118,241,250) 青、左右
+    # rgb(245,225,94)/rgb(252,199,62) 琥珀、下緣 rgb(66,64,160) 藍紫。四道有方向的
+    # inset 陰影分別畫上／左／右／下，色相照量到的擺。淺色主題底下白 bar 會把淡
+    # 色吃掉，所以透明度比 Mindrise（深色）再深一階。
+    # 不用 mask、conic-gradient 疊環或 backdrop-filter 位移濾鏡——那些會多開合成層，
+    # iOS 上整條 bar 的 backdrop-filter 就沒了。box-shadow 純繪製，自己跟著圓角走。
+    # 清晰的白邊排最前面（先列的畫在上層），分光壓在它底下。
     '.tabbar .tabcap::after{opacity:0;'
     'background:radial-gradient(closest-side,rgba(255,255,255,0) 58%,'
     'rgba(120,140,165,.10) 84%,rgba(120,140,165,.24) 100%);'
     'box-shadow:inset 0 0 0 1px rgba(255,255,255,.9),'
-    'inset 0 1.5px 1px rgba(255,255,255,1),'
+    'inset 0 2px 2.5px -1px rgba(46,190,225,.55),'
+    'inset 2px 0 2.5px -1px rgba(228,163,32,.50),'
+    'inset -2px 0 2.5px -1px rgba(228,163,32,.50),'
+    'inset 0 -2px 2.5px -1px rgba(104,92,214,.52),'
+    'inset 0 1.5px 1px rgba(255,255,255,.75),'
     'inset 0 -1px 2px -1px rgba(70,95,125,.28),'
     '0 4px 14px -5px rgba(30,60,100,.35)}'
     '.tabbar .tabcap.grab::before{opacity:0}'

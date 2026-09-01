@@ -898,7 +898,10 @@ BAR_STYLE = (
     '.baract{flex:1 1 0;min-width:0;display:flex;align-items:center;'
     'justify-content:center;position:relative;background:none!important;'
     'border:0!important;padding:9px 4px!important;border-radius:999px;'
-    'color:#51606f;cursor:pointer;transition:color .16s}'
+# color 一定要帶 !important：全域有 button{color:#17293a!important}，不帶的話
+    # 這顆 icon 會變成深藍黑，比旁邊的分頁 icon 暗一大截（實測筆畫亮度 78 vs
+    # 123，差 45）。background 與 border 之前已經踩過同一個坑，color 漏掉了。
+    'color:#51606f!important;cursor:pointer;transition:color .16s}'
 # 按住時的外觀完全交給真正的膠囊（.tabcap）——它會滑過來、放大、變成全透
     # 折射環，跟停在任何一個分頁上時一模一樣。這裡不再自己畫泡泡。
     '.baract.hl{color:#c98a1e!important}'
@@ -910,7 +913,7 @@ BAR_STYLE = (
     'opacity:.8;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;'
     'stroke-linejoin:round}'
     '.baract.press svg{opacity:1}'
-    '.baract:hover{color:#c98a1e}'
+    '.baract:hover{color:#c98a1e!important}'
     '.baract:focus:not(:focus-visible){outline:none}'
 # 搜尋只留一個入口：頁面上原本那個搜尋框收起來，改由右下角放大鏡開啟的
     # 搜尋面板。面板裡放的就是「原本那兩個節點」（.searchwrap 與 #res），

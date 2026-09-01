@@ -1343,8 +1343,8 @@ TABTHUMB = (
     # 77%，貼回最初的 76%），上下各外擴 2px 保持置中。
     'function place(i,anim){var br=bar.getBoundingClientRect(),r=tabs[i].getBoundingClientRect();'
     'cap.classList.toggle("drag",!anim);'
-    'cap.style.width=r.width+"px";cap.style.height=(r.height+4)+"px";'
-    'cap.style.top=(r.top-br.top-2)+"px";cap.style.left=(r.left-br.left)+"px";}'
+    'cap.style.width=r.width+"px";cap.style.height=(r.height+8)+"px";'
+    'cap.style.top=(r.top-br.top-4)+"px";cap.style.left=(r.left-br.left)+"px";}'
     'function nearest(x){var best=0,bd=1e9;for(var k=0;k<stops.length;k++){'
     'var r=stops[k].getBoundingClientRect(),c=r.left+r.width/2,d=Math.abs(x-c);'
     'if(d<bd){bd=d;best=k;}}return best;}'

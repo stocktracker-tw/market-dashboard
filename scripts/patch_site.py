@@ -1027,6 +1027,10 @@ BAR_STYLE = (
     ':root{--bargrp:min(440px,calc(100vw - 42px));'
     '--barbot:max(8px,calc(env(safe-area-inset-bottom,0px) - 12px))}'
     '.tabbar{width:var(--bargrp)!important;'
+    # 站台自己的 .tabbar 有 gap:5px，四個間隔吃掉 20px，分頁只剩 62 寬
+    # （Mindrise 沒有 gap，是 66）。兩邊的膠囊因此一個 88、一個 92——
+    # 應該長得一樣的東西不一樣。把 gap 歸零，分頁與膠囊就對齊 Mindrise。
+    'gap:0!important;'
 # 1px 邊框 + 8 + tab 44 + 8 + 1px = 62。Threads 量到 61.3，而且它的圖示只有
     # 22px、上下各留 19.5px——留白比圖示還寬。我們原本 26px 圖示擠在同樣高度
     # 裡，看起來就侷促，侷促讀起來就矮。圖示改 22、tab 內距補到 11（維持 44px
@@ -1366,6 +1370,14 @@ TABTHUMB = (
     'cap.classList.toggle("drag",!anim);'
     'cap.style.width=r.width+"px";cap.style.height=(r.height+8)+"px";'
     'cap.style.top=(r.top-br.top-4)+"px";cap.style.left=(r.left-br.left)+"px";}'
+    # 膠囊變寬之後，停在頭尾兩顆時會整顆滑出 bar 外（37 的放大量在最左會凸出
+    # 9.5px，看起來像從 bar 裡逃出來的另一顆泡泡）。所以再夾一次「邊緣」：
+    # 最多只准超出 bar 外緣 4px——那是加寬前既有的凸出量。代價是停在頭尾時
+    # icon 會離膠囊中心幾 px，但在 103 寬的膠囊裡幾乎看不出來。
+    # .tabcap 的 margin-left:-1px 已補償邊框，style.left 就是相對 bar 外緣的座標。
+    # 與 Mindrise 的 clampLens 同一件事。
+    'function clampL(L,w){var bw=bar.getBoundingClientRect().width;'
+    'return Math.max(-4,Math.min(bw-w+4,L));}'
     'function nearest(x){var best=0,bd=1e9;for(var k=0;k<stops.length;k++){'
     'var r=stops[k].getBoundingClientRect(),c=r.left+r.width/2,d=Math.abs(x-c);'
     'if(d<bd){bd=d;best=k;}}return best;}'
@@ -1373,14 +1385,14 @@ TABTHUMB = (
     'function hl(i){for(var k=0;k<stops.length;k++)stops[k].classList.toggle("hl",k===i);}'
     'function follow(x){var br=bar.getBoundingClientRect();'
     'var r0=stops[0].getBoundingClientRect();'
-    'cap.style.width=(r0.width+26)+"px";cap.style.height=(r0.height+20)+"px";'
+    'cap.style.width=(r0.width+37)+"px";cap.style.height=(r0.height+20)+"px";'
     'cap.style.top=(stops[over].getBoundingClientRect().top-br.top-10)+"px";'
     'var w=cap.offsetWidth;'
     # 夾限用「膠囊中心」對齊頭尾分頁中心：放大後的膠囊會微微超出 bar 兩端，
     # 但拖到底時正好以第一顆／最後一顆 icon 為中心（夾膠囊邊緣會偏向內側）
     'var r1=stops[0].getBoundingClientRect(),rN=stops[stops.length-1].getBoundingClientRect();'
     'var loC=r1.left+r1.width/2-br.left,hiC=rN.left+rN.width/2-br.left;'
-    'var cx=Math.max(loC,Math.min(hiC,x-br.left));var L=cx-w/2;'
+    'var cx=Math.max(loC,Math.min(hiC,x-br.left));var L=clampL(cx-w/2,w);'
     'cap.classList.add("drag");cap.style.left=L+"px";'
     'var o=nearest(x);if(o!==over){over=o;hl(o);}}'
     'requestAnimationFrame(function(){place(cur,false);hl(stopIdx(cur));});'
@@ -1391,10 +1403,10 @@ TABTHUMB = (
     # 回傳目標 left：up() 要用它算位移。不能在設完 style.left 之後讀 offsetLeft
     # ——過場還沒開始跑，讀到的是動畫前的舊值，位移會算成 0、收尾就提早了。
     'function grow(i){var br=bar.getBoundingClientRect(),r=stops[i].getBoundingClientRect();'
-    'var w=r.width+26,h=r.height+20;'
+    'var w=r.width+37,h=r.height+20;'
     'cap.style.width=w+"px";cap.style.height=h+"px";'
     'cap.style.top=(r.top-br.top-10)+"px";'
-    'var L=r.left+r.width/2-br.left-w/2;cap.style.left=L+"px";return L;}'
+    'var L=clampL(r.left+r.width/2-br.left-w/2,w);cap.style.left=L+"px";return L;}'
     'function down(x,e){dragging=true;over=nearest(x);cap.classList.add("grab");'
     'cap.classList.remove("drag");grow(over);hl(over);}'
     'function move(x,e){if(!dragging)return;follow(x);if(e.cancelable)e.preventDefault();}'

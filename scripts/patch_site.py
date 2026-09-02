@@ -1389,8 +1389,8 @@ TABTHUMB = (
     'function hl(i){for(var k=0;k<stops.length;k++)stops[k].classList.toggle("hl",k===i);}'
     'function follow(x){var br=bar.getBoundingClientRect();'
     'var r0=stops[0].getBoundingClientRect();'
-    'cap.style.width=(r0.width+40)+"px";cap.style.height=(r0.height+21)+"px";'
-    'cap.style.top=(stops[over].getBoundingClientRect().top-br.top-10.5)+"px";'
+    'cap.style.width=(r0.width+40)+"px";cap.style.height=(r0.height+30)+"px";'
+    'cap.style.top=(stops[over].getBoundingClientRect().top-br.top-15)+"px";'
     'var w=cap.offsetWidth;'
     # 夾限用「膠囊中心」對齊頭尾分頁中心：放大後的膠囊會微微超出 bar 兩端，
     # 但拖到底時正好以第一顆／最後一顆 icon 為中心（夾膠囊邊緣會偏向內側）
@@ -1407,14 +1407,16 @@ TABTHUMB = (
     # 回傳目標 left：up() 要用它算位移。不能在設完 style.left 之後讀 offsetLeft
     # ——過場還沒開始跑，讀到的是動畫前的舊值，位移會算成 0、收尾就提早了。
     # 按下的放大量 40：量參考圖那顆按下的膠囊是 104.3 x 64.7pt，分頁寬 64 → 104。
-    # 高度 44+21 = 65（參考 64.7；該圖 bar 約 59-61、我們 62，按比例算也落在 65）。
+    # 高度 44+30 = 74，top 偏移 −15：分頁頂端在 bar 座標 9，9−15 = −6，上下各凸出
+    # bar 6px，跟橫向停在頭尾時的 6px 一致——按下的膠囊要均勻地鼓出 bar，不然
+    # 看起來是被壓扁的橢圓。這比參考圖那顆的 64.7 高，是刻意的：凸出對稱優先。
     # 停在頭尾時會凸出 bar 約 6px——
     # 按下狀態本來就允許超出 bar，所以不夾邊緣；靜止那顆才要留 4px 餘裕。
     # 與 Mindrise 的 STRETCH 同一個數字。
     'function grow(i){var br=bar.getBoundingClientRect(),r=stops[i].getBoundingClientRect();'
-    'var w=r.width+40,h=r.height+21;'
+    'var w=r.width+40,h=r.height+30;'
     'cap.style.width=w+"px";cap.style.height=h+"px";'
-    'cap.style.top=(r.top-br.top-10.5)+"px";'
+    'cap.style.top=(r.top-br.top-15)+"px";'
     'var L=r.left+r.width/2-br.left-w/2;cap.style.left=L+"px";return L;}'
     'function down(x,e){dragging=true;over=nearest(x);cap.classList.add("grab");'
     'cap.classList.remove("drag");grow(over);hl(over);}'

@@ -1035,7 +1035,11 @@ BAR_STYLE = (
     # 22px、上下各留 19.5px——留白比圖示還寬。我們原本 26px 圖示擠在同樣高度
     # 裡，看起來就侷促，侷促讀起來就矮。圖示改 22、tab 內距補到 11（維持 44px
     # 觸控目標），留白就跟 Threads 一樣是 20/22/20。
-    'padding:8px!important;'
+    # 水平留白 13 而不是 8。靜止膠囊比分頁寬 18，膠囊左緣會落在「留白 − 9」，
+    # 留白 8 時是 −1、正好壓在 bar 邊框上，讀起來就是膠囊凸出 bar。13 → +4，
+    # 離 bar 外緣 5px，和參考圖量到的 4.3pt 餘裕一致，icon 仍正對膠囊中心。
+    # 垂直維持 8：bar 高度 62 不變。與 Mindrise 的 .inner 同一組數字。
+    'padding:8px 13px!important;'
     # 位置：原本是 11px + safe-area。iPhone 的 safe-area-inset-bottom 約 34px，
     # 兩個相加＝離螢幕底部 45px，浮太高。改成從安全區往下收 8px：
     #   iPhone 26px（原 45）／沒有 home indicator 的裝置 8px（原 11）
@@ -1369,10 +1373,12 @@ TABTHUMB = (
     'function place(i,anim){var br=bar.getBoundingClientRect(),r=tabs[i].getBoundingClientRect();'
     'cap.classList.toggle("drag",!anim);'
     # 靜止膠囊要比分頁本身寬。分頁寬 66、膠囊高 52，長寬比只有 1.27——讀起來
-    # 是圓角方塊而不是膠囊。加寬 18 到 84，長寬比 1.61，跟參考圖那顆同一個比例。
+    # 是圓角方塊而不是膠囊。加寬 20 到 84（比例 1.62）；量參考圖那顆是
+    # 84.3 x 51.5、比例 1.64。膠囊左緣落在「水平留白 − 10」＝ +3，離 bar
+    # 外緣 4px，和參考圖的 4.3pt 餘裕一致。
     # 與 Mindrise 的 REST_GROW 同一個數字。按下後的寬度不受這裡影響：
     # 那條走 grow()/follow() 的「分頁寬 + 26」，仍是 92。
-    'var rw=r.width+18;'
+    'var rw=r.width+20;'
     'cap.style.width=rw+"px";cap.style.height=(r.height+8)+"px";'
     'cap.style.top=(r.top-br.top-4)+"px";'
     'cap.style.left=(r.left+r.width/2-br.left-rw/2)+"px";}'

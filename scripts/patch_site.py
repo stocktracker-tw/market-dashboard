@@ -1373,12 +1373,12 @@ TABTHUMB = (
     'function place(i,anim){var br=bar.getBoundingClientRect(),r=tabs[i].getBoundingClientRect();'
     'cap.classList.toggle("drag",!anim);'
     # 靜止膠囊要比分頁本身寬。分頁寬 66、膠囊高 52，長寬比只有 1.27——讀起來
-    # 是圓角方塊而不是膠囊。加寬 20 到 84（比例 1.62）；量參考圖那顆是
-    # 84.3 x 51.5、比例 1.64。膠囊左緣落在「水平留白 − 10」＝ +3，離 bar
-    # 外緣 4px，和參考圖的 4.3pt 餘裕一致。
+    # 是圓角方塊而不是膠囊。加寬 16 到 80（比例 1.54）。參考圖那顆是 84.3 x 51.5、
+    # 比例 1.64，這裡刻意比它窄一點。膠囊左緣落在「水平留白 − 8」＝ +5，
+    # 離 bar 外緣 6px。與 Mindrise 的 REST_GROW 同一個數字。
     # 與 Mindrise 的 REST_GROW 同一個數字。按下後的寬度不受這裡影響：
     # 那條走 grow()/follow() 的「分頁寬 + 26」，仍是 92。
-    'var rw=r.width+20;'
+    'var rw=r.width+16;'
     'cap.style.width=rw+"px";cap.style.height=(r.height+8)+"px";'
     'cap.style.top=(r.top-br.top-4)+"px";'
     'cap.style.left=(r.left+r.width/2-br.left-rw/2)+"px";}'

@@ -21,6 +21,7 @@ on:
       - "**.html"
       - "scripts/patch_site.py"        # 補丁邏輯一改也自動套到現有 HTML
       - "scripts/fetch_gooaye.py"      # 股癌抓取邏輯一改也重跑
+      - "scripts/score_history.py"     # 分數歷史邏輯一改也重跑
       - "scripts/gen_stock_pages.py"   # 個股頁產生器一改也重產
       - "universe.json"                # 引擎每天更新分數 → 重產個股頁
       - ".github/workflows/site-patch.yml"
@@ -54,6 +55,7 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
             python scripts/fetch_gooaye.py      # 先更新股癌最新一集（抓不到就沿用舊的）
+            python scripts/score_history.py     # 記下今天的大盤分數（算百分位要用）
             python scripts/gen_stock_pages.py   # 再產頁
             python scripts/patch_site.py        # 最後補丁（連新產的個股/ETF 頁一起補）
             if [ -z "$(git status --porcelain)" ]; then

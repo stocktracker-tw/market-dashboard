@@ -2231,6 +2231,56 @@ def patch_gooaye(html, fname):
     return html, html != before
 
 
+# ------------------------------------------------- 大盤分數的「歷史百分位」
+# 原文是「今天大盤 N 分，贏過歷史上 N% 的日子」——那個百分比就是分數本身，
+# 連續 21 天兩個數字完全相同。分數是四大支柱的加權合成再查固定門檻表
+# （SCORING_LABELS.md），不是歷史排名，所以那句話在宣稱一個沒算過的統計。
+# 改成用 score_history.json 真的算，而且把樣本天數寫出來——目前只有二十幾天，
+# 講「歷史上」會過度承諾，講「最近 N 天」才對得起資料。
+# 比對式要同時吃得下原文與自己的輸出，否則第二次執行會再改一次。
+_PCTL_RE = re.compile(
+    r'今天大盤\s*(\d+)\s*分，'
+    r'(?:贏過歷史上\s*\d+%\s*的日子'
+    r'|贏過最近\s*\d+\s*天中的\s*\d+%'
+    r'|是最近\s*\d+\s*天裡最[高低]的)。')
+
+
+def _score_hist():
+    try:
+        d = json.load(open("score_history.json", encoding="utf-8"))
+        return {k: int(v) for k, v in d.items()} if isinstance(d, dict) else {}
+    except Exception:                                          # noqa: BLE001
+        return {}
+
+
+def patch_pctl(html, fname):
+    hist = _score_hist()
+
+    def repl(m):
+        today = int(m.group(1))
+        # 拿今天以外的日子當母體；「贏過」取嚴格小於
+        others = [v for v in hist.values()]
+        # 今天的分數也在 hist 裡，扣掉一個同分的樣本才不會拿自己跟自己比
+        if today in others:
+            others.remove(today)
+        n = len(others)
+        if n < 5:
+            # 樣本不足就只講分數。不能原樣退回——那會把原本那句沒算過的
+            # 「贏過歷史上 N%」留在頁面上，比不講還糟。
+            return "今天大盤 %d 分。" % today
+        below = sum(1 for v in others if v < today)
+        if below == 0:
+            tail = "是最近 %d 天裡最低的" % n
+        elif below == n:
+            tail = "是最近 %d 天裡最高的" % n
+        else:
+            tail = "贏過最近 %d 天中的 %d%%" % (n, round(below * 100 / n))
+        return "今天大盤 %d 分，%s。" % (today, tail)
+
+    new = _PCTL_RE.sub(repl, html)
+    return new, new != html
+
+
 def patch(html, fname):
     changed = False
 
@@ -2270,6 +2320,10 @@ def patch(html, fname):
         if _o in html:
             html = html.replace(_o, _n)
             changed = True
+
+    # 1b3b) 大盤分數那句「贏過歷史上 N%」改成真的算出來的百分位
+    html, pc = patch_pctl(html, fname)
+    changed = changed or pc
 
     # 1b4) 消息頁：取消每日 AI 簡報，改放股癌最新一集重點
     html, gy = patch_gooaye(html, fname)

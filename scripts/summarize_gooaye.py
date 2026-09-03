@@ -9,7 +9,8 @@
   2. 一集只做一次：gooaye.json 記 guid，同一集第二次執行直接跳過。
   3. 任何一步失敗都保留既有的 gooaye.json，網站退回節目簡介那版，不開天窗。
 
-需要 ANTHROPIC_API_KEY；沒有就直接跳過（不是錯誤）。
+摘要後端預設是 Ollama（GOOAYE_LLM=ollama，不需要金鑰）；設成 anthropic 則走
+Claude API 並需要 ANTHROPIC_API_KEY。後端不可用就整支跳過（不是錯誤）。
 """
 import json
 import os
@@ -23,9 +24,17 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import fetch_gooaye as feed                                   # noqa: E402
 
 OUT = "gooaye.json"
+# 摘要用哪個 LLM：ollama（預設，不用金鑰）或 anthropic
+BACKEND = os.environ.get("GOOAYE_LLM", "ollama").strip().lower()
 MODEL = os.environ.get("GOOAYE_MODEL", "claude-opus-5")
+OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
+OLLAMA_MODEL = os.environ.get("GOOAYE_OLLAMA_MODEL", "qwen2.5:7b")
+# Ollama 預設 context 只有 2048~4096，一集兩萬多字會被無聲截掉大半，一定要設。
+OLLAMA_CTX = int(os.environ.get("GOOAYE_OLLAMA_CTX", "32768"))
 WHISPER_SIZE = os.environ.get("GOOAYE_WHISPER", "small")
-MAX_TRANSCRIPT = 120_000        # 字元。一集約 2 萬字，留很寬的餘裕但別無上限
+# 逐字稿上限（字元）。一集約 2~2.7 萬字。走 Ollama 時要留在 context 裡面，
+# 中文對 qwen 約 1~1.3 字/token，28k 字約 2.2 萬 token，塞得進 32k。
+MAX_TRANSCRIPT = 28_000 if BACKEND == "ollama" else 120_000
 
 SYSTEM = (
     "你在幫一個台股資訊網站整理 podcast 重點。使用者要的是「這集在講什麼」，"
@@ -82,7 +91,26 @@ def transcribe(path):
     return "".join(out)
 
 
-def summarize(transcript):
+def _summarize_ollama(transcript):
+    """本機/runner 上的 Ollama。不需要金鑰，代價是 CPU 上比較慢、品質看模型。"""
+    body = json.dumps({
+        "model": OLLAMA_MODEL,
+        "stream": False,
+        "options": {"temperature": 0.2, "num_ctx": OLLAMA_CTX},
+        "messages": [
+            {"role": "system", "content": SYSTEM},
+            {"role": "user", "content": PROMPT % transcript},
+        ],
+    }).encode()
+    req = urllib.request.Request(
+        OLLAMA_HOST + "/api/chat", data=body,
+        headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=3600) as r:
+        data = json.loads(r.read())
+    return (data.get("message") or {}).get("content", "")
+
+
+def _summarize_anthropic(transcript):
     import anthropic
     client = anthropic.Anthropic()          # 讀 ANTHROPIC_API_KEY
     kwargs = dict(
@@ -107,8 +135,13 @@ def summarize(transcript):
 
     if getattr(msg, "stop_reason", None) == "refusal":
         print("::warning::模型拒絕這則請求，保留節目簡介版")
-        return []
-    text = "".join(b.text for b in msg.content if b.type == "text")
+        return ""
+    return "".join(b.text for b in msg.content if b.type == "text")
+
+
+def summarize(transcript):
+    text = (_summarize_ollama(transcript) if BACKEND == "ollama"
+            else _summarize_anthropic(transcript))
     lines = []
     for ln in text.splitlines():
         ln = re.sub(r"^\s*[-*・‧]\s*|^\s*\d+[.)、]\s*", "", ln).strip()
@@ -117,9 +150,34 @@ def summarize(transcript):
     return lines[:6]
 
 
+def backend_ready():
+    """摘要後端能不能用。不能用就整支跳過，網站沿用節目簡介版。"""
+    if BACKEND == "anthropic":
+        if os.environ.get("ANTHROPIC_API_KEY"):
+            return True
+        print("::warning::GOOAYE_LLM=anthropic 但沒有 ANTHROPIC_API_KEY，跳過")
+        return False
+    if BACKEND != "ollama":
+        print("::warning::不認得的 GOOAYE_LLM=%s（只支援 ollama / anthropic），跳過" % BACKEND)
+        return False
+    try:
+        with urllib.request.urlopen(OLLAMA_HOST + "/api/tags", timeout=10) as r:
+            tags = json.loads(r.read())
+    except Exception as e:                                     # noqa: BLE001
+        print("::warning::連不到 Ollama（%s：%s），跳過" % (OLLAMA_HOST, e))
+        return False
+    have = [m.get("name", "") for m in (tags.get("models") or [])]
+    # Ollama 的 tag 可能帶 :latest，比對前綴就好
+    if not any(n == OLLAMA_MODEL or n.startswith(OLLAMA_MODEL.split(":")[0] + ":")
+               for n in have):
+        print("::warning::Ollama 沒有模型 %s（現有：%s），跳過"
+              % (OLLAMA_MODEL, ", ".join(have) or "無"))
+        return False
+    return True
+
+
 def main():
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        print("::warning::沒有 ANTHROPIC_API_KEY，跳過語音辨識摘要（網站沿用節目簡介）")
+    if not backend_ready():
         return 0
     try:
         item, feed_url = feed.latest_item()

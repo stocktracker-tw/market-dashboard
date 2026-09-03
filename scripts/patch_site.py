@@ -2141,11 +2141,18 @@ def patch_ask(html):
 _BRIEF_RE = re.compile(
     r'<h2>每日\s*AI\s*簡報[^<]*</h2>\s*<div class="brief">.*?</div>', re.S)
 # 既有的 SoundOn 連結，或上一輪我們插進去的區塊——兩種都吃，才能重複執行
+# 前面那個可選的 <h2> 要包住整個交替，不能只掛在其中一支：
+# 只掛在後面那支的話，退場路徑（比對到 <a>）每跑一次就會再疊一個標題。
 _POD_RE = re.compile(
-    r'<a href="https://player\.soundon\.fm/[^"]*"[^>]*class="box"[^>]*>.*?</a>'
-    r'|<div id="gooaye".*?</div></div>', re.S)
+    r'(?:<h2>[^<]*股癌</h2>)?'
+    r'(?:<a href="https://player\.soundon\.fm/[^"]*"[^>]*class="box"[^>]*>.*?</a>'
+    r'|<div id="gooaye".*?</div></div>)', re.S)
 # 簡報拿掉之後，這句話沒有對象了
 _BRIEF_REF = "真偽與合理性以上方 AI 簡報為準。"
+# 「今日歸納」也拿掉：它本來是簡報的收斂，簡報沒了就沒有對象。
+# 用 .*? 收斂：這格裡只有一個 <span>，第一個 </div> 就是它自己的結尾。
+_TAKEAWAY_RE = re.compile(
+    r'<div class="box"[^>]*>\s*\U0001F9FE\s*<b>今日歸納</b>.*?</div>', re.S)
 
 
 _HREF_RE = re.compile(r'href="(https://player\.soundon\.fm/[^"]+)"')
@@ -2163,7 +2170,8 @@ def _plain_link(matched):
         return matched                                    # 連網址都抓不到就別動它
     ep = _EP_RE.search(matched)
     label = ("最新一集：%s" % ep.group(1)) if ep else "最新一集"
-    return ('<a href="%s" target="_blank" rel="noopener" class="box" '
+    return ('<h2>\U0001F399\uFE0F 股癌</h2>'
+            '<a href="%s" target="_blank" rel="noopener" class="box" '
             'style="display:block;text-decoration:none">\U0001F399\uFE0F %s'
             '<span class="muted" style="margin-left:8px;font-size:12px">'
             '點了去聽</span></a>' % (html_escape(h.group(1)), label))
@@ -2180,15 +2188,24 @@ def _gooaye_block(matched):
         return _plain_link(matched)
     # 出處要寫清楚：節目簡介是主持人寫的，語音辨識摘要是機器整理的，
     # 後者會有辨識與歸納的誤差，不能讓讀者以為是原文
-    note = ("AI 依節目音訊整理，可能有誤"
-            if d.get("source_kind") == "whisper" else "摘自節目簡介（非逐字稿）")
+    note = "摘自節目簡介"
     ep = html_escape(d.get("episode") or "最新一集")
-    when = html_escape(d.get("published") or "")
+    # 節目標題常常就是「EP693 | 🍖」，集數再印一次是重複；把集數從標題前綴
+    # 拿掉，剩下的才是真正的標題內容
+    title = (d.get("title") or "").strip()
+    if d.get("episode"):
+        title = re.sub(r"^\s*" + re.escape(d["episode"]) + r"\s*[|｜\-－:：]?\s*",
+                       "", title, flags=re.I)
+    title = html_escape(title.strip())
+    # pubDate 是 "Wed, 02 Sep 2026 07:30:19 GMT"，時分秒對讀者沒意義，只留日期
+    when = re.sub(r"\s+\d{2}:\d{2}:\d{2}.*$", "", (d.get("published") or "").strip())
+    when = html_escape(when)
     body = "".join(
         '<div style="margin-top:6px">%s</div>' % html_escape(x) for x in lines)
     return (
+        '<h2>\U0001F399\uFE0F 股癌</h2>'
         '<div id="gooaye" class="box" style="border-left:3px solid var(--accent)">'
-        '<div><b>\U0001F399\uFE0F 股癌 %s</b>'
+        '<div><b>%s</b>%s'
         '<span class="muted" style="margin-left:8px;font-size:12px">%s</span></div>'
         '%s'
         '<div style="margin-top:10px">'
@@ -2196,7 +2213,9 @@ def _gooaye_block(matched):
         '</div>'
         '<div class="muted" style="margin-top:6px;font-size:12px">'
         '%s・非投資建議</div>'
-        '</div>' % (ep, when, body, html_escape(d["url"]), note))
+        '</div>' % (ep,
+                    (' <span style="margin-left:6px">%s</span>' % title) if title else '',
+                    when, body, html_escape(d["url"]), note))
 
 
 def patch_gooaye(html, fname):
@@ -2204,6 +2223,7 @@ def patch_gooaye(html, fname):
         return html, False
     before = html
     html = _BRIEF_RE.sub("", html, count=1)
+    html = _TAKEAWAY_RE.sub("", html, count=1)
     m = _POD_RE.search(html)
     if m:
         html = html[:m.start()] + _gooaye_block(m.group(0)) + html[m.end():]

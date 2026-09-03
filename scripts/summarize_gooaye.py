@@ -37,18 +37,29 @@ WHISPER_SIZE = os.environ.get("GOOAYE_WHISPER", "small")
 MAX_TRANSCRIPT = 28_000 if BACKEND == "ollama" else 120_000
 
 SYSTEM = (
-    "你在幫一個台股資訊網站整理 podcast 重點。使用者要的是「這集在講什麼」，"
-    "不是逐字稿、不是宣傳文案。"
+    "你在幫一個台股資訊網站整理 podcast 重點。使用者要的是「這集講了哪些有用的事」，"
+    "不是逐字稿、不是宣傳文案、也不是主持人的日常閒聊。"
+    "這個節目的開場與段落之間有大量閒扯，那些一律不算內容。"
 )
 PROMPT = """以下是一集 podcast 的語音辨識逐字稿（可能有辨識錯誤）。
 
-請整理成 4 到 6 條重點，條件：
-- 只寫節目實際討論的內容與觀點
-- 業配、贊助、產品推銷、聽眾徵求一律不要寫
+請整理成最多 6 條重點，條件：
+
+要寫的：市場與產業的判斷、對個股或題材的看法、數據與事件的解讀、
+操作或風險上的提醒——也就是聽完之後真正有資訊量的部分。
+
+一律不要寫（這個節目這類內容佔比很高，請確實濾掉）：
+- 開場寒暄、天氣、吃喝、旅遊、身體狀況、家人朋友、遊戲、追劇等生活閒聊
+- 業配、贊助、產品推銷、折扣、通路
+- 聽眾來信互動、抽獎、社群徵求、節目宣傳
+- 純粹的情緒發洩或玩笑，沒有帶出判斷的部分
+
+格式：
 - 每條 40 字以內，直述句，不要用「主持人認為」開頭堆疊
 - 用繁體中文
 - 只輸出重點本身，一行一條，不要編號、不要標題、不要前言後語
-- 如果逐字稿內容不足以整理出重點，只輸出一行：NO_CONTENT
+- 寧可少寫也不要湊數：只有 2 條有內容就只寫 2 條
+- 如果整集幾乎都是閒聊或業配、沒有可寫的內容，只輸出一行：NO_CONTENT
 
 逐字稿：
 ---
@@ -74,9 +85,27 @@ def download(url, dest):
     return os.path.getsize(dest)
 
 
-def transcribe(path):
+def _whisper_model():
+    """有 GPU 就用 GPU。裝置寫死會讓這支只能在一種機器上跑——本機有顯卡、
+    GitHub runner 沒有，兩邊都要能動，所以先試 cuda、失敗退回 CPU。"""
     from faster_whisper import WhisperModel
-    model = WhisperModel(WHISPER_SIZE, device="cpu", compute_type="int8")
+    want = os.environ.get("GOOAYE_WHISPER_DEVICE", "auto")
+    if want in ("auto", "cuda"):
+        try:
+            m = WhisperModel(WHISPER_SIZE, device="cuda", compute_type="float16")
+            print("Whisper：%s on cuda/float16" % WHISPER_SIZE)
+            return m
+        except Exception as e:                                 # noqa: BLE001
+            if want == "cuda":
+                raise
+            print("沒有可用的 GPU（%s），改用 CPU" % str(e).split("\n")[0][:120])
+    m = WhisperModel(WHISPER_SIZE, device="cpu", compute_type="int8")
+    print("Whisper：%s on cpu/int8" % WHISPER_SIZE)
+    return m
+
+
+def transcribe(path):
+    model = _whisper_model()
     segments, _info = model.transcribe(path, language="zh", vad_filter=True)
     out = []
     total = 0

@@ -63,9 +63,27 @@ def e(s):
 
 
 def bar(label, val, desc=""):
+    """某一面向的分數條。val 是 None 代表「這檔沒有這項資料」，不是 0 分。
+
+    universe 裡 45% 的個股 ch（籌碼）是 null——法人/融資資料不是每檔都有。
+    這裡有兩個坑：
+      1. x.get("ch") 的預設值不會生效：鍵是存在的、值是 null，
+         .get 只在鍵不存在時才回預設，所以拿到 None，int(round(None)) 直接
+         TypeError，整支產頁腳本掛掉 → 那天整站不會被補丁。
+      2. 就算改成 0，畫出來是紅色滿格的「0 分」，讀者會以為籌碼爛到極點，
+         其實是沒有資料。缺資料要長得像缺資料。
+    引擎那邊本來就處理得對：缺籌碼時會把權重重新分配給估值與技術
+    （實測 s ≈ 0.351*v + 0.209*tk，R² 0.999），所以這一項本來就沒計入分數。
+    """
+    d = f'<div class="d">{e(desc)}</div>' if desc else ""
+    if val is None:
+        return (f'<div class="sub"><div class="sh"><span>{e(label)}</span>'
+                f'<b style="color:#5b6d80">—</b></div>'
+                f'<div class="bar"></div>'
+                f'<div class="d" style="color:#5b6d80">這檔沒有這項資料，'
+                f'未計入分數（其餘面向的權重會按比例補上）。</div>{d}</div>')
     val = max(0, min(100, int(round(val))))
     col = "#34d07f" if val >= 58 else "#f9b43a" if val >= 43 else "#ef5d5d"
-    d = f'<div class="d">{e(desc)}</div>' if desc else ""
     return (f'<div class="sub"><div class="sh"><span>{e(label)}</span>'
             f'<b>{val}</b></div><div class="bar"><i style="width:{val}%;'
             f'background:{col}"></i></div>{d}</div>')
@@ -138,10 +156,10 @@ h1{{font-size:24px;margin:0 0 2px}}
 </div></div>
 
 <div class="card"><div class="h">四面向評分</div>
-{bar("環境面（總經/大盤）", x.get("e", 0))}
-{bar("籌碼面（法人/融資）", x.get("ch", 0), x.get("cd", ""))}
-{bar("估值面（本益比/殖利率）", x.get("v", 0), x.get("vd", ""))}
-{bar("技術面（型態/動能）", x.get("tk", 0), x.get("td", ""))}
+{bar("環境面（總經/大盤）", x.get("e"))}
+{bar("籌碼面（法人/融資）", x.get("ch"), x.get("cd", ""))}
+{bar("估值面（本益比/殖利率）", x.get("v"), x.get("vd", ""))}
+{bar("技術面（型態/動能）", x.get("tk"), x.get("td", ""))}
 </div>
 {ann}
 

@@ -2178,6 +2178,10 @@ def _gooaye_block(matched):
     lines = [x for x in (d.get("summary") or []) if x]
     if not lines or not d.get("url"):
         return _plain_link(matched)
+    # 出處要寫清楚：節目簡介是主持人寫的，語音辨識摘要是機器整理的，
+    # 後者會有辨識與歸納的誤差，不能讓讀者以為是原文
+    note = ("AI 依節目音訊整理，可能有誤"
+            if d.get("source_kind") == "whisper" else "摘自節目簡介（非逐字稿）")
     ep = html_escape(d.get("episode") or "最新一集")
     when = html_escape(d.get("published") or "")
     body = "".join(
@@ -2191,8 +2195,8 @@ def _gooaye_block(matched):
         '<a href="%s" target="_blank" rel="noopener">\u25B6 去 SoundOn 聽完整這集</a>'
         '</div>'
         '<div class="muted" style="margin-top:6px;font-size:12px">'
-        '摘自節目簡介（非逐字稿）・非投資建議</div>'
-        '</div>' % (ep, when, body, html_escape(d["url"])))
+        '%s・非投資建議</div>'
+        '</div>' % (ep, when, body, html_escape(d["url"]), note))
 
 
 def patch_gooaye(html, fname):

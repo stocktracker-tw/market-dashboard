@@ -1,0 +1,62 @@
+name: 股癌最新一集摘要（語音辨識）
+
+# 節目的 RSS 簡介只有一行預告加一整段業配，內容不在裡面。要知道「這集在講
+# 什麼」只能聽——所以這裡下載音訊、跑語音辨識，再請 Claude 整理成幾行重點。
+#
+# 只發表摘要：逐字稿跑完就刪，不進版控。轉錄是為了理解，不是重製節目內容。
+#
+# 為什麼獨立成一個 workflow 而不是塞進 site-patch：site-patch 一天會被觸發
+# 十幾次（引擎逐檔上傳），而這支要下載幾十 MB 音訊再跑數十分鐘的辨識。
+# 一集只做一次——gooaye.json 記 guid，同一集第二次執行直接跳過。
+
+on:
+  schedule:
+    # 股癌大致週三、週六更新。每天跑一次，同一集會自己跳過，成本只有幾秒的
+    # feed 檢查；比猜發布時間可靠。02:00 台灣時間（UTC 18:00）避開白天。
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gooaye-summary
+  cancel-in-progress: false
+
+jobs:
+  summarize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120        # 一集約 1~2 小時音訊，small 模型在 2 核上約 20~45 分
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 安裝相依
+        run: pip install --quiet faster-whisper anthropic
+
+      - name: 轉錄並摘要
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GOOAYE_WHISPER: ${{ vars.GOOAYE_WHISPER || 'small' }}
+        run: python scripts/summarize_gooaye.py
+
+      - name: 套用到網站並提交
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          python scripts/patch_site.py
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "無變更，完成。"; exit 0
+          fi
+          git add -A
+          git commit -m "股癌最新一集摘要 [skip ci]"
+          for i in 1 2 3; do
+            git push origin main && exit 0
+            echo "push 被拒（引擎推了新檔），拉最新重試…"
+            git fetch origin main && git rebase origin/main || exit 1
+            sleep 10
+          done
+          echo "::error::重試 3 輪仍無法推送"; exit 1

@@ -12,6 +12,7 @@ import glob
 import json
 import os
 import re
+from html import escape as html_escape
 
 # 分頁圖示（檔名帶 -r＝rounded 版；Chrome favicon 快取無視 ?v=，換版要換檔名）
 FAVICON = ('<link rel="icon" href="favicon-r.ico">'
@@ -2132,6 +2133,59 @@ def patch_ask(html):
     return html, changed
 
 
+# ---------------------------------------------------------------- 股癌摘要
+# 取消每日 AI 簡報，改放股癌最新一集的重點。簡介來自 fetch_gooaye.py 抓的
+# 節目 RSS（主持人自己寫的 show notes），不是逐字稿——股癌沒有公開逐字稿，
+# 要真的總結內容得跑語音辨識，成本與版權都不划算。
+# 「今日歸納」那格保留：它一行、而且是大盤分數的說明，不算簡報本身。
+_BRIEF_RE = re.compile(
+    r'<h2>每日\s*AI\s*簡報[^<]*</h2>\s*<div class="brief">.*?</div>', re.S)
+# 既有的 SoundOn 連結，或上一輪我們插進去的區塊——兩種都吃，才能重複執行
+_POD_RE = re.compile(
+    r'<a href="https://player\.soundon\.fm/[^"]*"[^>]*class="box"[^>]*>.*?</a>'
+    r'|<div id="gooaye".*?</div></div>', re.S)
+# 簡報拿掉之後，這句話沒有對象了
+_BRIEF_REF = "真偽與合理性以上方 AI 簡報為準。"
+
+
+def _gooaye_block(fallback):
+    """有 gooaye.json 就渲染重點；沒有就退回原本那顆「去聽」連結。"""
+    try:
+        d = json.load(open("gooaye.json", encoding="utf-8"))
+    except Exception:                                     # noqa: BLE001
+        return fallback
+    lines = [x for x in (d.get("summary") or []) if x]
+    if not lines or not d.get("url"):
+        return fallback
+    ep = html_escape(d.get("episode") or "最新一集")
+    when = html_escape(d.get("published") or "")
+    body = "".join(
+        '<div style="margin-top:6px">%s</div>' % html_escape(x) for x in lines)
+    return (
+        '<div id="gooaye" class="box" style="border-left:3px solid var(--accent)">'
+        '<div><b>\U0001F399\uFE0F 股癌 %s 這集在講什麼</b>'
+        '<span class="muted" style="margin-left:8px;font-size:12px">%s</span></div>'
+        '%s'
+        '<div style="margin-top:10px">'
+        '<a href="%s" target="_blank" rel="noopener">\u25B6 去 SoundOn 聽完整這集</a>'
+        '</div>'
+        '<div class="muted" style="margin-top:6px;font-size:12px">'
+        '摘自節目簡介（非逐字稿）・非投資建議</div>'
+        '</div>' % (ep, when, body, html_escape(d["url"])))
+
+
+def patch_gooaye(html, fname):
+    if fname != "news.html":
+        return html, False
+    before = html
+    html = _BRIEF_RE.sub("", html, count=1)
+    m = _POD_RE.search(html)
+    if m:
+        html = html[:m.start()] + _gooaye_block(m.group(0)) + html[m.end():]
+    html = html.replace(_BRIEF_REF, "")
+    return html, html != before
+
+
 def patch(html, fname):
     changed = False
 
@@ -2171,6 +2225,10 @@ def patch(html, fname):
         if _o in html:
             html = html.replace(_o, _n)
             changed = True
+
+    # 1b4) 消息頁：取消每日 AI 簡報，改放股癌最新一集重點
+    html, gy = patch_gooaye(html, fname)
+    changed = changed or gy
 
     # 1c) 頂部狀態列底色對齊頁面（消除色差「分開」）
     html, tcm = patch_themecolor(html)

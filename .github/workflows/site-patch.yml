@@ -20,6 +20,7 @@ on:
     paths:
       - "**.html"
       - "scripts/patch_site.py"        # 補丁邏輯一改也自動套到現有 HTML
+      - "scripts/fetch_gooaye.py"      # 股癌抓取邏輯一改也重跑
       - "scripts/gen_stock_pages.py"   # 個股頁產生器一改也重產
       - "universe.json"                # 引擎每天更新分數 → 重產個股頁
       - ".github/workflows/site-patch.yml"
@@ -52,13 +53,14 @@ jobs:
           for i in 1 2 3 4 5; do
             git fetch origin main
             git reset --hard origin/main
-            python scripts/gen_stock_pages.py   # 先產頁
-            python scripts/patch_site.py        # 再補丁（連新產的個股/ETF 頁一起補）
+            python scripts/fetch_gooaye.py      # 先更新股癌最新一集（抓不到就沿用舊的）
+            python scripts/gen_stock_pages.py   # 再產頁
+            python scripts/patch_site.py        # 最後補丁（連新產的個股/ETF 頁一起補）
             if [ -z "$(git status --porcelain)" ]; then
               echo "第 $i 輪：無需變更，完成。"; exit 0
             fi
             git add -A
-            git commit -m "自動補丁：favicon + 分頁標題 [skip ci]"
+            git commit -m "自動補丁：favicon + 分頁標題 + 股癌最新一集 [skip ci]"
             if git push origin main; then
               echo "第 $i 輪：已補丁並推送，完成。"; exit 0
             fi

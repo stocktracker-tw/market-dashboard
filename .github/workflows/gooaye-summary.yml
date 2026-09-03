@@ -1,23 +1,22 @@
 name: 股癌最新一集摘要（語音辨識）
 
 # 節目的 RSS 簡介只有一行預告加一整段業配，內容不在裡面。要知道「這集在講
-# 什麼」只能聽——所以這裡下載音訊、跑語音辨識，再讓 LLM 整理成幾行重點。
+# 什麼」只能聽——下載音訊、跑語音辨識，再讓本機的 Ollama 整理成幾行重點。
 #
 # 只發表摘要：逐字稿跑完就刪，不進版控。轉錄是為了理解，不是重製節目內容。
 #
-# LLM 預設用 Ollama，而且是「裝在 runner 上的那一份」——GitHub 的機器連不到
-# 你家裡的 Ollama。代價是 CPU 推論比較慢、品質看模型；要改用 Claude API 的話
-# 設 repo variable GOOAYE_LLM=anthropic 並加 ANTHROPIC_API_KEY secret。
-#
-# 為什麼獨立成一個 workflow 而不是塞進 site-patch：site-patch 一天會被觸發
-# 十幾次（引擎逐檔上傳），而這支要下載幾十 MB 音訊、跑數十分鐘的辨識與推論。
-# 一集只做一次——gooaye.json 記 guid，同一集第二次執行直接跳過。
+# 跑在 self-hosted runner 上（你自己的機器），因為：
+#   1. Ollama 在你機器上，GitHub 的 runner 連不到。
+#   2. 有 GPU，Whisper 可以用 medium/large 而不是勉強的 small。
+# 前提：那台機器上 Ollama 要是啟動狀態、而且已經 pull 好模型。沒有的話這支
+# 會印 warning 然後安全跳過，網站沿用節目簡介版。
 
 on:
   schedule:
-    # 股癌大致週三、週六更新。每天跑一次，同一集會自己跳過（只花幾秒查 feed）；
-    # 比猜發布時間可靠。02:00 台灣時間（UTC 18:00）避開白天。
-    - cron: "0 18 * * *"
+    # 股癌只有週三、週六出新集數（EP693 是 Wed 07:30 GMT ＝ 台灣 15:30）。
+    # 每天跑沒有意義，改成只在這兩天。一天跑兩次是為了容錯：如果那天發得晚，
+    # 第一次會撲空，第二次補上；已經做過的集數只花幾秒查 feed 就跳過。
+    - cron: "0 10,16 * * 3,6"    # 台灣 18:00 與 隔日 00:00
   workflow_dispatch:
 
 permissions:
@@ -30,35 +29,31 @@ concurrency:
 env:
   GOOAYE_LLM: ${{ vars.GOOAYE_LLM || 'ollama' }}
   GOOAYE_OLLAMA_MODEL: ${{ vars.GOOAYE_OLLAMA_MODEL || 'qwen2.5:7b' }}
-  GOOAYE_WHISPER: ${{ vars.GOOAYE_WHISPER || 'small' }}
-  # 不用 systemd 那份（模型會落在 /usr/share/ollama，不好快取），自己起 server
-  OLLAMA_MODELS: ${{ github.workspace }}/.ollama-models
+  # 有 GPU 就別用 small：medium 對中文口語準不少，large-v3 更好但吃 VRAM
+  GOOAYE_WHISPER: ${{ vars.GOOAYE_WHISPER || 'medium' }}
+  GOOAYE_WHISPER_DEVICE: ${{ vars.GOOAYE_WHISPER_DEVICE || 'auto' }}
+  OLLAMA_HOST: ${{ vars.OLLAMA_HOST || 'http://127.0.0.1:11434' }}
 
 jobs:
   summarize:
-    runs-on: ubuntu-latest
-    # 一集約 1~2 小時音訊：whisper small 在 4 核上約 20~45 分，
-    # 7B 模型讀兩萬多 token 的逐字稿再約 10~20 分。
-    timeout-minutes: 150
+    # 你的機器。標籤不是 self-hosted 的話設 repo variable GOOAYE_RUNNER 覆蓋。
+    runs-on: ${{ vars.GOOAYE_RUNNER || 'self-hosted' }}
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
 
       - name: 這一集需要處理嗎
         id: need
         run: |
-          python - <<'PY' >> "$GITHUB_OUTPUT"
-          # 先問 feed：同一集已經有逐字稿摘要就別裝 Ollama、別下載模型
-          import json, os, sys
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          # 先問 feed：同一集已經有逐字稿摘要就整支跳過，不用建 venv、不用載模型
+          import json, sys
           sys.path.insert(0, "scripts")
           try:
               import fetch_gooaye as feed
               item, _ = feed.latest_item()
               guid = feed.guid_of(item)
-          except Exception as e:
+          except Exception:
               print("run=true")           # 查不到就照跑，讓主流程去處理錯誤
               raise SystemExit(0)
           try:
@@ -69,43 +64,27 @@ jobs:
           print("run=%s" % ("false" if done else "true"))
           PY
 
-      - name: 快取 Ollama 模型
-        if: steps.need.outputs.run == 'true' && env.GOOAYE_LLM == 'ollama'
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.OLLAMA_MODELS }}
-          key: ollama-${{ env.GOOAYE_OLLAMA_MODEL }}
-
-      - name: 裝 Ollama 並拉模型
-        if: steps.need.outputs.run == 'true' && env.GOOAYE_LLM == 'ollama'
-        run: |
-          curl -fsSL https://ollama.com/install.sh | sh
-          mkdir -p "$OLLAMA_MODELS"
-          nohup ollama serve > /tmp/ollama.log 2>&1 &
-          for i in $(seq 1 60); do
-            curl -sf http://127.0.0.1:11434/api/tags >/dev/null && break
-            sleep 2
-          done
-          curl -sf http://127.0.0.1:11434/api/tags >/dev/null || {
-            echo "::error::Ollama 起不來"; tail -50 /tmp/ollama.log; exit 1; }
-          ollama pull "$GOOAYE_OLLAMA_MODEL"
-
-      - name: 安裝 Python 相依
+      # self-hosted runner 是常駐的，別把套件裝進系統 python
+      - name: 建 venv 並安裝相依
         if: steps.need.outputs.run == 'true'
-        run: pip install --quiet faster-whisper $( [ "$GOOAYE_LLM" = anthropic ] && echo anthropic )
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install --quiet --upgrade pip
+          .venv/bin/pip install --quiet faster-whisper
+          if [ "$GOOAYE_LLM" = anthropic ]; then .venv/bin/pip install --quiet anthropic; fi
 
       - name: 轉錄並摘要
         if: steps.need.outputs.run == 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: python scripts/summarize_gooaye.py
+        run: .venv/bin/python scripts/summarize_gooaye.py
 
       - name: 套用到網站並提交
         if: steps.need.outputs.run == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          python scripts/patch_site.py
+          python3 scripts/patch_site.py
           if [ -z "$(git status --porcelain)" ]; then
             echo "無變更，完成。"; exit 0
           fi
@@ -118,3 +97,7 @@ jobs:
             sleep 10
           done
           echo "::error::重試 3 輪仍無法推送"; exit 1
+
+      - name: 清掉 venv
+        if: always()
+        run: rm -rf .venv

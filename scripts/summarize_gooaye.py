@@ -1,0 +1,188 @@
+#!/usr/bin/env python3
+"""下載股癌最新一集的音訊，語音辨識成逐字稿，再請 Claude 摘要成幾行重點。
+
+為什麼要這一支：節目的 RSS 簡介只有一行預告加一整段業配，內容不在裡面
+（見 fetch_gooaye.py 的註解）。要真的知道「這集在講什麼」只能聽。
+
+三個原則：
+  1. 只發表摘要，逐字稿一律不進版控、跑完就刪。轉錄是為了理解，不是重製。
+  2. 一集只做一次：gooaye.json 記 guid，同一集第二次執行直接跳過。
+  3. 任何一步失敗都保留既有的 gooaye.json，網站退回節目簡介那版，不開天窗。
+
+需要 ANTHROPIC_API_KEY；沒有就直接跳過（不是錯誤）。
+"""
+import json
+import os
+import re
+import sys
+import tempfile
+import urllib.request
+from datetime import datetime, timezone
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import fetch_gooaye as feed                                   # noqa: E402
+
+OUT = "gooaye.json"
+MODEL = os.environ.get("GOOAYE_MODEL", "claude-opus-5")
+WHISPER_SIZE = os.environ.get("GOOAYE_WHISPER", "small")
+MAX_TRANSCRIPT = 120_000        # 字元。一集約 2 萬字，留很寬的餘裕但別無上限
+
+SYSTEM = (
+    "你在幫一個台股資訊網站整理 podcast 重點。使用者要的是「這集在講什麼」，"
+    "不是逐字稿、不是宣傳文案。"
+)
+PROMPT = """以下是一集 podcast 的語音辨識逐字稿（可能有辨識錯誤）。
+
+請整理成 4 到 6 條重點，條件：
+- 只寫節目實際討論的內容與觀點
+- 業配、贊助、產品推銷、聽眾徵求一律不要寫
+- 每條 40 字以內，直述句，不要用「主持人認為」開頭堆疊
+- 用繁體中文
+- 只輸出重點本身，一行一條，不要編號、不要標題、不要前言後語
+- 如果逐字稿內容不足以整理出重點，只輸出一行：NO_CONTENT
+
+逐字稿：
+---
+%s
+---"""
+
+
+def existing():
+    try:
+        return json.load(open(OUT, encoding="utf-8"))
+    except Exception:                                          # noqa: BLE001
+        return None
+
+
+def download(url, dest):
+    req = urllib.request.Request(url, headers={"User-Agent": "stocktracker-tw/1.0"})
+    with urllib.request.urlopen(req, timeout=180) as r, open(dest, "wb") as fh:
+        while True:
+            chunk = r.read(1 << 20)
+            if not chunk:
+                break
+            fh.write(chunk)
+    return os.path.getsize(dest)
+
+
+def transcribe(path):
+    from faster_whisper import WhisperModel
+    model = WhisperModel(WHISPER_SIZE, device="cpu", compute_type="int8")
+    segments, _info = model.transcribe(path, language="zh", vad_filter=True)
+    out = []
+    total = 0
+    for seg in segments:
+        t = (seg.text or "").strip()
+        if not t:
+            continue
+        out.append(t)
+        total += len(t)
+        if total >= MAX_TRANSCRIPT:
+            break
+    return "".join(out)
+
+
+def summarize(transcript):
+    import anthropic
+    client = anthropic.Anthropic()          # 讀 ANTHROPIC_API_KEY
+    kwargs = dict(
+        model=MODEL,
+        max_tokens=2000,
+        thinking={"type": "adaptive"},
+        system=SYSTEM,
+        messages=[{"role": "user", "content": PROMPT % transcript}],
+    )
+    # 逐字稿很長，一律用串流避免 HTTP timeout。
+    # fallbacks 讓政策性拒絕時自動改由後備模型接手；這個 beta 我沒辦法在本機
+    # 驗證，所以被拒就退回沒有 fallback 的標準呼叫。
+    try:
+        with client.beta.messages.stream(
+                betas=["server-side-fallback-2026-07-01"],
+                fallbacks="default", **kwargs) as st:
+            msg = st.get_final_message()
+    except Exception as e:                                     # noqa: BLE001
+        print("::warning::帶 fallbacks 的呼叫失敗（%s），改用標準呼叫" % e)
+        with client.messages.stream(**kwargs) as st:
+            msg = st.get_final_message()
+
+    if getattr(msg, "stop_reason", None) == "refusal":
+        print("::warning::模型拒絕這則請求，保留節目簡介版")
+        return []
+    text = "".join(b.text for b in msg.content if b.type == "text")
+    lines = []
+    for ln in text.splitlines():
+        ln = re.sub(r"^\s*[-*・‧]\s*|^\s*\d+[.)、]\s*", "", ln).strip()
+        if ln and ln != "NO_CONTENT":
+            lines.append(ln)
+    return lines[:6]
+
+
+def main():
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        print("::warning::沒有 ANTHROPIC_API_KEY，跳過語音辨識摘要（網站沿用節目簡介）")
+        return 0
+    try:
+        item, feed_url = feed.latest_item()
+    except Exception as e:                                     # noqa: BLE001
+        print("::warning::抓不到 feed（%s），保留既有 %s" % (e, OUT))
+        return 0
+
+    guid = feed.guid_of(item)
+    old = existing()
+    if old and old.get("source_kind") == "whisper" and old.get("guid") == guid:
+        print("股癌：%s 已經有逐字稿摘要，跳過" % (old.get("episode") or guid))
+        return 0
+
+    audio = feed.audio_url(item)
+    if not audio:
+        print("::warning::feed 裡沒有 enclosure 音訊網址，保留既有 %s" % OUT)
+        return 0
+
+    title = (feed.text_of(item, "title") or "").strip()
+    m = re.search(r"EP\s*(\d+)", title, re.I)
+    tmp = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
+    tmp.close()
+    try:
+        size = download(audio, tmp.name)
+        print("音訊下載完成：%.1f MB" % (size / 1e6))
+        transcript = transcribe(tmp.name)
+        print("逐字稿長度：%d 字" % len(transcript))
+        if len(transcript) < 500:
+            print("::warning::逐字稿太短（可能辨識失敗），保留既有 %s" % OUT)
+            return 0
+        lines = summarize(transcript)
+    except Exception as e:                                     # noqa: BLE001
+        print("::warning::語音辨識/摘要失敗（%s），保留既有 %s" % (e, OUT))
+        return 0
+    finally:
+        # 逐字稿與音訊都不留：只發表摘要
+        try:
+            os.unlink(tmp.name)
+        except OSError:
+            pass
+
+    if not lines:
+        print("::warning::沒有產出重點，保留既有 %s" % OUT)
+        return 0
+
+    data = {
+        "episode": ("EP" + m.group(1)) if m else "",
+        "title": title,
+        "url": (feed.text_of(item, "link") or "").strip(),
+        "published": (feed.text_of(item, "pubDate") or "").strip(),
+        "summary": lines,
+        "source": feed_url,
+        "source_kind": "whisper",
+        "guid": guid,
+        "model": MODEL,
+        "fetched_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+    }
+    with open(OUT, "w", encoding="utf-8") as fh:
+        json.dump(data, fh, ensure_ascii=False, indent=1)
+        fh.write("\n")
+    print("股癌：%s 已產生 %d 條重點（%s）" % (data["episode"] or title, len(lines), MODEL))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

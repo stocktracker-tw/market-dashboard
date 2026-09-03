@@ -30,11 +30,17 @@ ITUNES_NS = "{http://www.itunes.com/dtds/podcast-1.0.dtd}summary"
 
 TAG_RE = re.compile(r"<[^>]+>")
 WS_RE = re.compile(r"[ \t　]+")
-# 節目簡介裡固定會有的業配/通路樣板，對「這集在講什麼」沒有資訊量
+# 這個節目的簡介結構是「幾行本集重點」＋「一整段業配」。實測 EP693 的簡介
+# 只有第一行在講內容，剩下全是烤肉組的品項與售價——照單全收會變成把廣告
+# 貼到自己站上。所以碰到業配起點就整段截斷，而不是逐行過濾。
+CUT = re.compile(
+    r"(本集節目由|本集由|節目由.{0,12}贊助|贊助播出|贊助商|合作邀約|"
+    r"業配|廣告|折扣碼|優惠碼|限定優惠|限時優惠|團購|"
+    r"原價|特價|售價|下單|購買連結|使用代碼)", re.I)
+# 截斷之後還可能有零星的通路樣板
 NOISE = re.compile(
-    r"(小額贊助|贊助支持|支持本節目|開啟小鈴鐺|訂閱|追蹤我|加入會員|"
-    r"合作邀約|業配|廣告|折扣碼|優惠碼|留言告訴我|Powered by|SoundOn|"
-    r"https?://)", re.I)
+    r"(小額贊助|贊助|支持本節目|開啟小鈴鐺|訂閱|追蹤我|加入會員|"
+    r"留言告訴我|Powered by|SoundOn|https?://|\$\s?\d|\d+\s?(kg|人份))", re.I)
 
 
 def fetch(url, timeout=25):
@@ -60,12 +66,16 @@ def clean(raw):
     lines = []
     for ln in s.splitlines():
         ln = WS_RE.sub(" ", ln).strip()
-        if not ln or NOISE.search(ln):
+        if not ln:
+            continue
+        if CUT.search(ln):         # 業配開始了，後面整段不要
+            break
+        if NOISE.search(ln):
             continue
         if len(ln) < 4:            # 「---」「1.」這種殘留分隔符
             continue
         lines.append(ln)
-        if len(lines) >= 8:        # 頁面上放不下更多，也不該整段搬過去
+        if len(lines) >= 6:        # 頁面上放不下更多，也不該整段搬過去
             break
     return lines
 

@@ -2148,22 +2148,43 @@ _POD_RE = re.compile(
 _BRIEF_REF = "真偽與合理性以上方 AI 簡報為準。"
 
 
-def _gooaye_block(fallback):
-    """有 gooaye.json 就渲染重點；沒有就退回原本那顆「去聽」連結。"""
+_HREF_RE = re.compile(r'href="(https://player\.soundon\.fm/[^"]+)"')
+_EP_RE = re.compile(r"(EP\d+)")
+
+
+def _plain_link(matched):
+    """退回「只有一顆去聽連結」的樣子。
+
+    不能直接把 matched 原樣送回去：上一輪可能已經把它換成我們的區塊，
+    那樣就會把舊內容（包含被誤收進來的業配）一路留著。統一重建。
+    """
+    h = _HREF_RE.search(matched)
+    if not h:
+        return matched                                    # 連網址都抓不到就別動它
+    ep = _EP_RE.search(matched)
+    label = ("最新一集：%s" % ep.group(1)) if ep else "最新一集"
+    return ('<a href="%s" target="_blank" rel="noopener" class="box" '
+            'style="display:block;text-decoration:none">\U0001F399\uFE0F %s'
+            '<span class="muted" style="margin-left:8px;font-size:12px">'
+            '點了去聽</span></a>' % (html_escape(h.group(1)), label))
+
+
+def _gooaye_block(matched):
+    """有 gooaye.json 就渲染重點；沒有就退回一顆乾淨的「去聽」連結。"""
     try:
         d = json.load(open("gooaye.json", encoding="utf-8"))
     except Exception:                                     # noqa: BLE001
-        return fallback
+        return _plain_link(matched)
     lines = [x for x in (d.get("summary") or []) if x]
     if not lines or not d.get("url"):
-        return fallback
+        return _plain_link(matched)
     ep = html_escape(d.get("episode") or "最新一集")
     when = html_escape(d.get("published") or "")
     body = "".join(
         '<div style="margin-top:6px">%s</div>' % html_escape(x) for x in lines)
     return (
         '<div id="gooaye" class="box" style="border-left:3px solid var(--accent)">'
-        '<div><b>\U0001F399\uFE0F 股癌 %s 這集在講什麼</b>'
+        '<div><b>\U0001F399\uFE0F 股癌 %s</b>'
         '<span class="muted" style="margin-left:8px;font-size:12px">%s</span></div>'
         '%s'
         '<div style="margin-top:10px">'

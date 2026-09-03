@@ -74,10 +74,39 @@ jobs:
           if [ "$GOOAYE_LLM" = anthropic ]; then .venv/bin/pip install --quiet anthropic; fi
 
       - name: 轉錄並摘要
+        id: run
         if: steps.need.outputs.run == 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: .venv/bin/python scripts/summarize_gooaye.py
+
+      # 這支所有失敗都是「安全跳過」——只印 warning、保留舊資料，網站不會壞。
+      # 代價是沒人看 Actions 的話它會靜靜地什麼都不做。全自動的前提是壞掉會叫人，
+      # 所以這裡明確判斷「這一集到底有沒有做出摘要」。
+      - name: 確認這一集真的做出摘要了
+        id: check
+        if: steps.need.outputs.run == 'true'
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, sys
+          sys.path.insert(0, "scripts")
+          try:
+              import fetch_gooaye as feed
+              guid = feed.guid_of(feed.latest_item()[0])
+          except Exception as e:
+              print("ok=false"); print("why=抓不到 feed：%s" % " ".join(str(e).split())[:120]); raise SystemExit(0)
+          try:
+              d = json.load(open("gooaye.json", encoding="utf-8"))
+          except Exception:
+              d = {}
+          if d.get("source_kind") == "whisper" and d.get("guid") == guid:
+              print("ok=true"); print("ep=%s" % (d.get("episode") or ""))
+              print("n=%d" % len(d.get("summary") or []))
+          else:
+              print("ok=false")
+              print("why=跑完了但沒有產生這一集的摘要（多半是 Ollama 沒起來、"
+                    "沒有那個模型，或辨識失敗）；細節看上一步的 warning")
+          PY
 
       - name: 套用到網站並提交
         if: steps.need.outputs.run == 'true'
@@ -97,6 +126,21 @@ jobs:
             sleep 10
           done
           echo "::error::重試 3 輪仍無法推送"; exit 1
+
+      # 沿用 repo 既有的 ntfy 頻道（跟 Threads 提醒同一套，不用新增 secret）
+      - name: 沒做成就推播通知
+        if: always() && steps.need.outputs.run == 'true' && (steps.check.outputs.ok != 'true' || failure())
+        env:
+          NTFY_TOPIC: ${{ vars.NTFY_TOPIC || 'stocktracker-tw-threads-reminder' }}
+          WHY: ${{ steps.check.outputs.why || '流程中斷（看 Actions log）' }}
+        run: |
+          curl -sS \
+            -H "Title: 股癌摘要沒做成" \
+            -H "Tags: warning" \
+            -H "Priority: default" \
+            -H "Click: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            -d "$WHY" \
+            "https://ntfy.sh/${NTFY_TOPIC}" || true
 
       - name: 清掉 venv
         if: always()

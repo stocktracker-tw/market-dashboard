@@ -81,7 +81,7 @@ def clean(raw):
 
 
 def latest_item():
-    """回傳 (item, feed_url)。給 summarize_gooaye.py 共用，兩支不要各抓一次 feed。"""
+    """回傳 (item, feed_url)。"""
     last_err = None
     for url in FEEDS:
         try:
@@ -95,12 +95,6 @@ def latest_item():
             continue
         return item, url
     raise RuntimeError(last_err or "沒有可用的 feed")
-
-
-def audio_url(item):
-    """節目音訊網址（RSS 的 enclosure）。"""
-    enc = item.find("enclosure")
-    return (enc.get("url") or "").strip() if enc is not None else ""
 
 
 def guid_of(item):
@@ -138,7 +132,7 @@ def main():
             "published": pub,
             "summary": lines,
             "source": url,
-            "source_kind": "notes",        # 節目簡介；語音辨識版會寫 "whisper"
+            "source_kind": "notes",
             "guid": guid_of(item),
             "fetched_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         }
@@ -148,10 +142,6 @@ def main():
                 old = json.load(open(OUT, encoding="utf-8"))
             except Exception:                        # noqa: BLE001
                 old = None
-        # 同一集已經有語音辨識版摘要了，簡介不要蓋回去（那是降級）
-        if old and old.get("source_kind") == "whisper" and old.get("guid") == guid_of(item):
-            print("股癌：%s 已有逐字稿摘要，保留" % (old.get("episode") or ""))
-            return 0
         # fetched_at 每次都會變，拿它比對會每天都產生 commit；比內容就好
         if old and {k: old.get(k) for k in ("episode", "title", "url", "published", "summary")} == \
                    {k: data[k] for k in ("episode", "title", "url", "published", "summary")}:

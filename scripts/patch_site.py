@@ -909,7 +909,8 @@ BAR_STYLE = (
     # 跟著被推小。用 width/height 不用 transform：transform 會把元素推上合成層，
     # iOS 的 backdrop-filter 就沒了（整條 bar 的毛玻璃都靠它）。
     # .hl 就是膠囊當下停的那一站，靜止與拖曳都適用。
-    '.tabbar a.tab.hl .ic svg,.baract.hl svg{width:29px!important;height:29px!important}'
+    # 膠囊底下的圖示不再縮：按下時是整條 bar 連同圖示一起放大，
+    # 兩個方向的縮放疊在一起會互相打架。參考圖那顆其實也是放大不是縮小。
     '.baract.hl{color:#c98a1e!important}'
     '.baract.hl svg{opacity:1}'
     '.baract svg{position:relative;z-index:1}'
@@ -997,6 +998,15 @@ BAR_STYLE = (
     # 有膠囊(JS 在)時，選取色只跟著 .hl 走；.on 但沒 .hl 的退回灰
     '.tabbar.hasthumb a.tab.on:not(.hl) .ic{color:#51606f!important;opacity:.8}'
     '.tabbar a.tab .ic svg{width:32px;height:32px;display:block}'
+    # 按下時整條 bar 微幅放大。幅度量自參考圖（3x 截圖）：bar 寬 +3.3%、
+    # 高 +4.3%、圖示墨水 +5%。走版面屬性，不用 transform（會讓毛玻璃失效）。
+    # left/bottom 補一半，否則只會往右上長。圖示 32→33.6 把 tab 從 44 撐到
+    # 45.6，配 8.7 內距：8.7+45.6+8.7+邊框 2 = 65，剛好 +3。與 Mindrise 同。
+    '.tabbar.press{width:calc(var(--bargrp) + 12px)!important;'
+    'left:calc(50% - (var(--bargrp) + 12px) / 2)!important;'
+    'bottom:calc(var(--barbot) - 1.5px)!important;padding:8.7px 13px!important}'
+    '.tabbar.press a.tab .ic svg,.tabbar.press .baract svg'
+    '{width:33.6px!important;height:33.6px!important}'
     # liquid glass 不變；選中＝線條圖示上色（不再上移 1px：icon 要正對膠囊中心）
     '.tabbar a.tab.on .ic,.tabbar a.tab.hl .ic'
     '{color:#c98a1e!important;opacity:1;filter:none!important}'
@@ -1032,6 +1042,7 @@ BAR_STYLE = (
     # （Mindrise 沒有 gap，是 66）。兩邊的膠囊因此一個 88、一個 92——
     # 應該長得一樣的東西不一樣。把 gap 歸零，分頁與膠囊就對齊 Mindrise。
     'gap:0!important;'
+    'transition:width .18s ease,left .18s ease,bottom .18s ease,padding .18s ease!important;'
 # 1px 邊框 + 8 + tab 44 + 8 + 1px = 62。Threads 量到 61.3，而且它的圖示只有
     # 22px、上下各留 19.5px——留白比圖示還寬。我們原本 26px 圖示擠在同樣高度
     # 裡，看起來就侷促，侷促讀起來就矮。圖示改 22、tab 內距補到 11（維持 44px
@@ -1390,8 +1401,8 @@ TABTHUMB = (
     'function hl(i){for(var k=0;k<stops.length;k++)stops[k].classList.toggle("hl",k===i);}'
     'function follow(x){var br=bar.getBoundingClientRect();'
     'var r0=stops[0].getBoundingClientRect();'
-    'cap.style.width=(r0.width+40)+"px";cap.style.height=(r0.height+30)+"px";'
-    'cap.style.top=(stops[over].getBoundingClientRect().top-br.top-15)+"px";'
+    'cap.style.width=(r0.width+28)+"px";cap.style.height=(r0.height+18)+"px";'
+    'cap.style.top=(stops[over].getBoundingClientRect().top-br.top-7.5)+"px";'
     'var w=cap.offsetWidth;'
     # 夾限用「膠囊中心」對齊頭尾分頁中心：放大後的膠囊會微微超出 bar 兩端，
     # 但拖到底時正好以第一顆／最後一顆 icon 為中心（夾膠囊邊緣會偏向內側）
@@ -1415,11 +1426,12 @@ TABTHUMB = (
     # 按下狀態本來就允許超出 bar，所以不夾邊緣；靜止那顆才要留 4px 餘裕。
     # 與 Mindrise 的 STRETCH 同一個數字。
     'function grow(i){var br=bar.getBoundingClientRect(),r=stops[i].getBoundingClientRect();'
-    'var w=r.width+40,h=r.height+30;'
+    'var w=r.width+28,h=r.height+18;'
     'cap.style.width=w+"px";cap.style.height=h+"px";'
-    'cap.style.top=(r.top-br.top-15)+"px";'
+    'cap.style.top=(r.top-br.top-7.5)+"px";'
     'var L=r.left+r.width/2-br.left-w/2;cap.style.left=L+"px";return L;}'
     'function down(x,e){dragging=true;over=nearest(x);cap.classList.add("grab");'
+    'bar.classList.add("press");'
     'cap.classList.remove("drag");grow(over);hl(over);}'
     'function move(x,e){if(!dragging)return;follow(x);if(e.cancelable)e.preventDefault();}'
     # 放開之後的收尾：膠囊「維持放大＋全透」滑到目標分頁，等它真的到位了，才在
@@ -1427,7 +1439,12 @@ TABTHUMB = (
     # 並 place() 回正常尺寸，於是縮回與滑動同時發生——移動途中就變回不透明，
     # 形變也發生在兩顆 icon 之間的半路上。
     'var settling=false,settleTimer=0;'
-    'function endSettle(t){settling=false;cap.classList.remove("grab");place(t,true);}'
+    # 拿掉 .press 之後 bar 還要 .18s 才縮回原尺寸，而 place() 是從分頁的當下
+    # rect 算膠囊的，這一刻讀到的是縮到一半的中間值——膠囊會停在錯的大小與
+    # 位置（實測放開後是 82x54、上下不對稱）。等過場結束再算一次。
+    'function endSettle(t){settling=false;cap.classList.remove("grab");'
+    'bar.classList.remove("press");place(t,true);'
+    'setTimeout(function(){place(t,true);},200);}'
     'function up(){if(!dragging)return;dragging=false;var t=over;'
 # 停在動作鈕上：它不是分頁，不換頁也不留住膠囊——開 sheet，膠囊滑回目前選取
     # 的那個分頁。bar 的 setPointerCapture 會吃掉按鈕自己的 click，所以動作要

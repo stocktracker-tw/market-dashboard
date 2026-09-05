@@ -117,8 +117,11 @@ FIELDS = {
     "cum_yoy": ["累計營業收入-前期比較增減(%)", "累計營業收入", "前期比較增減", "累計增減"],
     # t187ap11_L 是「每位董監一列」的明細，要自己按公司加總
     "hold": ["目前持股", "持有股數", "現持股數", "持股張數", "股份"],
-    "outstanding": ["已發行普通股數", "發行股數", "普通股股數", "實收資本額"],
-    "capital": ["Capitals"],                # 櫃買行情表自帶的資本額
+    # 櫃買的基本資料表全是英文欄名（IssueShares），中文關鍵字一個都沒中，
+    # 所以那支端點「解析到 886 檔」卻一個數字都沒填。IssueShares 要排在
+    # 資本額前面，否則會抓到金額當成股數。
+    "outstanding": ["已發行普通股數", "發行股數", "普通股股數",
+                    "IssueShares", "實收資本額"],
 }
 
 
@@ -227,8 +230,6 @@ def _ingest_rows(name, rows, data, fill_only=False):
         if name == "volume":
             for key, names in (("amt", "amount"), ("shr", "shares")):
                 _put(slot, key, to_num(pick(r, FIELDS[names])), fill_only)
-            # 櫃買行情表自帶資本額，留著當在外流通股數的備援（見下面 main()）
-            _put(slot, "cap", to_num(pick(r, FIELDS["capital"])), fill_only)
         elif name == "revenue":
             for key, names in (("yoy", "yoy"), ("cyoy", "cum_yoy")):
                 _put(slot, key, to_num(pick(r, FIELDS[names])), fill_only)
@@ -290,15 +291,10 @@ def main():
     for code, seen in INSIDER.items():
         data.setdefault(code, {})["hold_sh"] = sum(seen.values())
 
-    # 還是沒有在外流通股數的，用資本額 ÷ 面額 10 回推（台股絕大多數面額 10 元）。
-    # 面額不是 10 的會算錯，但下面 0~100% 的合理性檢查會把它擋掉。
-    derived = 0
-    for slot in data.values():
-        if not slot.get("out_sh") and slot.get("cap"):
-            slot["out_sh"] = slot["cap"] / 10.0
-            derived += 1
-    if derived:
-        print(f"-- 在外流通股數 -- 用資本額÷10 回推的：{derived} 檔")
+    # 曾經用櫃買行情表的 Capitals ÷ 10 回推在外流通股數，已移除：實測 1336
+    # 台翰算出 291%，代表那一欄不是我以為的資本額。而且錯的方向若相反，會得到
+    # 「偏小但看起來合理」的比例，靜靜矇混過 0~100% 的合理性檢查——顯示一個
+    # 錯的數字比留白糟糕得多。現在分母只認 IssueShares／已發行普通股數。
 
     over = 0
     for slot in data.values():

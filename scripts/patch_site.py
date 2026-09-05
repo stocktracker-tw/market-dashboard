@@ -2411,11 +2411,15 @@ def _senti_chip(row, xs):
                 + ('（散戶槓桿在全市場前 5%）' if hot else '') + '</div>'
                 '<div style="font-size:11.5px;color:#5f7183;margin-top:2px">'
                 + '・'.join(lead) + '</div>')
+    # 情緒下面接基本面（成交量／營收成長／董監持股）——引擎的卡片只有
+    # 價格與四面向分數，這三項它完全沒有。同一個框內用一條細線隔開。
     return key, ('<!--senti--><div style="margin:2px 0 8px;padding:7px 9px;'
-                  'border-radius:9px;background:rgba(36,120,200,.05);'
-                  'border:1px solid rgba(36,120,200,.18)">'
-                  '<div style="font-size:11px;color:#7c8aa0;letter-spacing:.02em">'
-                  '市場情緒（誰在買）</div>' + body + '</div><!--/senti-->')
+                 'border-radius:9px;background:rgba(36,120,200,.05);'
+                 'border:1px solid rgba(36,120,200,.18)">'
+                 '<div style="font-size:11px;color:#7c8aa0;letter-spacing:.02em">'
+                 '市場情緒（誰在買）</div>' + body
+                 + _fund_line((row or {}).get("c") or "", _fund(), sep=True)
+                 + '</div><!--/senti-->')
 
 
 def _mood_strip():
@@ -2548,6 +2552,9 @@ HOT_SHOW = 8
 HOT_PER_IND = 2
 
 
+_FUND_CACHE = []                            # [] 未讀過；[None] 讀過但沒有
+
+
 def _fund():
     """fundamentals.json：日成交金額、月營收年增、董監持股 + 各自的全市場分位。
 
@@ -2555,18 +2562,22 @@ def _fund():
     只顯示事實與分位，不再摻進另一個加權分數——分數怎麼算的要能一句話講完。
     門檻用的是量出來的全市場統計（中位、P25），不是憑感覺挑的數字。
     """
+    if _FUND_CACHE:                         # 每張卡都會叫一次，只讀一次就好
+        return _FUND_CACHE[0]
     try:
         with open(FUND_JSON, encoding="utf-8") as f:
             rows = (json.load(f) or {}).get("rows") or {}
     except Exception:                       # noqa: BLE001 — 沒有就整段不顯示
-        return None
+        rows = None
     if not rows:
+        _FUND_CACHE.append(None)
         return None
     scale = {}
     for k in ("amt", "yoy", "hold"):
         xs = sorted(v[k] for v in rows.values() if isinstance(v.get(k), (int, float)))
         scale[k] = xs or None
-    return {"rows": rows, "scale": scale}
+    _FUND_CACHE.append({"rows": rows, "scale": scale})
+    return _FUND_CACHE[0]
 
 
 def _pctl(v, xs):
@@ -2575,14 +2586,16 @@ def _pctl(v, xs):
     return round(100.0 * bisect.bisect_left(xs, v) / len(xs))
 
 
-def _fund_line(code, fd):
+def _fund_line(code, fd, sep=False):
     """一行：日成交（含分位）・營收年增・董監持股。沒資料就說沒資料。"""
     if not fd:
         return ""
+    edge = ('border-top:1px solid rgba(36,120,200,.16);'
+            'margin-top:6px;padding-top:5px;' if sep else '')
     r = (fd["rows"] or {}).get(code)
     if not r:
-        return ('<div style="font-size:11.5px;color:#9aa7b8;margin-top:2px">'
-                '基本面：TWSE 開放資料只涵蓋上市，這檔查不到</div>')
+        return ('<div style="' + edge + 'font-size:11.5px;color:#9aa7b8;'
+                'margin-top:2px">基本面：開放資料查不到這檔</div>')
     sc, bits = fd["scale"], []
     amt, yoy, hold = r.get("amt"), r.get("yoy"), r.get("hold")
     if amt is not None:
@@ -2601,8 +2614,8 @@ def _fund_line(code, fd):
         bits.append('董監持股 %.1f%%（P%d）' % (hold, p if p is not None else 0))
     if not bits:
         return ""
-    return ('<div style="font-size:11.5px;color:#5f7183;margin-top:2px">'
-            + '　'.join(bits) + '</div>')
+    return ('<div style="' + edge + 'font-size:11.5px;color:#5f7183;'
+            'margin-top:2px">' + '　'.join(bits) + '</div>')
 
 
 def _hot_rows():

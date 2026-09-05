@@ -337,12 +337,29 @@ def main():
                 prev = json.load(f)
         except Exception:                    # noqa: BLE001
             prev = {}
+    # 保留上一份的好資料：這一輪沒抓到的（整個來源掛掉、或某檔沒出現）就沿用。
+    #
+    # 原本的判斷是「這個欄位的總覆蓋數 < 200 才保留」，那是錯的。2026-09-05 那次
+    # TWSE 整個連不上（swagger 目錄連印都沒印出來），但櫃買照常回了 886 檔，
+    # 於是 amt 的覆蓋數是 886、大於 200，判斷成「這欄有抓到，不用保留」——
+    # 1081 檔上市的舊資料全部沒被沿用，檔案從 1967 筆掉到 886 筆，站上所有
+    # 上市股票的基本面整片消失。一邊掛掉不該把另一邊的舊資料也一起清掉。
+    #
+    # 改成逐檔逐欄比對：這一檔這一欄這次沒抓到，就用上一份的。
     prev_rows = prev.get("rows") or {}
+    restored = 0
     for code, slot in prev_rows.items():
-        keep = {k: v for k, v in slot.items() if cover.get(k, 0) < 200}
-        if keep:
-            data.setdefault(code, {}).update(
-                {k: v for k, v in keep.items() if k not in data.get(code, {})})
+        cur = data.setdefault(code, {})
+        for k, v in slot.items():
+            if k not in cur:
+                cur[k] = v
+                restored += 1
+    if restored:
+        print(f"-- 沿用上一份 -- 這輪沒抓到而沿用舊值的欄位數：{restored}")
+    # 覆蓋數比上一份掉超過兩成就大聲喊，代表有來源掛了
+    if prev_rows and len(data) < len(prev_rows) * 0.8:
+        print(f"##[warning] 檔數從 {len(prev_rows)} 掉到 {len(data)}，"
+              f"很可能有來源掛掉——請看上面各段的 [FAIL]")
 
     # 一個數值都沒有的空殼不要寫進檔案
     data = {c: v for c, v in data.items() if v}

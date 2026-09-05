@@ -5,6 +5,7 @@
 每頁資料來自 universe.json；引擎每天更新 universe.json 後由 workflow 重跑本程式。
 產出：stock/<代碼>.html、stock/index.html（索引頁）、並重寫 sitemap.xml。
 """
+import bisect
 import html as _html
 import json
 import os
@@ -52,6 +53,80 @@ POPULAR = ["2330", "2317", "2454", "2308", "2382", "2303", "2412", "2881", "2882
            "1402"]
 
 ZONES = ["低分", "偏低", "中性", "偏高", "高分"]
+
+# universe.json（引擎產出）沒有的三項，由 scripts/fetch_fundamentals.py 抓
+# TWSE／櫃買中心的開放資料寫進 fundamentals.json：成交量、月營收年增、董監持股。
+# 這裡只呈現事實與全市場分位，不併進進場分數——進場分數是引擎的四面向，
+# 多摻一項進去會讓「分數怎麼算的」變得沒人講得清楚。
+FUND_PATH = os.path.join(ROOT, "fundamentals.json")
+FUND = None                      # main() 開場載入一次
+
+
+def load_fund():
+    try:
+        with open(FUND_PATH, encoding="utf-8") as f:
+            rows = (json.load(f) or {}).get("rows") or {}
+    except Exception:                        # noqa: BLE001 — 沒有就不顯示這一區
+        return None
+    if not rows:
+        return None
+    scale = {k: sorted(v[k] for v in rows.values()
+                       if isinstance(v.get(k), (int, float)))
+             for k in ("amt", "yoy", "hold")}
+    return {"rows": rows, "scale": scale}
+
+
+def fpct(v, xs):
+    if not xs or v is None:
+        return None
+    return round(100.0 * bisect.bisect_left(xs, v) / len(xs))
+
+
+def frow(label, text, pct, warn=""):
+    """基本面的一列：左標籤、右數值、底下一句話。分位用細條畫出來。"""
+    w = "" if pct is None else (
+        f'<div class="bar" style="height:4px;margin-top:5px">'
+        f'<i style="width:{pct}%;background:#3d7fc1"></i></div>')
+    note = (f'<div class="d" style="color:#ef5d5d">{e(warn)}</div>' if warn
+            else (f'<div class="d">全市場分位 P{pct}</div>' if pct is not None
+                  else ""))
+    return (f'<div class="sub"><div class="sh"><span>{e(label)}</span>'
+            f'<b>{e(text)}</b></div>{w}{note}</div>')
+
+
+def fund_card(code, fd):
+    """成交量／營收成長／董監持股。沒資料就說沒資料，不印 0。"""
+    if not fd:
+        return ""
+    r = (fd["rows"] or {}).get(code)
+    if not r:
+        return ('<div class="card"><div class="h">交易量・成長・內部人持股</div>'
+                '<div class="t" style="color:#5b6d80">開放資料查不到這一檔。'
+                '沒有資料是資料的問題，不代表這檔有什麼問題。</div></div>')
+    sc, rows = fd["scale"], []
+    amt, yoy, cyoy, hold = (r.get("amt"), r.get("yoy"),
+                            r.get("cyoy"), r.get("hold"))
+    if amt is not None:
+        p = fpct(amt, sc["amt"])
+        vol = f"{amt / 1e8:.1f} 億" if amt >= 1e8 else f"{amt / 1e4:.0f} 萬"
+        rows.append(frow("當日成交金額", vol, p,
+                         "低於全市場中位數——買賣不易，進出容易滑價。"
+                         if p is not None and p < 50 else ""))
+    if yoy is not None:
+        extra = "" if cyoy is None else f"，累計 {cyoy:+.1f}%"
+        rows.append(frow("月營收年增率", f"{yoy:+.1f}%", fpct(yoy, sc["yoy"]),
+                         f"營收比去年同月衰退{extra}。" if yoy < 0 else ""))
+    if hold is not None:
+        rows.append(frow("董監事持股", f"{hold:.1f}%", fpct(hold, sc["hold"])))
+    if not rows:
+        return ""
+    return ('<div class="card"><div class="h">交易量・成長・內部人持股</div>'
+            + "".join(rows)
+            + '<div class="t" style="font-size:12px;color:#5b6d80;margin-top:8px">'
+            '這三項不在進場分數裡——進場分數是引擎的環境／籌碼／估值／技術四面向。'
+            '這裡單獨列出來，是因為分數再高，買不進去、營收在衰退、'
+            '或內部人自己都不留，都是分數看不到的事。'
+            '資料來源：臺灣證券交易所／櫃買中心開放資料。</div></div>')
 
 
 def zone(sc):
@@ -161,6 +236,7 @@ h1{{font-size:24px;margin:0 0 2px}}
 {bar("估值面（本益比/殖利率）", x.get("v"), x.get("vd", ""))}
 {bar("技術面（型態/動能）", x.get("tk"), x.get("td", ""))}
 </div>
+{fund_card(x["c"], FUND)}
 {ann}
 
 <a class="cta" href="../stocks.html">查看全市場 1964 檔 →</a>
@@ -368,6 +444,9 @@ def write_sitemap(stock_codes, etf_codes):
 
 
 def main():
+    global FUND
+    FUND = load_fund()
+    print("fundamentals：" + (f"{len(FUND['rows'])} 檔" if FUND else "沒有，這一區不顯示"))
     data = json.load(open(os.path.join(ROOT, "universe.json"), encoding="utf-8"))
     by = {x["c"]: x for x in data}
     rows = [by[c] for c in POPULAR if c in by]

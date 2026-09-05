@@ -1,0 +1,47 @@
+name: 個股基本面（TWSE：成交量／營收成長／董監持股）
+
+# 抓 universe.json 沒有的三項：成交量、月營收年增率、董監持股比例，
+# 寫進 fundamentals.json。
+#
+# 這一版「只抓不上站」：patch_site.py 還沒有讀 fundamentals.json，所以就算
+# 端點或欄名猜錯，公開頁面也不會出現任何錯的東西。開發沙箱連不到
+# openapi.twse.com.tw，只有 Actions 連得到，所以正確的欄名要靠這支跑完的
+# log 才看得到——先跑一次、對過資料，再決定怎麼進分數。
+
+on:
+  schedule:
+    - cron: "30 8 * * 1-5"     # 約 16:30 台北，排在 taifex 之後
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fundamentals
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 抓個股基本面
+        run: python scripts/fetch_fundamentals.py
+
+      - name: 有變更才提交
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "更新個股基本面（TWSE）[skip ci]"
+            git push
+            echo "已更新 fundamentals.json 並推送。"
+          else
+            echo "無變更（可能今日資料未出或抓取失敗），略過。"
+          fi

@@ -13,6 +13,7 @@ import glob
 import json
 import os
 import re
+import sys
 from html import escape as html_escape
 
 # 分頁圖示（檔名帶 -r＝rounded 版；Chrome favicon 快取無視 ?v=，換版要換檔名）
@@ -2525,6 +2526,111 @@ def patch_sentiment(html):
     return html, html != orig
 
 
+# --- 題材股・情緒選股 ---------------------------------------------------
+# 引擎的「最推薦潛力股」是題材熱度＋20 日動能挑的，八檔清一色落在技術面
+# 88~99 百分位、估值 0~10 百分位。這一區用同一份資料換一個問法：
+# 題材股裡面，法人在買而散戶還沒追的有哪些。
+#
+# 篩選＝情緒（法人買、散戶退），排序＝引擎自己的進場分數。刻意不把兩者
+# 混成一個新的加權分數——那會變成又一個沒人能驗證的數字。情緒負責篩，
+# 分數負責排，兩件事分開講得清楚。
+#
+# 池子＝universe.json 裡有題材標籤（t 欄）的個股，也就是頁面上「今日風口」
+# 那一排題材的成員。曾經改用 gen_stock_pages.POPULAR（知名權值股）當池子，
+# 但那組挑出來是彰銀、華南金、中華電、和泰車這種，不是題材股。
+HOT_RE = re.compile(r'<!--hotsenti-->.*?<!--/hotsenti-->', re.S)
+HOT_SHOW = 8
+# 同一個題材最多列幾檔，免得整區被單一題材佔滿。
+# （用權值股當池子時這條擋的是金融股：法人今天把 11 檔金融全買了，
+#   金融的籌碼分與估值分本來就偏高，篩選和排序兩關都偏向它。）
+HOT_PER_IND = 2
+
+
+def _hot_rows():
+    xs, by = _marg_scale()
+    if not by:
+        return [], 0, 0
+    pool = [r for r in by.values() if (r.get("t") or "").strip()]
+    picked = []
+    for r in pool:
+        if not isinstance(r.get("s"), (int, float)):
+            continue
+        _, label, _, _, extra = _senti(r, xs)
+        if label == "法人買、散戶退":
+            picked.append((r["s"], r, extra[0]))
+    picked.sort(key=lambda t: -t[0])
+    # 產業上限：分數高的先進，同產業額滿就跳過（見 HOT_PER_IND）
+    seen, capped = {}, []
+    for row in picked:
+        ind = row[1].get("t") or "其他"
+        if seen.get(ind, 0) >= HOT_PER_IND:
+            continue
+        seen[ind] = seen.get(ind, 0) + 1
+        capped.append(row)
+        if len(capped) >= HOT_SHOW:
+            break
+    return capped, len(pool), len(picked)
+
+
+def _hot_card():
+    picked, pool, passed = _hot_rows()
+    if len(picked) < 3:                     # 太少就整區不出現，不留半套
+        return None
+    rows = []
+    for s, r, marg_p in picked[:HOT_SHOW]:
+        inst, _ = _cd_nums(r.get("cd"))
+        lev = ("散戶槓桿低於全市場 %d%%" % (100 - marg_p)) if marg_p is not None \
+            and marg_p < 50 else ("散戶槓桿高過全市場 %d%%" % marg_p) \
+            if marg_p is not None else "槓桿無資料"
+        rows.append(
+            '<a href="stock/' + r["c"] + '.html" style="display:flex;'
+            'align-items:baseline;gap:8px;padding:8px 0;border-top:1px solid '
+            'rgba(36,120,200,.14);text-decoration:none;color:inherit">'
+            '<span style="font-weight:700;font-size:14px">'
+            + html_escape(r["n"]) + '</span>'
+            '<span style="font-size:11.5px;color:#7c8aa0">' + r["c"] + '</span>'
+            '<span style="font-size:11.5px;color:#7c8aa0">'
+            + html_escape(r.get("t") or r.get("i") or "") + '</span>'
+            '<span style="margin-left:auto;font-weight:800;font-size:15px;'
+            'color:#1d5c9e">' + ("%.1f" % s) + '</span></a>'
+            '<div style="font-size:11.5px;color:#5f7183;margin:-4px 0 2px">'
+            + lev + ('　法人近5日 %+d 張' % inst if inst is not None else '')
+            + '</div>')
+    return ('<!--hotsenti-->'
+            '<h2 style="font-size:16px;margin:18px 0 8px">🔥 題材股・情緒選股 '
+            '<span class="muted" style="font-weight:400">法人在買、散戶還沒追的'
+            '（非投資建議）</span></h2>'
+            '<div class="card" style="display:block">'
+            '<div style="font-size:11.5px;color:#5f7183;margin-bottom:2px">'
+            '題材股 ' + str(pool) + ' 檔（今日風口那幾個題材的成員）裡，'
+            '落在「法人買、散戶退」的有 ' + str(passed) + ' 檔，這裡列進場分數'
+            '最高的 ' + str(len(picked)) + ' 檔，同一個題材最多 '
+            + str(HOT_PER_IND) + ' 檔。'
+            '情緒只負責篩、分數負責排，沒有再把兩者混成一個新分數。</div>'
+            + "".join(rows)
+            + '<div style="font-size:11px;color:#7c8aa0;margin-top:8px;'
+            'border-top:1px solid rgba(36,120,200,.14);padding-top:7px">'
+            '和「最推薦潛力股」那一區的差別：同樣是題材股，那區是用題材熱度'
+            '＋20 日動能挑的（技術面），這區是先看誰在買。'
+            '兩區本來就會挑到不一樣的股票。</div>'
+            '</div><!--/hotsenti-->')
+
+
+def patch_hotsenti(html):
+    """在「最推薦潛力股」上方加一區「題材股・情緒選股」（stocks.html）。"""
+    if "🔥 最推薦潛力股" not in html:
+        return html, False
+    orig = html
+    html = HOT_RE.sub("", html)             # 先移除舊的（冪等）
+    card = _hot_card()
+    if card:
+        i = html.find("🔥 最推薦潛力股")
+        h2 = html.rfind("<h2", 0, i)        # 插在那個 <h2> 之前
+        if h2 >= 0:
+            html = html[:h2] + card + html[h2:]
+    return html, html != orig
+
+
 def patch(html, fname):
     changed = False
 
@@ -2771,6 +2877,11 @@ def patch(html, fname):
     #     並讓情緒參與排序。引擎挑股是題材＋動能＋法人買超，偏技術面。
     html, sm = patch_sentiment(html)
     changed = changed or sm
+
+    # 6e) 題材股・情緒選股（stocks.html）：換一個問法——題材股裡誰是法人在買、
+    #     散戶還沒追的。情緒負責篩、引擎分數負責排。
+    html, hs = patch_hotsenti(html)
+    changed = changed or hs
 
     # 7) 「我該扣多少」計算機（index.html）
 

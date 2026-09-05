@@ -100,6 +100,10 @@ WANT_TPEX = [
     # 投資類股持股比率表」，白跑一輪。找不到就跳過，不會亂抓一個來充數。
     ("revenue", ["monthly_revenue", "月營業收入", "月營收"], None),
     ("insider", ["董監事持股", "internal_holding", "內部人持股"], None),
+    # 上一輪漏了這條：董監股數抓到了 886/886，卻沒有在外流通股數可以換算成
+    # 比例，所以 otc 的 hold 還是 0/886。營收那條解出來是 mopsfin_t187ap05_O，
+    # 基本資料照同一個命名應該是 _t187ap03_O。
+    ("shares_out", ["mopsfin_t187ap03_O", "公司基本資料", "基本資料"], None),
 ]
 
 # 欄位關鍵字：抓到第一個命中的鍵就用它
@@ -114,6 +118,7 @@ FIELDS = {
     # t187ap11_L 是「每位董監一列」的明細，要自己按公司加總
     "hold": ["目前持股", "持有股數", "現持股數", "持股張數", "股份"],
     "outstanding": ["已發行普通股數", "發行股數", "普通股股數", "實收資本額"],
+    "capital": ["Capitals"],                # 櫃買行情表自帶的資本額
 }
 
 
@@ -222,6 +227,8 @@ def _ingest_rows(name, rows, data, fill_only=False):
         if name == "volume":
             for key, names in (("amt", "amount"), ("shr", "shares")):
                 _put(slot, key, to_num(pick(r, FIELDS[names])), fill_only)
+            # 櫃買行情表自帶資本額，留著當在外流通股數的備援（見下面 main()）
+            _put(slot, "cap", to_num(pick(r, FIELDS["capital"])), fill_only)
         elif name == "revenue":
             for key, names in (("yoy", "yoy"), ("cyoy", "cum_yoy")):
                 _put(slot, key, to_num(pick(r, FIELDS[names])), fill_only)
@@ -282,6 +289,16 @@ def main():
     # 去重後才加總
     for code, seen in INSIDER.items():
         data.setdefault(code, {})["hold_sh"] = sum(seen.values())
+
+    # 還是沒有在外流通股數的，用資本額 ÷ 面額 10 回推（台股絕大多數面額 10 元）。
+    # 面額不是 10 的會算錯，但下面 0~100% 的合理性檢查會把它擋掉。
+    derived = 0
+    for slot in data.values():
+        if not slot.get("out_sh") and slot.get("cap"):
+            slot["out_sh"] = slot["cap"] / 10.0
+            derived += 1
+    if derived:
+        print(f"-- 在外流通股數 -- 用資本額÷10 回推的：{derived} 檔")
 
     over = 0
     for slot in data.values():

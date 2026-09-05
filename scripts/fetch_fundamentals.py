@@ -45,8 +45,11 @@ WANT = [
      "/exchangeReport/STOCK_DAY_ALL"),
     ("revenue", ["t187ap05", "月營業收入", "營業收入彙總", "monthly revenue"],
      "/opendata/t187ap05_L"),
-    ("insider", ["董事", "監察人", "持股", "shareholding", "t187ap11"],
-     None),
+    # 第一次跑用關鍵字挑，「持股」誤中 /fund/MI_QFIIS_cat（外資持股比率，
+    # 產業別 36 列），解析到 0 檔。目錄裡正確的是 t187ap11_L。
+    ("insider", ["t187ap11", "董監事持股餘額"], "/opendata/t187ap11_L"),
+    # 董監持股要換算成比例才有可比性，需要在外流通股數
+    ("shares_out", ["t187ap03_L", "上市公司基本資料"], "/opendata/t187ap03_L"),
 ]
 
 # 欄位關鍵字：抓到第一個命中的鍵就用它
@@ -56,7 +59,9 @@ FIELDS = {
     "shares": ["成交股數", "TradeVolume", "成交量"],
     "yoy": ["營業收入-去年同月增減(%)", "去年同月增減", "營收年增", "YoY"],
     "cum_yoy": ["累計營業收入-前期比較增減(%)", "累計營業收入", "前期比較增減", "累計增減"],
-    "hold": ["持股比例", "持股比率", "全體董事持股", "董監持股", "Shareholding"],
+    # t187ap11_L 是「每位董監一列」的明細，要自己按公司加總
+    "hold": ["目前持股", "持有股數", "現持股數", "持股張數", "股份"],
+    "outstanding": ["已發行普通股數", "發行股數", "普通股股數", "實收資本額"],
 }
 
 
@@ -174,15 +179,27 @@ def main():
                     if v is not None:
                         slot[key] = v
             elif name == "insider":
+                # 明細是一位董監一列，同一家公司要累加
                 v = to_num(pick(r, FIELDS["hold"]))
                 if v is not None:
-                    slot["hold"] = v
+                    slot["hold_sh"] = slot.get("hold_sh", 0) + v
+            elif name == "shares_out":
+                v = to_num(pick(r, FIELDS["outstanding"]))
+                if v is not None:
+                    slot["out_sh"] = v
             hit += 1
         print(f"  {name}：解析到 {hit} 檔")
 
+    # 董監持股換算成佔在外流通股數的比例（兩邊都有才算，單位不合就會很離譜，
+    # 所以下面會印出來讓人看；合理範圍大約 0~80%）
+    for slot in data.values():
+        h, o = slot.get("hold_sh"), slot.get("out_sh")
+        if h and o and o > 0:
+            slot["hold"] = round(h / o * 100, 2)
+
     # 覆蓋率沒到最低標就當這一段沒抓到，保留上次的好資料（絕不洗成空）
     cover = {k: sum(1 for v in data.values() if k in v)
-             for k in ("amt", "shr", "yoy", "cyoy", "hold")}
+             for k in ("amt", "shr", "yoy", "cyoy", "hold_sh", "out_sh", "hold")}
     print(f"-- 覆蓋率 -- {cover}")
 
     prev = {}
@@ -212,6 +229,11 @@ def main():
     # 抽樣印幾檔知名股，方便從 log 直接看資料合不合理
     for c in ("2330", "2317", "2454", "2412"):
         print(f"  {c}: {json.dumps(data.get(c, {}), ensure_ascii=False)}")
+    holds = sorted(v["hold"] for v in data.values() if "hold" in v)
+    if holds:
+        print(f"  董監持股% 分布：最小 {holds[0]:.2f}　中位 "
+              f"{holds[len(holds) // 2]:.2f}　最大 {holds[-1]:.2f}"
+              f"（合理應落在 0~80，超出代表單位對不上）")
 
 
 if __name__ == "__main__":

@@ -1,12 +1,16 @@
 name: 個股基本面（TWSE：成交量／營收成長／董監持股）
 
 # 抓 universe.json 沒有的三項：成交量、月營收年增率、董監持股比例，
-# 寫進 fundamentals.json。
+# 寫進 fundamentals.json，再重產個股頁與補丁，讓新資料當天就上站。
 #
-# 這一版「只抓不上站」：patch_site.py 還沒有讀 fundamentals.json，所以就算
-# 端點或欄名猜錯，公開頁面也不會出現任何錯的東西。開發沙箱連不到
-# openapi.twse.com.tw，只有 Actions 連得到，所以正確的欄名要靠這支跑完的
-# log 才看得到——先跑一次、對過資料，再決定怎麼進分數。
+# 為什麼抓完要在同一個 job 裡重產：本 workflow 用內建 GITHUB_TOKEN 推送，
+# GitHub 規定這種推送不會再觸發其他 workflow，所以 site-patch 不會被叫起來。
+# （taifex.yml 也是同樣的自包含作法。）沒有這幾步的話，今天抓到的基本面要等
+# 隔天引擎推新 HTML 才會出現在頁面上。
+#
+# 開發沙箱連不到 openapi.twse.com.tw 與 www.tpex.org.tw，只有 Actions 連得到，
+# 所以欄名與端點都是靠這支跑完的 log 對出來的。抓不到的欄位一律留白，
+# 不會印錯的數字。
 
 on:
   schedule:
@@ -33,15 +37,21 @@ jobs:
       - name: 抓個股基本面
         run: python scripts/fetch_fundamentals.py
 
+      - name: 重產個股頁（帶上新的基本面）
+        run: python scripts/gen_stock_pages.py
+
+      - name: 重新補丁
+        run: python scripts/patch_site.py
+
       - name: 有變更才提交
         run: |
           if [ -n "$(git status --porcelain)" ]; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add -A
-            git commit -m "更新個股基本面（TWSE）[skip ci]"
+            git commit -m "更新個股基本面（TWSE＋櫃買）[skip ci]"
             git push
-            echo "已更新 fundamentals.json 並推送。"
+            echo "已更新 fundamentals.json、個股頁與補丁並推送。"
           else
             echo "無變更（可能今日資料未出或抓取失敗），略過。"
           fi

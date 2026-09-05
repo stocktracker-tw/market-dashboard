@@ -27,7 +27,10 @@ from datetime import datetime, timezone, timedelta
 
 # 加總超過在外流通股數代表有重複計算（法人董事與其代表人可能各列一次），
 # 這兩檔拿來看原始結構：2412 中華電第一次算出 317%，2330 台積電 6.63% 看起來對。
-DEBUG_CODES = {"2412", "2330"}
+# 1336 台翰是上櫃、董監持股算出來 291%（超過 100 被擋掉的 323 檔之一）。
+# 上市那批用同樣的手法找出「法人董事在每位代表人旁邊各列一次」，這次看上櫃。
+DEBUG_CODES = {"2412", "2330", "1336"}
+FIELDNAMES = {}                 # 各來源第一列的欄位名，留到最後才印， 免得被 swagger 目錄洗掉
 DEBUG_ROWS = {}
 # 每家公司「每個持有人只算一次」：{公司代號: {姓名: 該人最大持股}}
 INSIDER = {}
@@ -201,6 +204,7 @@ def collect(cat, name, keys, prefer, base=BASE):
     if not isinstance(rows, list) or not rows:
         return None, path
     print(f"  {name} 用的端點：{path}")
+    FIELDNAMES[name + (" @" + path)] = list(rows[0].keys())
     print(f"  {name} 第一列的欄位：{list(rows[0].keys())}")
     print(f"  {name} 第一列樣本：{json.dumps(rows[0], ensure_ascii=False)[:400]}")
     return rows, path
@@ -367,6 +371,18 @@ def main():
         print(f"  [debug] {c} 共 {len(rows_)} 列 / 去重後 {len(INSIDER.get(c, {}))} 人　"
               f"去重前 {raw:,.0f}（{raw / out * 100:.1f}%）→ "
               f"去重後 {ded:,.0f}（{ded / out * 100:.1f}%）")
+    print("-- 各來源的欄位名（再印一次，方便從 log 尾巴看）--")
+    for k, v in FIELDNAMES.items():
+        print(f"  {k}: {v}")
+    if "1336" in DEBUG_ROWS:
+        print("-- 上櫃 1336 的董監明細（前 18 列）--")
+        for job, who, v in DEBUG_ROWS["1336"][:18]:
+            print(f"    {str(job):<22} {str(who):<22} "
+                  + (f"{v:>14,.0f}" if v is not None else "          (無)"))
+        uniq = INSIDER.get("1336", {})
+        print(f"    共 {len(DEBUG_ROWS['1336'])} 列 / 去重後 {len(uniq)} 人，"
+              f"加總 {sum(uniq.values()):,.0f}，"
+              f"在外流通 {data.get('1336', {}).get('out_sh', 0):,.0f}")
     holds = sorted(v["hold"] for v in data.values() if "hold" in v)
     if holds:
         print(f"  董監持股% 分布：最小 {holds[0]:.2f}　中位 "

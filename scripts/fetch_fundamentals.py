@@ -25,6 +25,11 @@ import urllib.request
 import urllib.error
 from datetime import datetime, timezone, timedelta
 
+# 加總超過在外流通股數代表有重複計算（法人董事與其代表人可能各列一次），
+# 這兩檔拿來看原始結構：2412 中華電第一次算出 317%，2330 台積電 6.63% 看起來對。
+DEBUG_CODES = {"2412", "2330"}
+DEBUG_ROWS = {}
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "fundamentals.json")
 TZ = timezone(timedelta(hours=8))
@@ -183,6 +188,9 @@ def main():
                 v = to_num(pick(r, FIELDS["hold"]))
                 if v is not None:
                     slot["hold_sh"] = slot.get("hold_sh", 0) + v
+                if code in DEBUG_CODES:
+                    DEBUG_ROWS.setdefault(code, []).append(
+                        (str(pick(r, ["職稱"]) or ""), str(pick(r, ["姓名"]) or ""), v))
             elif name == "shares_out":
                 v = to_num(pick(r, FIELDS["outstanding"]))
                 if v is not None:
@@ -192,10 +200,17 @@ def main():
 
     # 董監持股換算成佔在外流通股數的比例（兩邊都有才算，單位不合就會很離譜，
     # 所以下面會印出來讓人看；合理範圍大約 0~80%）
+    over = 0
     for slot in data.values():
         h, o = slot.get("hold_sh"), slot.get("out_sh")
         if h and o and o > 0:
-            slot["hold"] = round(h / o * 100, 2)
+            pct = h / o * 100
+            # 持股不可能超過在外流通股數。超過就是重複計算，寧可留白也不寫錯的
+            if 0 <= pct <= 100:
+                slot["hold"] = round(pct, 2)
+            else:
+                over += 1
+    print(f"-- 董監持股 -- 比例超出 0~100 而捨棄的：{over} 檔")
 
     # 覆蓋率沒到最低標就當這一段沒抓到，保留上次的好資料（絕不洗成空）
     cover = {k: sum(1 for v in data.values() if k in v)
@@ -229,6 +244,13 @@ def main():
     # 抽樣印幾檔知名股，方便從 log 直接看資料合不合理
     for c in ("2330", "2317", "2454", "2412"):
         print(f"  {c}: {json.dumps(data.get(c, {}), ensure_ascii=False)}")
+    for c, rows_ in DEBUG_ROWS.items():
+        tot = sum(v or 0 for _, _, v in rows_)
+        print(f"  [debug] {c} 共 {len(rows_)} 列，加總 {tot:,.0f}，"
+              f"在外流通 {data.get(c, {}).get('out_sh', 0):,.0f}")
+        for job, who, v in rows_[:25]:
+            print(f"      {job:<20} {who:<24} {v:>15,.0f}"
+                  if v is not None else f"      {job:<20} {who:<24}  (無)")
     holds = sorted(v["hold"] for v in data.values() if "hold" in v)
     if holds:
         print(f"  董監持股% 分布：最小 {holds[0]:.2f}　中位 "

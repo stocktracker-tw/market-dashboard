@@ -29,6 +29,8 @@ from datetime import datetime, timezone, timedelta
 # 這兩檔拿來看原始結構：2412 中華電第一次算出 317%，2330 台積電 6.63% 看起來對。
 DEBUG_CODES = {"2412", "2330"}
 DEBUG_ROWS = {}
+# 每家公司「每個持有人只算一次」：{公司代號: {姓名: 該人最大持股}}
+INSIDER = {}
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "fundamentals.json")
@@ -184,10 +186,16 @@ def main():
                     if v is not None:
                         slot[key] = v
             elif name == "insider":
-                # 明細是一位董監一列，同一家公司要累加
+                # 明細是一位董監一列，但法人董事的持股會在「每一位法人代表人」
+                # 旁邊重複列一次。實測中華電：交通部 2,737,718,976 股出現 9 次，
+                # 直接加總得到 246 億股，是在外流通 77.6 億股的 3.2 倍。
+                # 所以按「姓名」去重，同一個持有人只算一次（取最大值）。
                 v = to_num(pick(r, FIELDS["hold"]))
-                if v is not None:
-                    slot["hold_sh"] = slot.get("hold_sh", 0) + v
+                who = str(pick(r, ["姓名"]) or "").strip()
+                if v is not None and who:
+                    seen = INSIDER.setdefault(code, {})
+                    if v > seen.get(who, -1):
+                        seen[who] = v
                 if code in DEBUG_CODES:
                     DEBUG_ROWS.setdefault(code, []).append(
                         (str(pick(r, ["職稱"]) or ""), str(pick(r, ["姓名"]) or ""), v))
@@ -200,6 +208,10 @@ def main():
 
     # 董監持股換算成佔在外流通股數的比例（兩邊都有才算，單位不合就會很離譜，
     # 所以下面會印出來讓人看；合理範圍大約 0~80%）
+    # 去重後才加總
+    for code, seen in INSIDER.items():
+        data.setdefault(code, {})["hold_sh"] = sum(seen.values())
+
     over = 0
     for slot in data.values():
         h, o = slot.get("hold_sh"), slot.get("out_sh")
@@ -245,12 +257,12 @@ def main():
     for c in ("2330", "2317", "2454", "2412"):
         print(f"  {c}: {json.dumps(data.get(c, {}), ensure_ascii=False)}")
     for c, rows_ in DEBUG_ROWS.items():
-        tot = sum(v or 0 for _, _, v in rows_)
-        print(f"  [debug] {c} 共 {len(rows_)} 列，加總 {tot:,.0f}，"
-              f"在外流通 {data.get(c, {}).get('out_sh', 0):,.0f}")
-        for job, who, v in rows_[:25]:
-            print(f"      {job:<20} {who:<24} {v:>15,.0f}"
-                  if v is not None else f"      {job:<20} {who:<24}  (無)")
+        raw = sum(v or 0 for _, _, v in rows_)
+        ded = sum(INSIDER.get(c, {}).values())
+        out = data.get(c, {}).get("out_sh", 0) or 1
+        print(f"  [debug] {c} 共 {len(rows_)} 列 / 去重後 {len(INSIDER.get(c, {}))} 人　"
+              f"去重前 {raw:,.0f}（{raw / out * 100:.1f}%）→ "
+              f"去重後 {ded:,.0f}（{ded / out * 100:.1f}%）")
     holds = sorted(v["hold"] for v in data.values() if "hold" in v)
     if holds:
         print(f"  董監持股% 分布：最小 {holds[0]:.2f}　中位 "

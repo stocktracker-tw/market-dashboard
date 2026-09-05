@@ -304,6 +304,8 @@ TAIFEX_JSON = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__fil
                            "taifex.json")
 UNIVERSE_JSON = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "universe.json")
+FUND_JSON = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "fundamentals.json")
 
 
 def _taifex_card(d):
@@ -2546,6 +2548,63 @@ HOT_SHOW = 8
 HOT_PER_IND = 2
 
 
+def _fund():
+    """fundamentals.json：日成交金額、月營收年增、董監持股 + 各自的全市場分位。
+
+    這三項 universe.json 沒有，是 fetch_fundamentals.py 從 TWSE OpenAPI 抓的。
+    只顯示事實與分位，不再摻進另一個加權分數——分數怎麼算的要能一句話講完。
+    門檻用的是量出來的全市場統計（中位、P25），不是憑感覺挑的數字。
+    """
+    try:
+        with open(FUND_JSON, encoding="utf-8") as f:
+            rows = (json.load(f) or {}).get("rows") or {}
+    except Exception:                       # noqa: BLE001 — 沒有就整段不顯示
+        return None
+    if not rows:
+        return None
+    scale = {}
+    for k in ("amt", "yoy", "hold"):
+        xs = sorted(v[k] for v in rows.values() if isinstance(v.get(k), (int, float)))
+        scale[k] = xs or None
+    return {"rows": rows, "scale": scale}
+
+
+def _pctl(v, xs):
+    if not xs or v is None:
+        return None
+    return round(100.0 * bisect.bisect_left(xs, v) / len(xs))
+
+
+def _fund_line(code, fd):
+    """一行：日成交（含分位）・營收年增・董監持股。沒資料就說沒資料。"""
+    if not fd:
+        return ""
+    r = (fd["rows"] or {}).get(code)
+    if not r:
+        return ('<div style="font-size:11.5px;color:#9aa7b8;margin-top:2px">'
+                '基本面：TWSE 開放資料只涵蓋上市，這檔查不到</div>')
+    sc, bits = fd["scale"], []
+    amt, yoy, hold = r.get("amt"), r.get("yoy"), r.get("hold")
+    if amt is not None:
+        p = _pctl(amt, sc["amt"])
+        thin = p is not None and p < 50      # 低於全市場中位＝買賣不易
+        # 不到一億的用「萬」，不然 0.05 億會被印成 0.0 億，看起來像沒有成交
+        vol = ("%.1f 億" % (amt / 1e8)) if amt >= 1e8 else ("%.0f 萬" % (amt / 1e4))
+        bits.append(('<span style="color:#ea5455">⚠ 日成交 %s（全市場 P%d，'
+                     '買賣不易）</span>' if thin else '日成交 %s（P%d）')
+                    % (vol, p if p is not None else 0))
+    if yoy is not None:
+        bits.append(('<span style="color:#ea5455">⚠ 營收年增 %+.1f%%</span>'
+                     if yoy < 0 else '營收年增 %+.1f%%') % yoy)
+    if hold is not None:
+        p = _pctl(hold, sc["hold"])
+        bits.append('董監持股 %.1f%%（P%d）' % (hold, p if p is not None else 0))
+    if not bits:
+        return ""
+    return ('<div style="font-size:11.5px;color:#5f7183;margin-top:2px">'
+            + '　'.join(bits) + '</div>')
+
+
 def _hot_rows():
     xs, by = _marg_scale()
     if not by:
@@ -2576,6 +2635,7 @@ def _hot_card():
     picked, pool, passed = _hot_rows()
     if len(picked) < 3:                     # 太少就整區不出現，不留半套
         return None
+    fd = _fund()
     rows = []
     for s, r, marg_p in picked[:HOT_SHOW]:
         inst, _ = _cd_nums(r.get("cd"))
@@ -2595,7 +2655,7 @@ def _hot_card():
             'color:#1d5c9e">' + ("%.1f" % s) + '</span></a>'
             '<div style="font-size:11.5px;color:#5f7183;margin:-4px 0 2px">'
             + lev + ('　法人近5日 %+d 張' % inst if inst is not None else '')
-            + '</div>')
+            + '</div>' + _fund_line(r["c"], fd))
     return ('<!--hotsenti-->'
             '<h2 style="font-size:16px;margin:18px 0 8px">🔥 題材股・情緒選股 '
             '<span class="muted" style="font-weight:400">法人在買、散戶還沒追的'
@@ -2605,7 +2665,8 @@ def _hot_card():
             '題材股 ' + str(pool) + ' 檔（今日風口那幾個題材的成員）裡，'
             '落在「法人買、散戶退」的有 ' + str(passed) + ' 檔，這裡列進場分數'
             '最高的 ' + str(len(picked)) + ' 檔，同一個題材最多 '
-            + str(HOT_PER_IND) + ' 檔。'
+            + str(HOT_PER_IND) + ' 檔。每列另外附上 universe 沒有的三項：'
+            '日成交金額、月營收年增、董監持股（TWSE 開放資料）。'
             '情緒只負責篩、分數負責排，沒有再把兩者混成一個新分數。</div>'
             + "".join(rows)
             + '<div style="font-size:11px;color:#7c8aa0;margin-top:8px;'

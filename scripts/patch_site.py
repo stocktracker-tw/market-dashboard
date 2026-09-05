@@ -8,6 +8,7 @@
 設計成「冪等」：已經補過的檔案再跑一次不會有任何變動，
 所以這支腳本只有在 Bot 把修改洗掉時才會真的產生 diff。
 """
+import bisect
 import glob
 import json
 import os
@@ -300,6 +301,8 @@ def patch_defaultwl(html):
 TAIFEX_RE = re.compile(r'<!--taifex-->.*?<!--/taifex-->', re.S)
 TAIFEX_JSON = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                            "taifex.json")
+UNIVERSE_JSON = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "universe.json")
 
 
 def _taifex_card(d):
@@ -2316,6 +2319,212 @@ def patch_pctl(html, fname):
     return new, new != html
 
 
+# --- 市場情緒（推薦區塊）------------------------------------------------
+# 引擎挑「最推薦潛力股」用的是題材熱度＋20 日動能＋法人買超，八檔實測全部落在
+# 技術面 88~99 百分位、估值 0~10 百分位——挑選由技術面主導。這裡不動引擎，
+# 在補丁層補上一個「誰在買」的情緒面：法人（聰明錢）與散戶槓桿（融資）的
+# 方向關係。技術面看的是價格走成什麼形狀，情緒面看的是誰在對面接。
+#
+# 資料全部來自 universe.json 既有的 cd 欄（引擎自己寫的字串），只做解析與
+# 百分位排序，不發明新的權重——分數怎麼算的要能一句話講完。
+SENTI_RE = re.compile(r'<!--senti-->.*?<!--/senti-->', re.S)
+MOOD_RE = re.compile(r'<!--mood-->.*?<!--/mood-->', re.S)
+_CD_INST = re.compile(r'法人近5日\s*([+-][\d,]+)\s*張')
+_CD_MARG = re.compile(r'融資\s*([+-][\d.]+)\s*%')
+_CARD_CODE = re.compile(r'<h2>[^<]*?<span class="muted">(\d{4,6})\s*・')
+_DIVTAG = re.compile(r'<(/?)div\b[^>]*>', re.I)
+
+# 四象限：法人與散戶站在同一邊還是對立。rank 小的排前面。
+_QUAD = {
+    (1, -1): (0, "法人買、散戶退", "#1a7f4b", "籌碼往法人手上沉澱，追價的人反而變少"),
+    (1, 1): (1, "法人買、散戶也追", "#c98a1e", "同一個方向，但散戶已經跟著追了"),
+    (-1, -1): (2, "兩邊都在退", "#5f7183", "法人和散戶一起縮手"),
+    (-1, 1): (3, "法人賣、散戶追", "#ea5455", "法人在減、散戶借錢接"),
+}
+
+
+def _cd_nums(cd):
+    if not cd:
+        return None, None
+    mi = _CD_INST.search(cd)
+    mm = _CD_MARG.search(cd)
+    return (int(mi.group(1).replace(",", "")) if mi else None,
+            float(mm.group(1)) if mm else None)
+
+
+def _marg_scale():
+    """全市場的融資變化%（排序後），用來算單一檔的散戶槓桿百分位。"""
+    try:
+        with open(UNIVERSE_JSON, encoding="utf-8") as f:
+            rows = json.load(f)
+    except Exception:                       # noqa: BLE001 — 沒資料就不做
+        return None, {}
+    xs = sorted(m for _, m in (_cd_nums(r.get("cd")) for r in rows)
+                if m is not None)
+    return (xs or None), {r["c"]: r for r in rows if r.get("c")}
+
+
+def _senti(row, xs):
+    """回傳 (象限序, 標籤, 顏色, 說明, (散戶槓桿百分位, 是否前 5%))。"""
+    inst, marg = _cd_nums(row.get("cd") if row else None)
+    if inst is None:
+        return 1.5, None, None, None, (None, False)
+    if marg is None:
+        marg_p, key = None, (1 if inst > 0 else -1, -1)
+    else:
+        marg_p = round(100.0 * bisect.bisect_left(xs, marg) / len(xs)) if xs else None
+        key = (1 if inst > 0 else -1, 1 if marg > 0 else -1)
+    rank, label, color, why = _QUAD[key]
+    hot = marg_p is not None and marg_p >= 95   # 散戶槓桿衝進全市場前 5%
+    if hot and key != (-1, 1):
+        color = "#ea5455"
+    return rank + (0.4 if hot else 0), label, color, why, (marg_p, hot)
+
+
+def _senti_key(rank, extra):
+    """排序鍵：先看象限，同象限內散戶槓桿低的排前面（無資料當中位 50）。"""
+    marg_p = extra[0] if extra else None
+    return (rank, 50 if marg_p is None else marg_p)
+
+
+def _senti_chip(row, xs):
+    rank, label, color, why, extra = _senti(row, xs)
+    key = _senti_key(rank, extra)
+    if label is None:
+        body = ('<div style="font-size:12px;color:#5f7183">'
+                + html_escape((row or {}).get("cd") or "這檔沒有個股法人／融資資料")
+                + '</div>')
+    else:
+        marg_p, hot = extra
+        # 法人張數與融資%卡片下方的「個股籌碼」欄已經有了，這裡不重複，
+        # 只放那邊沒有的東西：這檔的散戶槓桿在全市場排哪裡。
+        lead = []
+        if marg_p is not None:
+            lead.append("散戶槓桿%s全市場 %d%%" % (
+                ("高過", marg_p) if marg_p >= 50 else ("低於", 100 - marg_p)))
+        lead.append(why)
+        body = ('<div style="font-size:13px;font-weight:700;color:' + color + '">'
+                + ("⚠ " if hot else "") + label
+                + ('（散戶槓桿在全市場前 5%）' if hot else '') + '</div>'
+                '<div style="font-size:11.5px;color:#5f7183;margin-top:2px">'
+                + '・'.join(lead) + '</div>')
+    return key, ('<!--senti--><div style="margin:2px 0 8px;padding:7px 9px;'
+                  'border-radius:9px;background:rgba(36,120,200,.05);'
+                  'border:1px solid rgba(36,120,200,.18)">'
+                  '<div style="font-size:11px;color:#7c8aa0;letter-spacing:.02em">'
+                  '市場情緒（誰在買）</div>' + body + '</div><!--/senti-->')
+
+
+def _mood_strip():
+    """全市場情緒：外資期貨方向 + 選擇權 P/C 比（資料來自 taifex.json）。"""
+    try:
+        with open(TAIFEX_JSON, encoding="utf-8") as f:
+            d = json.load(f)
+    except Exception:                       # noqa: BLE001
+        return None
+    fo = (d.get("inst") or {}).get("foreign_net_oi")
+    pc = (d.get("pcr") or {}).get("pcr_oi")
+    if fo is None and pc is None:
+        return None
+    # 只做標準讀法，不做綜合預測：外資淨未平倉為正＝偏多；P/C 未平倉比 >1＝偏避險。
+    bull = [] if fo is None else [fo > 0]
+    if pc is not None:
+        bull.append(pc < 1)
+    if len(bull) == 2 and bull[0] != bull[1]:
+        tone, word = "#c98a1e", "兩邊分歧"
+    elif bull and all(bull):
+        tone, word = "#1a7f4b", "一致偏多"
+    elif bull:
+        tone, word = "#ea5455", "一致偏空"
+    else:
+        return None
+    parts = []
+    if fo is not None:
+        parts.append("外資期貨淨未平倉 %+d 口" % fo)
+    if pc is not None:
+        parts.append("選擇權 P/C 未平倉比 %.2f" % pc)
+    return ('<!--mood--><div style="margin:0 0 10px;padding:9px 11px;'
+            'border-radius:10px;background:rgba(36,120,200,.05);'
+            'border:1px solid rgba(36,120,200,.18)">'
+            '<span style="font-size:11px;color:#7c8aa0">今天全市場的情緒　</span>'
+            '<span style="font-size:13px;font-weight:700;color:' + tone + '">'
+            + word + '</span>'
+            '<div style="font-size:11.5px;color:#5f7183;margin-top:3px">'
+            + '　'.join(parts) + '。淨未平倉為正＝法人偏多；P/C 未平倉比＞1＝偏避險。'
+            '下面八檔是引擎用題材熱度＋動能＋法人買超挑的，情緒欄位是另外補的對照。'
+            '</div></div><!--/mood-->')
+
+
+def _div_span(html, start):
+    """start 指向某個 <div ...>，回傳它對應 </div> 的結束位置。"""
+    depth = 0
+    for m in _DIVTAG.finditer(html, start):
+        depth += -1 if m.group(1) else 1
+        if depth == 0:
+            return m.end()
+    return None
+
+
+def patch_sentiment(html):
+    """推薦區塊：每張卡補上市場情緒，並讓情緒參與排序（stocks.html）。
+
+    引擎每天重產 HTML，所以先把舊的標記整段移除再重插（冪等）。重排本身也
+    冪等：已經排好的清單再排一次順序不變。
+    """
+    if "🔥 最推薦潛力股" not in html:
+        return html, False
+    orig = html
+    html = SENTI_RE.sub("", MOOD_RE.sub("", html))
+    xs, by = _marg_scale()
+    if not by:
+        return (html, True) if html != orig else (orig, False)
+
+    h = html.find("🔥 最推薦潛力股")
+    g = html.find('<div class="cardgrid">', h)
+    if g < 0 or g - h > 4000:
+        return (html, True) if html != orig else (orig, False)
+    gend = _div_span(html, g)
+    if gend is None:
+        return (html, True) if html != orig else (orig, False)
+    inner_s = html.index(">", g) + 1
+    inner_e = gend - len("</div>")
+
+    cards, i = [], inner_s
+    while True:
+        c = html.find('<div class="card"', i)
+        if c < 0 or c >= inner_e:
+            break
+        e = _div_span(html, c)
+        if e is None or e > inner_e:
+            break
+        cards.append(html[c:e])
+        i = e
+    # 卡片必須剛好填滿 cardgrid，中間有殘留就不動（避免把東西吃掉）
+    if not cards or "".join(cards) != html[inner_s:inner_e]:
+        return (html, True) if html != orig else (orig, False)
+
+    out = []
+    for card in cards:
+        m = _CARD_CODE.search(card)
+        row = by.get(m.group(1)) if m else None
+        key, chip = _senti_chip(row or {}, xs)
+        anchor = card.find('<div class="kwrap"')
+        if anchor < 0:
+            anchor = len(card) - len("</div>")
+        out.append((key, card[:anchor] + chip + card[anchor:]))
+    # 情緒排序：法人買散戶退 → 法人買散戶追 → 兩邊退 → 法人賣散戶追，
+    # 同一象限內散戶槓桿低的排前面。sorted 是穩定的，所以資料相同時順序固定。
+    out.sort(key=lambda t: t[0])
+    html = html[:inner_s] + "".join(c for _, c in out) + html[inner_e:]
+
+    mood = _mood_strip()
+    if mood:
+        tail = html.find("</h2>", html.find("🔥 最推薦潛力股"))
+        if tail > 0:
+            html = html[:tail + 5] + mood + html[tail + 5:]
+    return html, html != orig
+
+
 def patch(html, fname):
     changed = False
 
@@ -2557,6 +2766,11 @@ def patch(html, fname):
     # 6c) 台指期籌碼卡（index.html，資料來自 taifex.json）
     html, tx = patch_taifex(html)
     changed = changed or tx
+
+    # 6d) 推薦區塊補上市場情緒（stocks.html）：每張卡標出法人與散戶站在哪一邊，
+    #     並讓情緒參與排序。引擎挑股是題材＋動能＋法人買超，偏技術面。
+    html, sm = patch_sentiment(html)
+    changed = changed or sm
 
     # 7) 「我該扣多少」計算機（index.html）
 

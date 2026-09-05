@@ -43,6 +43,16 @@ SWAGGER = [
     "https://openapi.twse.com.tw/swagger/v1/swagger.json",
     "https://openapi.twse.com.tw/swagger.json",
 ]
+# 上櫃（otc）佔 universe 的 886/1967 檔，TWSE 的 _L 端點完全不涵蓋，
+# 第一版跑出來 otc 覆蓋率是 0%。兩條補法：
+#   1. TWSE 自己的 _P 端點是「公開發行公司」，可能含上櫃 → 先試，成本近乎零
+#   2. 成交量只能找櫃買中心（TPEX）自己的 OpenAPI
+TPEX_BASE = "https://www.tpex.org.tw/openapi/v1"
+TPEX_SWAGGER = [
+    "https://www.tpex.org.tw/openapi/swagger.json",
+    "https://www.tpex.org.tw/openapi/v1/swagger.json",
+    "https://www.tpex.org.tw/openapi/swagger/v1/swagger.json",
+]
 
 # 每一項要找的端點：(名稱, 路徑/摘要要命中的關鍵字, 已知的優先路徑)
 # 優先路徑是「若目錄裡有就直接用」，沒有才退回關鍵字搜尋——兩條路都留著，
@@ -57,6 +67,20 @@ WANT = [
     ("insider", ["t187ap11", "董監事持股餘額"], "/opendata/t187ap11_L"),
     # 董監持股要換算成比例才有可比性，需要在外流通股數
     ("shares_out", ["t187ap03_L", "上市公司基本資料"], "/opendata/t187ap03_L"),
+]
+
+# 補上櫃用：同一個 TWSE API 的「公開發行公司」版本。已經有值的不覆蓋，
+# 只填空缺——上市的數字以 _L 為準。
+WANT_FILL = [
+    ("revenue", ["t187ap05_P", "公開發行公司每月營業收入"], "/opendata/t187ap05_P"),
+    ("insider", ["t187ap11_P", "公發公司董監事持股"], "/opendata/t187ap11_P"),
+    ("shares_out", ["t187ap03_P", "公開發行公司基本資料"], "/opendata/t187ap03_P"),
+]
+
+# 上櫃每日成交：只有櫃買中心有。端點名稱同樣用關鍵字從它的目錄挑。
+WANT_TPEX = [
+    ("volume", ["daily_close_quotes", "mainboard", "每日收盤行情", "上櫃股票"],
+     "/tpex_mainboard_daily_close_quotes"),
 ]
 
 # 欄位關鍵字：抓到第一個命中的鍵就用它
@@ -109,9 +133,9 @@ def pick(row, names):
     return None
 
 
-def catalogue():
-    """抓 swagger 目錄並整份印出來——第一次跑完要靠這段校正端點名稱。"""
-    for u in SWAGGER:
+def catalogue(urls=None, quiet=False):
+    """抓 swagger 目錄並印出來——要靠這段校正端點名稱。"""
+    for u in (urls or SWAGGER):
         d = get_json(u)
         if not isinstance(d, dict):
             continue
@@ -124,7 +148,8 @@ def catalogue():
             except Exception:               # noqa: BLE001
                 summary = ""
             out[p] = summary
-            print(f"    {p}  —  {summary}")
+            if not quiet:
+                print(f"    {p}  —  {summary}")
         return out
     return {}
 
@@ -140,12 +165,12 @@ def resolve(cat, keys, prefer):
     return prefer                            # 目錄拿不到就死馬當活馬醫
 
 
-def collect(cat, name, keys, prefer):
+def collect(cat, name, keys, prefer, base=BASE):
     path = resolve(cat, keys, prefer)
     if not path:
         print(f"  [SKIP] {name}：目錄裡找不到對應端點")
         return None, None
-    url = BASE + path if path.startswith("/") else BASE + "/" + path
+    url = base + path if path.startswith("/") else base + "/" + path
     rows = get_json(url)
     if not isinstance(rows, list) or not rows:
         return None, path
@@ -155,56 +180,76 @@ def collect(cat, name, keys, prefer):
     return rows, path
 
 
+def _put(slot, key, v, fill_only):
+    """fill_only 時只補空缺——上市的數字以 _L 端點為準，公發版只拿來補上櫃。"""
+    if v is not None and not (fill_only and key in slot):
+        slot[key] = v
+
+
+def _ingest_rows(name, rows, data, fill_only=False):
+    """把一組資料列塞進 data，回傳解析到的檔數。"""
+    hit = 0
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        code = str(pick(r, FIELDS["code"]) or "").strip()
+        if not re.fullmatch(r"\d{4,6}", code):
+            continue
+        slot = data.setdefault(code, {})
+        if name == "volume":
+            for key, names in (("amt", "amount"), ("shr", "shares")):
+                _put(slot, key, to_num(pick(r, FIELDS[names])), fill_only)
+        elif name == "revenue":
+            for key, names in (("yoy", "yoy"), ("cyoy", "cum_yoy")):
+                _put(slot, key, to_num(pick(r, FIELDS[names])), fill_only)
+        elif name == "insider":
+            # 明細是一位董監一列，但法人董事的持股會在「每一位法人代表人」
+            # 旁邊重複列一次。實測中華電：交通部 2,737,718,976 股出現 9 次，
+            # 直接加總得到 246 億股，是在外流通 77.6 億股的 3.2 倍。
+            # 所以按「姓名」去重，同一個持有人只算一次（取最大值）。
+            # fill_only 時已經有這家公司就跳過，免得兩份名單混在一起
+            if fill_only and code in INSIDER:
+                hit += 1
+                continue
+            v = to_num(pick(r, FIELDS["hold"]))
+            who = str(pick(r, ["姓名"]) or "").strip()
+            if v is not None and who:
+                seen = INSIDER.setdefault(code, {})
+                if v > seen.get(who, -1):
+                    seen[who] = v
+            if code in DEBUG_CODES:
+                DEBUG_ROWS.setdefault(code, []).append(
+                    (str(pick(r, ["職稱"]) or ""), str(pick(r, ["姓名"]) or ""), v))
+        elif name == "shares_out":
+            _put(slot, "out_sh", to_num(pick(r, FIELDS["outstanding"])), fill_only)
+        hit += 1
+    return hit
+
+
 def main():
     print("== 抓個股基本面（成交量／營收成長／董監持股）==")
     print("-- swagger 目錄 --")
     cat = catalogue()
 
     data, used = {}, {}
-    for name, keys, prefer in WANT:
-        print(f"-- {name} --")
-        rows, path = collect(cat, name, keys, prefer)
-        used[name] = path
-        if not rows:
-            continue
-        hit = 0
-        for r in rows:
-            if not isinstance(r, dict):
+
+    def ingest(want, cat_, base, tag, fill_only=False):
+        """把一組端點的資料塞進 data。fill_only＝只補空缺，不覆蓋既有值。"""
+        for name, keys, prefer in want:
+            print(f"-- {name}{tag} --")
+            rows, path = collect(cat_, name, keys, prefer, base)
+            used[name + tag] = path
+            if not rows:
                 continue
-            code = str(pick(r, FIELDS["code"]) or "").strip()
-            if not re.fullmatch(r"\d{4,6}", code):
-                continue
-            slot = data.setdefault(code, {})
-            if name == "volume":
-                for key, names in (("amt", "amount"), ("shr", "shares")):
-                    v = to_num(pick(r, FIELDS[names]))
-                    if v is not None:
-                        slot[key] = v
-            elif name == "revenue":
-                for key, names in (("yoy", "yoy"), ("cyoy", "cum_yoy")):
-                    v = to_num(pick(r, FIELDS[names]))
-                    if v is not None:
-                        slot[key] = v
-            elif name == "insider":
-                # 明細是一位董監一列，但法人董事的持股會在「每一位法人代表人」
-                # 旁邊重複列一次。實測中華電：交通部 2,737,718,976 股出現 9 次，
-                # 直接加總得到 246 億股，是在外流通 77.6 億股的 3.2 倍。
-                # 所以按「姓名」去重，同一個持有人只算一次（取最大值）。
-                v = to_num(pick(r, FIELDS["hold"]))
-                who = str(pick(r, ["姓名"]) or "").strip()
-                if v is not None and who:
-                    seen = INSIDER.setdefault(code, {})
-                    if v > seen.get(who, -1):
-                        seen[who] = v
-                if code in DEBUG_CODES:
-                    DEBUG_ROWS.setdefault(code, []).append(
-                        (str(pick(r, ["職稱"]) or ""), str(pick(r, ["姓名"]) or ""), v))
-            elif name == "shares_out":
-                v = to_num(pick(r, FIELDS["outstanding"]))
-                if v is not None:
-                    slot["out_sh"] = v
-            hit += 1
-        print(f"  {name}：解析到 {hit} 檔")
+            hit = _ingest_rows(name, rows, data, fill_only)
+            print(f"  {name}{tag}：解析到 {hit} 檔")
+
+    ingest(WANT, cat, BASE, "")
+    print("-- 補上櫃：TWSE 公開發行公司版端點 --")
+    ingest(WANT_FILL, cat, BASE, "(公發)", fill_only=True)
+    print("-- 補上櫃：櫃買中心 OpenAPI --")
+    tcat = catalogue(TPEX_SWAGGER, quiet=False)
+    ingest(WANT_TPEX, tcat, TPEX_BASE, "(櫃買)", fill_only=True)
 
     # 董監持股換算成佔在外流通股數的比例（兩邊都有才算，單位不合就會很離譜，
     # 所以下面會印出來讓人看；合理範圍大約 0~80%）
@@ -227,6 +272,19 @@ def main():
     # 覆蓋率沒到最低標就當這一段沒抓到，保留上次的好資料（絕不洗成空）
     cover = {k: sum(1 for v in data.values() if k in v)
              for k in ("amt", "shr", "yoy", "cyoy", "hold_sh", "out_sh", "hold")}
+    # 按市場別分開看——上櫃佔 universe 的 45%，補了沒有要一眼看得出來
+    try:
+        with open(os.path.join(ROOT, "universe.json"), encoding="utf-8") as uf:
+            mkt = {r["c"]: r.get("m") for r in json.load(uf)}
+        for m in ("tse", "otc"):
+            codes = [c for c, v in mkt.items() if v == m]
+            line = "　".join(
+                "%s %d/%d(%.0f%%)" % (k, n, len(codes), 100.0 * n / max(1, len(codes)))
+                for k in ("amt", "yoy", "hold")
+                for n in [sum(1 for c in codes if k in data.get(c, {}))])
+            print(f"-- 覆蓋率({m}) -- {line}")
+    except Exception as e:                  # noqa: BLE001 — 只是診斷輸出
+        print(f"-- 覆蓋率(分市場) -- 算不出來：{e}")
     print(f"-- 覆蓋率 -- {cover}")
 
     prev = {}

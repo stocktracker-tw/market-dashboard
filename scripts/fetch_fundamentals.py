@@ -34,6 +34,20 @@ INSIDER = {}
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "fundamentals.json")
+
+
+def universe_codes():
+    """只收站台真的會顯示的代號。櫃買端點一天回 10963 列（含 ETF、特別股…），
+    TWSE 的 _P 端點又含興櫃／未上市公發公司——全收的話檔案會從 1254 筆漲到
+    12081 筆，多出來的一萬筆全是沒有任何數值的空殼，白白灌大要下載的檔案。"""
+    try:
+        with open(os.path.join(ROOT, "universe.json"), encoding="utf-8") as f:
+            return {r["c"] for r in json.load(f) if r.get("c")}
+    except Exception:                        # noqa: BLE001 — 讀不到就不設限
+        return None
+
+
+CODES = None
 TZ = timezone(timedelta(hours=8))
 
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -81,13 +95,20 @@ WANT_FILL = [
 WANT_TPEX = [
     ("volume", ["daily_close_quotes", "mainboard", "每日收盤行情", "上櫃股票"],
      "/tpex_mainboard_daily_close_quotes"),
+    # 上櫃的月營收與董監持股在 TWSE 的 _P 端點裡沒有（實測 otc 0/886），
+    # 這裡試櫃買自己有沒有。關鍵字收緊：上一次「持股」兩個字誤中「外資及陸資
+    # 投資類股持股比率表」，白跑一輪。找不到就跳過，不會亂抓一個來充數。
+    ("revenue", ["monthly_revenue", "月營業收入", "月營收"], None),
+    ("insider", ["董監事持股", "internal_holding", "內部人持股"], None),
 ]
 
 # 欄位關鍵字：抓到第一個命中的鍵就用它
 FIELDS = {
     "code": ["公司代號", "證券代號", "股票代號", "Code"],
-    "amount": ["成交金額", "TradeValue", "成交值"],
-    "shares": ["成交股數", "TradeVolume", "成交量"],
+    # 櫃買的欄名跟證交所不一樣（TransactionAmount / TradingShares），
+    # 第一次跑因此抓到 10523 檔卻一個數字都沒填，只留下滿地空殼。
+    "amount": ["成交金額", "TradeValue", "成交值", "TransactionAmount"],
+    "shares": ["成交股數", "TradeVolume", "成交量", "TradingShares"],
     "yoy": ["營業收入-去年同月增減(%)", "去年同月增減", "營收年增", "YoY"],
     "cum_yoy": ["累計營業收入-前期比較增減(%)", "累計營業收入", "前期比較增減", "累計增減"],
     # t187ap11_L 是「每位董監一列」的明細，要自己按公司加總
@@ -195,6 +216,8 @@ def _ingest_rows(name, rows, data, fill_only=False):
         code = str(pick(r, FIELDS["code"]) or "").strip()
         if not re.fullmatch(r"\d{4,6}", code):
             continue
+        if CODES is not None and code not in CODES:
+            continue
         slot = data.setdefault(code, {})
         if name == "volume":
             for key, names in (("amt", "amount"), ("shr", "shares")):
@@ -227,7 +250,10 @@ def _ingest_rows(name, rows, data, fill_only=False):
 
 
 def main():
+    global CODES
+    CODES = universe_codes()
     print("== 抓個股基本面（成交量／營收成長／董監持股）==")
+    print(f"只收 universe 裡的 {len(CODES) if CODES else '（全部）'} 個代號")
     print("-- swagger 目錄 --")
     cat = catalogue()
 
@@ -301,8 +327,11 @@ def main():
             data.setdefault(code, {}).update(
                 {k: v for k, v in keep.items() if k not in data.get(code, {})})
 
+    # 一個數值都沒有的空殼不要寫進檔案
+    data = {c: v for c, v in data.items() if v}
+
     out = {
-        "_source": "TWSE OpenAPI",
+        "_source": "TWSE + TPEX OpenAPI",
         "updated": datetime.now(TZ).strftime("%Y-%m-%d %H:%M"),
         "endpoints": used,
         "coverage": cover,

@@ -1555,8 +1555,11 @@ SPANAV_JS = (
     'return TABS[f]?u.href:null;}catch(e){return null;}}'
     # 抓回來的文件放記憶體快取；閒置時預抓另外三個分頁
     'var CACHE={};'
-    'function getDoc(href){if(CACHE[href])return Promise.resolve(CACHE[href]);'
-    'return fetch(href,{credentials:"same-origin"}).then(function(r){'
+    # lo=1 是預抓：標 low priority，讓瀏覽器把頻寬先讓給本頁自己的資源
+    # （不支援 priority 的瀏覽器會直接忽略這個欄位，沒有副作用）
+    'function getDoc(href,lo){if(CACHE[href])return Promise.resolve(CACHE[href]);'
+    'var o={credentials:"same-origin"};if(lo)o.priority="low";'
+    'return fetch(href,o).then(function(r){'
     'if(!r.ok)throw new Error(r.status);return r.text();}).then(function(t){'
     'var d=new DOMParser().parseFromString(t,"text/html");CACHE[href]=d;return d;});}'
     # 換進來的 <script> 是惰性的，要換成新節點才會執行。
@@ -1698,10 +1701,18 @@ SPANAV_JS = (
     'addEventListener("popstate",function(){'
     'var t=target(location.href);if(!t)return;'
     'getDoc(t).then(function(doc){swap(t,doc);}).catch(function(){location.reload();});});'
-    # 閒置時把另外三個分頁先抓回來，之後切換就是純記憶體操作
+    # 預抓另外三個分頁，之後切換就是純記憶體操作。
+    # 註：曾經把這段改成「等 load 之後再逐一抓」，想避開跟首屏搶頻寬。
+    # 量完發現沒這回事：requestIdleCallback 本來就落在 +863 ms，而 load 是
+    # 762 ms（第一次造訪、1.6 Mbps、CPU ×4），早就在首屏之後了。延後版的
+    # FCP/DCL/load 是 250/768/772 ms，原版 248/751/762 ms，差異在雜訊內，
+    # 卻讓分頁預熱從 +865 ms 拖到 +2203 ms。所以延後那段拿掉了，只留下
+    # 兩個不花時間的：低優先權、省流量或 2G 就整個不抓。
     'var idle=window.requestIdleCallback||function(f){return setTimeout(f,1200);};'
-    'idle(function(){var d=dirOf(location.href);'
-    'for(var f in TABS){var u=d+f;if(u!==location.href)getDoc(u).catch(function(){});}});'
+    'idle(function(){var c=navigator.connection;'
+    'if(c&&(c.saveData||/(^|-)2g$/.test(c.effectiveType||"")))return;'
+    'var d=dirOf(location.href);'
+    'for(var f in TABS){var u=d+f;if(u!==location.href)getDoc(u,1).catch(function(){});}});'
     '})();</script>'
 )
 SPANAV_RE = re.compile(r'<script id="spanav">.*?</script>', re.S)
@@ -3132,23 +3143,43 @@ def patch_swreg(html):
 # 但不能無腦網路優先（原本就是這樣，才被改掉的）：網路慢或斷線時會空等。
 # 所以加 2 秒天花板，逾時就用快取先把畫面撐起來，網路回來了再寫回快取。
 # 圖片／JSON／manifest 這些不影響「看到的是不是新版」，維持快取優先＝切頁即開。
+# --- 抓取策略：導頁網路優先 --------------------------------------------------
+# 導頁一律先問網路：開 app 看到的一定是當天最新的資料。代價是第一個像素要等
+# index.html（約 100 KB）從網路回來——實測 1.6 Mbps 下 FCP 從 96 ms 變成
+# 244 ms。這是刻意的取捨：這是看盤用的，寧可慢那 150 ms，也不要先看到昨天的
+# 數字再被換掉。逾時（NETMS）或斷線才退快取。
+# 其餘資源仍是快取優先＋背景回填。
 SW_FETCH_SWR = (
     'const NETMS = 2000;\n'
-    'function fromNet(req) {\n'
+    'function fromNet(req, key) {\n'
     '  return fetch(req).then((r) => {\n'
-    '    const cp = r.clone();\n'
-    '    caches.open(C).then((c) => c.put(req, cp)).catch(() => {});\n'
+    '    // 非 2xx 不進快取，免得把 404 頁存起來當正版；跨網域的 opaque 回應\n'
+    '    // status 是 0、ok 是 false，但那是正常的，要收。\n'
+    '    if (r && (r.ok || r.type === "opaque")) {\n'
+    '      const cp = r.clone();\n'
+    '      caches.open(C).then((c) => c.put(key || req, cp)).catch(() => {});\n'
+    '    }\n'
     '    return r;\n'
     '  });\n'
     '}\n'
+    '// 導頁的快取鍵去掉 query/hash：?native=1（原生殼）指的是同一份 HTML，\n'
+    '// 不去掉就每次落空、還會在快取裡多存一份——離線退路因此會拿 index.html\n'
+    '// 頂替，原生殼裡開個股頁會看到進場頁。結尾是 / 的補上 index.html。\n'
+    'function pageKey(req) {\n'
+    '  const u = new URL(req.url);\n'
+    '  u.search = ""; u.hash = "";\n'
+    '  if (u.pathname.slice(-1) === "/") u.pathname += "index.html";\n'
+    '  return u.href;\n'
+    '}\n'
     'function pageFirst(req) {\n'
+    '  const key = pageKey(req);\n'
     '  return new Promise((resolve) => {\n'
     '    let settled = false;\n'
     '    const give = (r) => { if (!settled && r) { settled = true; resolve(r); } };\n'
-    '    const fallback = () => caches.match(req)\n'
+    '    const fallback = () => caches.match(key)\n'
     '      .then((h) => h || caches.match("./index.html")).then(give);\n'
     '    const timer = setTimeout(fallback, NETMS);\n'
-    '    fromNet(req).then((r) => { clearTimeout(timer); give(r); })\n'
+    '    fromNet(req, key).then((r) => { clearTimeout(timer); give(r); })\n'
     '      .catch(() => { clearTimeout(timer); fallback(); });\n'
     '  });\n'
     '}\n'
@@ -3171,7 +3202,10 @@ SW_FETCH_SWR = (
     '  );\n'
     '});\n'
 )
-SW_FETCH_RE = re.compile(r'(?:const NETMS[\s\S]*?)?self\.addEventListener\("fetch",.*', re.S)
+# 起頭可能是 const NETMS（網路優先版）或 function fromNet（快取優先版），兩種都要整段換掉
+SW_FETCH_RE = re.compile(
+    r'(?:const NETMS[\s\S]*?|function fromNet[\s\S]*?)?'
+    r'self\.addEventListener\("fetch",.*', re.S)
 
 # --- 新版 SW 一活過來就把開著的分頁換掉 --------------------------------------
 # skipWaiting + clients.claim 只是「換掉控制者」，畫面不會重畫。client.navigate()
@@ -3189,7 +3223,9 @@ SW_ACTIVATE_NAV = (
     '}\n'
     'self.addEventListener("activate", (e) => {\n'
     '  e.waitUntil(caches.keys().then((ks) => {\n'
-    '    const old = ks.filter((k) => k !== C);\n'
+    '    // S 是不隨版本走的靜態快取（圖示、manifest），留著不刪。\n'
+    '    // 第一次安裝時 old 會是空的，所以新使用者不會一進來就被重載一次。\n'
+    '    const old = ks.filter((k) => k !== C && k !== S);\n'
     '    return Promise.all(old.map((k) => caches.delete(k))).then(() => old.length > 0);\n'
     '  }).then((upgraded) => self.clients.claim().then(() => {\n'
     '    // 這裡刻意「不」回傳 promise：navigate 會觸發導頁的 fetch，而 fetch 要等\n'
@@ -3226,16 +3262,54 @@ def fix_sw_activate():
 # opaque 回應，cache.put 收得下，之後餵給 no-cors 的 <script> 也照樣執行。
 SW_INSTALL_FRESH = (
     'const CDN = ["https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"];\n'
+    '// 圖示與 manifest 放進「不隨版本走」的快取：它們幾乎不會改，沒必要每次\n'
+    '// 更新都重抓 230 KB，activate 清舊快取時也刻意留著這一份。\n'
+    'const S = "mkt-static";\n'
+    'const STATIC = ASSETS.filter((a) => /\\.(png|ico|webmanifest)$/.test(a));\n'
+    'function pull(cache, a) {\n'
+    '  return fetch("./" + a, { cache: "reload" })\n'
+    '    .then((r) => (r && r.ok ? cache.put("./" + a, r) : null)).catch(() => {});\n'
+    '}\n'
+    '// 擋住 activate 的只有「使用者此刻開著的那幾頁」＋ index.html——通常就\n'
+    '// 一頁、約 100 KB、1.6 Mbps 半秒。activate 會把開著的頁面 navigate 成新版，\n'
+    '// 所以真正非等不可的就是那幾頁；其餘的等它們等於讓人多盯著舊資料。\n'
+    '// 舊版是整包 ASSETS 一起等：1.92 MB、實測 9.2 秒（universe.json 一個就\n'
+    '// 佔 1.19 MB）。其餘改成背景補，補不完也不會壞——fetch 處理器本來就會\n'
+    '// 把拿到的東西寫回快取，沒補到的那次只是走一趟網路。\n'
+    'function coreList() {\n'
+    '  return self.clients.matchAll({ type: "window", includeUncontrolled: true })\n'
+    '    .then((cs) => {\n'
+    '      const want = [];\n'
+    '      cs.forEach((c) => {\n'
+    '        const f = new URL(c.url).pathname.split("/").pop() || "index.html";\n'
+    '        if (ASSETS.indexOf(f) >= 0 && want.indexOf(f) < 0) want.push(f);\n'
+    '      });\n'
+    '      if (want.indexOf("index.html") < 0) want.push("index.html");\n'
+    '      return want;\n'
+    '    }).catch(() => ["index.html"]);\n'
+    '}\n'
     'self.addEventListener("install", (e) => {\n'
-    '  e.waitUntil(caches.open(C).then((c) => Promise.all(\n'
-    '    ASSETS.map((a) => fetch("./" + a, { cache: "reload" }).then((r) => c.put("./" + a, r)))\n'
-    '      .concat(CDN.map((u) => fetch(u, { mode: "no-cors" })\n'
-    '        .then((r) => c.put(u, r)).catch(() => {})))\n'
-    '  )).catch(() => {}).then(() => self.skipWaiting()));\n'
+    '  e.waitUntil(Promise.all([caches.open(C), coreList()]).then((z) => {\n'
+    '    const c = z[0], core = z[1];\n'
+    '    return Promise.all(core.map((a) => pull(c, a)))\n'
+    '      .then(() => self.skipWaiting())\n'
+    '      .then(() => {\n'
+    '        // 刻意不掛進 waitUntil：掛了就又把 activate 擋住，等於白改。\n'
+    '        // 排在 core 之後才發，才不會回頭跟那幾頁搶頻寬。\n'
+    '        ASSETS.filter((a) => core.indexOf(a) < 0 && STATIC.indexOf(a) < 0)\n'
+    '          .forEach((a) => pull(c, a));\n'
+    '        caches.open(S).then((s) => {\n'
+    '          STATIC.forEach((a) => pull(s, a));\n'
+    '          CDN.forEach((u) => fetch(u, { mode: "no-cors" })\n'
+    '            .then((r) => s.put(u, r)).catch(() => {}));\n'
+    '        }).catch(() => {});\n'
+    '      });\n'
+    '  }).catch(() => {}));\n'
     '});\n'
 )
+# 舊版是「const CDN + install」，新版中間還夾著 S/STATIC/CORE/pull，都要能整段換掉
 SW_INSTALL_RE = re.compile(
-    r'(?:const CDN = \[[^\]]*\];\n)?'
+    r'(?:const CDN = \[[^\]]*\];\n[\s\S]*?)?'
     r'self\.addEventListener\("install",.*?\n\}\);\n', re.S)
 
 
@@ -3253,13 +3327,13 @@ def fix_sw_install():
     return True
 
 
-SW_HEADER = ('/* 市場儀表板 PWA service worker：頁面網路優先（逾時退快取）、'
-             '其餘快取優先＋背景更新、離線退回快取。 */')
+SW_HEADER = ('/* 市場儀表板 PWA service worker：導頁網路優先（逾時退快取），'
+             '其餘快取優先＋背景回填；離線退回快取。 */')
 SW_HEADER_RE = re.compile(r'^/\* 市場儀表板 PWA service worker：[^*]*\*/')
 
 
 def fix_sw_strategy():
-    """頁面走網路優先（2 秒逾時退快取）、其餘快取優先＋背景更新。冪等：已是新版
+    """導頁網路優先（2 秒逾時退快取），其餘快取優先＋背景回填。冪等：已是新版
     就不動；引擎重產 sw.js 蓋回舊策略時，每日執行會自動修回。"""
     try:
         sw = open("sw.js", encoding="utf-8").read()

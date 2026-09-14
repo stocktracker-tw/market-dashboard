@@ -1,5 +1,5 @@
-/* 市場儀表板 PWA service worker：一律快取優先＋背景回填，新版靠 SW 版本雜湊觸發整頁換新；離線退回快取。 */
-const C = "mkt-h74d287fb";
+/* 市場儀表板 PWA service worker：導頁網路優先（逾時退快取），其餘快取優先＋背景回填；離線退回快取。 */
+const C = "mkt-h2493e08c";
 const ASSETS = ["index.html", "stocks.html", "perspectives.html", "news.html", "backtest.html", "rec_backtest.html", "threads.html", "stock/index.html", "etf/index.html", "universe.json", "taifex.json", "manifest.webmanifest", "icon-192.png", "icon-512.png", "icon-180.png", "icon-192-maskable.png", "icon-512-maskable.png"];
 
 const CDN = ["https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"];
@@ -67,6 +67,7 @@ self.addEventListener("activate", (e) => {
   })).catch(() => {}));
 });
 
+const NETMS = 2000;
 function fromNet(req, key) {
   return fetch(req).then((r) => {
     // 非 2xx 不進快取，免得把 404 頁存起來當正版；跨網域的 opaque 回應
@@ -79,7 +80,8 @@ function fromNet(req, key) {
   });
 }
 // 導頁的快取鍵去掉 query/hash：?native=1（原生殼）指的是同一份 HTML，
-// 不去掉就每次落空、還會在快取裡多存一份。結尾是 / 的補上 index.html。
+// 不去掉就每次落空、還會在快取裡多存一份——離線退路因此會拿 index.html
+// 頂替，原生殼裡開個股頁會看到進場頁。結尾是 / 的補上 index.html。
 function pageKey(req) {
   const u = new URL(req.url);
   u.search = ""; u.hash = "";
@@ -88,12 +90,14 @@ function pageKey(req) {
 }
 function pageFirst(req) {
   const key = pageKey(req);
-  return caches.match(key).then((hit) => {
-    // 背景回填用 no-cache：強制跟伺服器對一次 ETag——沒變是 304（幾百
-    // bytes），變了才真的把整份 HTML 抓回來。用預設的 fetch 有機會被瀏覽器
-    // 自己的 HTTP 快取擋下、根本沒問到伺服器，那就永遠回填不到新版。
-    if (hit) { fromNet(new Request(key, { cache: "no-cache" }), key).catch(() => {}); return hit; }
-    return fromNet(req, key).catch(() => caches.match("./index.html"));
+  return new Promise((resolve) => {
+    let settled = false;
+    const give = (r) => { if (!settled && r) { settled = true; resolve(r); } };
+    const fallback = () => caches.match(key)
+      .then((h) => h || caches.match("./index.html")).then(give);
+    const timer = setTimeout(fallback, NETMS);
+    fromNet(req, key).then((r) => { clearTimeout(timer); give(r); })
+      .catch(() => { clearTimeout(timer); fallback(); });
   });
 }
 self.addEventListener("fetch", (e) => {

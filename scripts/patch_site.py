@@ -1702,20 +1702,17 @@ SPANAV_JS = (
     'var t=target(location.href);if(!t)return;'
     'getDoc(t).then(function(doc){swap(t,doc);}).catch(function(){location.reload();});});'
     # 預抓另外三個分頁，之後切換就是純記憶體操作。
-    # 舊版是 requestIdleCallback 一觸發就三支並發。實測（SW 已就緒、慢速 4G）
-    # 那個時間點是 +410 ms——本頁的 echarts 還沒載完、load 事件也還沒到，
-    # 三份共 228 KB 就這樣跟首屏搶頻寬，開啟自然變鈍。
-    # 改成：等 load 之後再等一小段閒置，一次只抓一支，而且標低優先權；
-    # 省流量模式或 2G 就整個不抓。
-    'function prefetch(){var c=navigator.connection;'
+    # 註：曾經把這段改成「等 load 之後再逐一抓」，想避開跟首屏搶頻寬。
+    # 量完發現沒這回事：requestIdleCallback 本來就落在 +863 ms，而 load 是
+    # 762 ms（第一次造訪、1.6 Mbps、CPU ×4），早就在首屏之後了。延後版的
+    # FCP/DCL/load 是 250/768/772 ms，原版 248/751/762 ms，差異在雜訊內，
+    # 卻讓分頁預熱從 +865 ms 拖到 +2203 ms。所以延後那段拿掉了，只留下
+    # 兩個不花時間的：低優先權、省流量或 2G 就整個不抓。
+    'var idle=window.requestIdleCallback||function(f){return setTimeout(f,1200);};'
+    'idle(function(){var c=navigator.connection;'
     'if(c&&(c.saveData||/(^|-)2g$/.test(c.effectiveType||"")))return;'
-    'var d=dirOf(location.href),q=[];'
-    'for(var f in TABS){var u=d+f;if(u!==location.href)q.push(u);}'
-    'var idle=window.requestIdleCallback||function(f){return setTimeout(f,300);};'
-    '(function next(){if(!q.length)return;'
-    'idle(function(){getDoc(q.shift(),1).then(next,next);});})();}'
-    'function arm(){setTimeout(prefetch,700);}'
-    'if(document.readyState==="complete")arm();else addEventListener("load",arm);'
+    'var d=dirOf(location.href);'
+    'for(var f in TABS){var u=d+f;if(u!==location.href)getDoc(u,1).catch(function(){});}});'
     '})();</script>'
 )
 SPANAV_RE = re.compile(r'<script id="spanav">.*?</script>', re.S)
@@ -3116,10 +3113,8 @@ SWREG_NEW = (
     'if(had)setTimeout(bye,1500);});'
     'function chk(){try{navigator.serviceWorker.getRegistration().then(function(r){'
     'if(r)r.update();}).catch(function(){});}catch(e){}}'
-    'function reg(){navigator.serviceWorker.register("sw.js")'
-    '.then(chk).catch(function(){});}'
-    'if(navigator.serviceWorker.controller)reg();'
-    'else addEventListener("load",reg);'
+    'addEventListener("load",function(){'
+    'navigator.serviceWorker.register("sw.js").then(chk).catch(function(){});});'
     'document.addEventListener("visibilitychange",function(){'
     'if(!document.hidden)chk();});'
     '})();</script>'
@@ -3148,16 +3143,14 @@ def patch_swreg(html):
 # 但不能無腦網路優先（原本就是這樣，才被改掉的）：網路慢或斷線時會空等。
 # 所以加 2 秒天花板，逾時就用快取先把畫面撐起來，網路回來了再寫回快取。
 # 圖片／JSON／manifest 這些不影響「看到的是不是新版」，維持快取優先＝切頁即開。
-# --- 抓取策略：導頁也走快取優先 --------------------------------------------
-# 舊版導頁是「網路優先、2 秒逾時才退快取」。代價是每一次開 app 都得先等
-# index.html（115 KB）從網路回來才畫得出第一個像素——這就是開啟慢的主因。
-# 而這層保險其實是多餘的：sw.js 的版本字串是 ASSETS 的內容雜湊（見 fix_sw），
-# 內容一變版本就變 → 新 SW 安裝 → activate 時 reloadClients() 把開著的頁面
-# 換掉。「看得到新資料」靠的是 SW 版本，不是靠導頁每次都去網路繞一圈。
-# 改成快取優先＋背景回填：開啟直接拿快取（幾乎零等待），同時在背景把新的抓
-# 回來寫進快取——萬一 SW 版本那條路卡住，下一次開也還是會是新的。
-# 附帶好處：reloadClients() 那次換頁本來也走網路優先，現在同樣是快取命中。
+# --- 抓取策略：導頁網路優先 --------------------------------------------------
+# 導頁一律先問網路：開 app 看到的一定是當天最新的資料。代價是第一個像素要等
+# index.html（約 100 KB）從網路回來——實測 1.6 Mbps 下 FCP 從 96 ms 變成
+# 244 ms。這是刻意的取捨：這是看盤用的，寧可慢那 150 ms，也不要先看到昨天的
+# 數字再被換掉。逾時（NETMS）或斷線才退快取。
+# 其餘資源仍是快取優先＋背景回填。
 SW_FETCH_SWR = (
+    'const NETMS = 2000;\n'
     'function fromNet(req, key) {\n'
     '  return fetch(req).then((r) => {\n'
     '    // 非 2xx 不進快取，免得把 404 頁存起來當正版；跨網域的 opaque 回應\n'
@@ -3170,7 +3163,8 @@ SW_FETCH_SWR = (
     '  });\n'
     '}\n'
     '// 導頁的快取鍵去掉 query/hash：?native=1（原生殼）指的是同一份 HTML，\n'
-    '// 不去掉就每次落空、還會在快取裡多存一份。結尾是 / 的補上 index.html。\n'
+    '// 不去掉就每次落空、還會在快取裡多存一份——離線退路因此會拿 index.html\n'
+    '// 頂替，原生殼裡開個股頁會看到進場頁。結尾是 / 的補上 index.html。\n'
     'function pageKey(req) {\n'
     '  const u = new URL(req.url);\n'
     '  u.search = ""; u.hash = "";\n'
@@ -3179,12 +3173,14 @@ SW_FETCH_SWR = (
     '}\n'
     'function pageFirst(req) {\n'
     '  const key = pageKey(req);\n'
-    '  return caches.match(key).then((hit) => {\n'
-    '    // 背景回填用 no-cache：強制跟伺服器對一次 ETag——沒變是 304（幾百\n'
-    '    // bytes），變了才真的把整份 HTML 抓回來。用預設的 fetch 有機會被瀏覽器\n'
-    '    // 自己的 HTTP 快取擋下、根本沒問到伺服器，那就永遠回填不到新版。\n'
-    '    if (hit) { fromNet(new Request(key, { cache: "no-cache" }), key).catch(() => {}); return hit; }\n'
-    '    return fromNet(req, key).catch(() => caches.match("./index.html"));\n'
+    '  return new Promise((resolve) => {\n'
+    '    let settled = false;\n'
+    '    const give = (r) => { if (!settled && r) { settled = true; resolve(r); } };\n'
+    '    const fallback = () => caches.match(key)\n'
+    '      .then((h) => h || caches.match("./index.html")).then(give);\n'
+    '    const timer = setTimeout(fallback, NETMS);\n'
+    '    fromNet(req, key).then((r) => { clearTimeout(timer); give(r); })\n'
+    '      .catch(() => { clearTimeout(timer); fallback(); });\n'
     '  });\n'
     '}\n'
     'self.addEventListener("fetch", (e) => {\n'
@@ -3206,7 +3202,7 @@ SW_FETCH_SWR = (
     '  );\n'
     '});\n'
 )
-# 舊版可能以 const NETMS 開頭，新版以 function fromNet 開頭——兩種都要能整段換掉
+# 起頭可能是 const NETMS（網路優先版）或 function fromNet（快取優先版），兩種都要整段換掉
 SW_FETCH_RE = re.compile(
     r'(?:const NETMS[\s\S]*?|function fromNet[\s\S]*?)?'
     r'self\.addEventListener\("fetch",.*', re.S)
@@ -3331,14 +3327,14 @@ def fix_sw_install():
     return True
 
 
-SW_HEADER = ('/* 市場儀表板 PWA service worker：一律快取優先＋背景回填，'
-             '新版靠 SW 版本雜湊觸發整頁換新；離線退回快取。 */')
+SW_HEADER = ('/* 市場儀表板 PWA service worker：導頁網路優先（逾時退快取），'
+             '其餘快取優先＋背景回填；離線退回快取。 */')
 SW_HEADER_RE = re.compile(r'^/\* 市場儀表板 PWA service worker：[^*]*\*/')
 
 
 def fix_sw_strategy():
-    """導頁與其餘資源都走快取優先＋背景回填。冪等：已是新版就不動；引擎重產
-    sw.js 蓋回舊策略時，每日執行會自動修回。"""
+    """導頁網路優先（2 秒逾時退快取），其餘快取優先＋背景回填。冪等：已是新版
+    就不動；引擎重產 sw.js 蓋回舊策略時，每日執行會自動修回。"""
     try:
         sw = open("sw.js", encoding="utf-8").read()
     except Exception:                      # noqa: BLE001 — 缺檔就跳過

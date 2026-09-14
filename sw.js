@@ -1,14 +1,51 @@
-/* 市場儀表板 PWA service worker：頁面網路優先（逾時退快取）、其餘快取優先＋背景更新、離線退回快取。 */
-const C = "mkt-h9de7d5a9";
+/* 市場儀表板 PWA service worker：一律快取優先＋背景回填，新版靠 SW 版本雜湊觸發整頁換新；離線退回快取。 */
+const C = "mkt-h74d287fb";
 const ASSETS = ["index.html", "stocks.html", "perspectives.html", "news.html", "backtest.html", "rec_backtest.html", "threads.html", "stock/index.html", "etf/index.html", "universe.json", "taifex.json", "manifest.webmanifest", "icon-192.png", "icon-512.png", "icon-180.png", "icon-192-maskable.png", "icon-512-maskable.png"];
 
 const CDN = ["https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"];
+// 圖示與 manifest 放進「不隨版本走」的快取：它們幾乎不會改，沒必要每次
+// 更新都重抓 230 KB，activate 清舊快取時也刻意留著這一份。
+const S = "mkt-static";
+const STATIC = ASSETS.filter((a) => /\.(png|ico|webmanifest)$/.test(a));
+function pull(cache, a) {
+  return fetch("./" + a, { cache: "reload" })
+    .then((r) => (r && r.ok ? cache.put("./" + a, r) : null)).catch(() => {});
+}
+// 擋住 activate 的只有「使用者此刻開著的那幾頁」＋ index.html——通常就
+// 一頁、約 100 KB、1.6 Mbps 半秒。activate 會把開著的頁面 navigate 成新版，
+// 所以真正非等不可的就是那幾頁；其餘的等它們等於讓人多盯著舊資料。
+// 舊版是整包 ASSETS 一起等：1.92 MB、實測 9.2 秒（universe.json 一個就
+// 佔 1.19 MB）。其餘改成背景補，補不完也不會壞——fetch 處理器本來就會
+// 把拿到的東西寫回快取，沒補到的那次只是走一趟網路。
+function coreList() {
+  return self.clients.matchAll({ type: "window", includeUncontrolled: true })
+    .then((cs) => {
+      const want = [];
+      cs.forEach((c) => {
+        const f = new URL(c.url).pathname.split("/").pop() || "index.html";
+        if (ASSETS.indexOf(f) >= 0 && want.indexOf(f) < 0) want.push(f);
+      });
+      if (want.indexOf("index.html") < 0) want.push("index.html");
+      return want;
+    }).catch(() => ["index.html"]);
+}
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(C).then((c) => Promise.all(
-    ASSETS.map((a) => fetch("./" + a, { cache: "reload" }).then((r) => c.put("./" + a, r)))
-      .concat(CDN.map((u) => fetch(u, { mode: "no-cors" })
-        .then((r) => c.put(u, r)).catch(() => {})))
-  )).catch(() => {}).then(() => self.skipWaiting()));
+  e.waitUntil(Promise.all([caches.open(C), coreList()]).then((z) => {
+    const c = z[0], core = z[1];
+    return Promise.all(core.map((a) => pull(c, a)))
+      .then(() => self.skipWaiting())
+      .then(() => {
+        // 刻意不掛進 waitUntil：掛了就又把 activate 擋住，等於白改。
+        // 排在 core 之後才發，才不會回頭跟那幾頁搶頻寬。
+        ASSETS.filter((a) => core.indexOf(a) < 0 && STATIC.indexOf(a) < 0)
+          .forEach((a) => pull(c, a));
+        caches.open(S).then((s) => {
+          STATIC.forEach((a) => pull(s, a));
+          CDN.forEach((u) => fetch(u, { mode: "no-cors" })
+            .then((r) => s.put(u, r)).catch(() => {}));
+        }).catch(() => {});
+      });
+  }).catch(() => {}));
 });
 
 function reloadClients() {
@@ -19,7 +56,9 @@ function reloadClients() {
 }
 self.addEventListener("activate", (e) => {
   e.waitUntil(caches.keys().then((ks) => {
-    const old = ks.filter((k) => k !== C);
+    // S 是不隨版本走的靜態快取（圖示、manifest），留著不刪。
+    // 第一次安裝時 old 會是空的，所以新使用者不會一進來就被重載一次。
+    const old = ks.filter((k) => k !== C && k !== S);
     return Promise.all(old.map((k) => caches.delete(k))).then(() => old.length > 0);
   }).then((upgraded) => self.clients.claim().then(() => {
     // 這裡刻意「不」回傳 promise：navigate 會觸發導頁的 fetch，而 fetch 要等
@@ -28,23 +67,33 @@ self.addEventListener("activate", (e) => {
   })).catch(() => {}));
 });
 
-const NETMS = 2000;
-function fromNet(req) {
+function fromNet(req, key) {
   return fetch(req).then((r) => {
-    const cp = r.clone();
-    caches.open(C).then((c) => c.put(req, cp)).catch(() => {});
+    // 非 2xx 不進快取，免得把 404 頁存起來當正版；跨網域的 opaque 回應
+    // status 是 0、ok 是 false，但那是正常的，要收。
+    if (r && (r.ok || r.type === "opaque")) {
+      const cp = r.clone();
+      caches.open(C).then((c) => c.put(key || req, cp)).catch(() => {});
+    }
     return r;
   });
 }
+// 導頁的快取鍵去掉 query/hash：?native=1（原生殼）指的是同一份 HTML，
+// 不去掉就每次落空、還會在快取裡多存一份。結尾是 / 的補上 index.html。
+function pageKey(req) {
+  const u = new URL(req.url);
+  u.search = ""; u.hash = "";
+  if (u.pathname.slice(-1) === "/") u.pathname += "index.html";
+  return u.href;
+}
 function pageFirst(req) {
-  return new Promise((resolve) => {
-    let settled = false;
-    const give = (r) => { if (!settled && r) { settled = true; resolve(r); } };
-    const fallback = () => caches.match(req)
-      .then((h) => h || caches.match("./index.html")).then(give);
-    const timer = setTimeout(fallback, NETMS);
-    fromNet(req).then((r) => { clearTimeout(timer); give(r); })
-      .catch(() => { clearTimeout(timer); fallback(); });
+  const key = pageKey(req);
+  return caches.match(key).then((hit) => {
+    // 背景回填用 no-cache：強制跟伺服器對一次 ETag——沒變是 304（幾百
+    // bytes），變了才真的把整份 HTML 抓回來。用預設的 fetch 有機會被瀏覽器
+    // 自己的 HTTP 快取擋下、根本沒問到伺服器，那就永遠回填不到新版。
+    if (hit) { fromNet(new Request(key, { cache: "no-cache" }), key).catch(() => {}); return hit; }
+    return fromNet(req, key).catch(() => caches.match("./index.html"));
   });
 }
 self.addEventListener("fetch", (e) => {

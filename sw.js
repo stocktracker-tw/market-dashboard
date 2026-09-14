@@ -1,5 +1,5 @@
 /* 市場儀表板 PWA service worker：導頁網路優先（逾時退快取），其餘快取優先＋背景回填；離線退回快取。 */
-const C = "mkt-h8202e4f2";
+const C = "mkt-h4b2e6168";
 const ASSETS = ["index.html", "stocks.html", "perspectives.html", "news.html", "backtest.html", "rec_backtest.html", "threads.html", "stock/index.html", "etf/index.html", "universe.json", "taifex.json", "manifest.webmanifest", "icon-192.png", "icon-512.png", "icon-180.png", "icon-192-maskable.png", "icon-512-maskable.png"];
 
 const CDN = ["https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"];
@@ -50,8 +50,19 @@ self.addEventListener("install", (e) => {
 
 function reloadClients() {
   self.clients.matchAll({ type: "window" }).then((cs) => cs.forEach((c) => {
-    try { c.navigate(c.url).catch(() => c.postMessage({ swreload: 1 })); }
-    catch (err) { try { c.postMessage({ swreload: 1 }); } catch (e2) {} }
+    // 先問頁面，別直接 navigate：導頁是網路優先，剛開起來的頁手上已經是
+    // 最新的 HTML，重載只是把同樣的內容重畫一遍（實測多花 2.5 秒）。
+    // 頁面收到就回 ack 並自己決定；沒回 ack 的是舊版 HTML（還沒有那段
+    // 程式碼），才退回 navigate——那條路是「連頁面上沒有這支腳本都救得到」
+    // 的關鍵，不能拿掉。
+    let acked = false;
+    const ch = new MessageChannel();
+    ch.port1.onmessage = () => { acked = true; };
+    try { c.postMessage({ swreload: 1 }, [ch.port2]); } catch (err) {}
+    setTimeout(() => {
+      if (acked) return;
+      try { c.navigate(c.url).catch(() => {}); } catch (err) {}
+    }, 1000);
   })).catch(() => {});
 }
 self.addEventListener("activate", (e) => {

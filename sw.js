@@ -1,5 +1,5 @@
 /* 市場儀表板 PWA service worker：導頁網路優先（逾時退快取），其餘快取優先＋背景回填；離線退回快取。 */
-const C = "mkt-h0cc926ca";
+const C = "mkt-h559ca885";
 const ASSETS = ["index.html", "stocks.html", "perspectives.html", "news.html", "backtest.html", "rec_backtest.html", "threads.html", "stock/index.html", "etf/index.html", "universe.json", "taifex.json", "manifest.webmanifest", "icon-192.png", "icon-512.png", "icon-180.png", "icon-192-maskable.png", "icon-512-maskable.png"];
 
 const CDN = ["https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"];

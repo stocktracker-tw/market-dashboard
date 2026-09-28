@@ -2197,8 +2197,13 @@ _BRIEF_RE = re.compile(
 # 只掛在後面那支的話，退場路徑（比對到 <a>）每跑一次就會再疊一個標題。
 _POD_RE = re.compile(
     r'(?:<h2>[^<]*股癌</h2>)?'
-    r'(?:<a href="https://player\.soundon\.fm/[^"]*"[^>]*class="box"[^>]*>.*?</a>'
+    r'(?:<a href="https://(?:player\.soundon\.fm|open\.spotify\.com)/[^"]*"'
+    r'[^>]*class="box"[^>]*>.*?</a>'
     r'|<div id="gooaye".*?</div></div>)', re.S)
+# 「去聽」一律連到 Spotify（使用者要求）。gooaye.json 的 spotify_url 由
+# fetch_gooaye.py 找；找不到的時候退回 Spotify 上的股癌節目頁（最新一集
+# 就在最上面），所以不論哪一種情況都不會是死連結。
+SPOTIFY_SHOW_URL = "https://open.spotify.com/show/1zWxx5pKk0XBEzMupVC7UZ"
 # 簡報拿掉之後，這句話沒有對象了
 _BRIEF_REF = "真偽與合理性以上方 AI 簡報為準。"
 # 「今日歸納」也拿掉：它本來是簡報的收斂，簡報沒了就沒有對象。
@@ -2207,8 +2212,19 @@ _TAKEAWAY_RE = re.compile(
     r'<div class="box"[^>]*>\s*\U0001F9FE\s*<b>今日歸納</b>.*?</div>', re.S)
 
 
-_HREF_RE = re.compile(r'href="(https://player\.soundon\.fm/[^"]+)"')
 _EP_RE = re.compile(r"(EP\d+)")
+
+
+def _spotify_link():
+    """(網址, 集數)：gooaye.json 找得到 Spotify 網址就用它，否則用節目頁。"""
+    try:
+        d = json.load(open("gooaye.json", encoding="utf-8"))
+    except Exception:                                     # noqa: BLE001
+        d = {}
+    u = d.get("spotify_url") or ""
+    if u.startswith("https://open.spotify.com/"):
+        return u, d.get("episode") or ""
+    return SPOTIFY_SHOW_URL, ""
 
 
 def _plain_link(matched):
@@ -2216,17 +2232,18 @@ def _plain_link(matched):
 
     不能直接把 matched 原樣送回去：上一輪可能已經把它換成我們的區塊，
     那樣就會把舊內容（包含被誤收進來的業配）一路留著。統一重建。
+    連結一律指向 Spotify；集數標籤跟著連結走，免得「寫 EP700、點進去是 EP701」。
     """
-    h = _HREF_RE.search(matched)
-    if not h:
-        return matched                                    # 連網址都抓不到就別動它
-    ep = _EP_RE.search(matched)
-    label = ("最新一集：%s" % ep.group(1)) if ep else "最新一集"
+    url, ep = _spotify_link()
+    if not ep and "/episode/" not in url:
+        m = _EP_RE.search(matched)
+        ep = m.group(1) if m else ""
+    label = ("最新一集：%s" % ep) if ep else "最新一集"
     return ('<h2>\U0001F399\uFE0F 股癌</h2>'
             '<a href="%s" target="_blank" rel="noopener" class="box" '
             'style="display:block;text-decoration:none">\U0001F399\uFE0F %s'
             '<span class="muted" style="margin-left:8px;font-size:12px">'
-            '點了去聽</span></a>' % (html_escape(h.group(1)), label))
+            '點了去 Spotify 聽</span></a>' % (html_escape(url), label))
 
 
 def _gooaye_block(matched):
@@ -2241,6 +2258,12 @@ def _gooaye_block(matched):
     # 出處要寫清楚：節目簡介是主持人寫的，語音辨識摘要是機器整理的，
     # 後者會有辨識與歸納的誤差，不能讓讀者以為是原文
     note = "摘自節目簡介"
+    # 去聽的連結指到 Spotify：找得到單集就直接開那一集，找不到就開節目頁
+    sp_url = d.get("spotify_url") or ""
+    if not sp_url.startswith("https://open.spotify.com/"):
+        sp_url = SPOTIFY_SHOW_URL
+    sp_label = ("去 Spotify 聽完整這集" if "/episode/" in sp_url
+                else "去 Spotify 聽股癌")
     ep = html_escape(d.get("episode") or "最新一集")
     # 節目標題常常就是「EP693 | 🍖」，集數再印一次是重複；把集數從標題前綴
     # 拿掉，剩下的才是真正的標題內容
@@ -2261,13 +2284,13 @@ def _gooaye_block(matched):
         '<span class="muted" style="margin-left:8px;font-size:12px">%s</span></div>'
         '%s'
         '<div style="margin-top:10px">'
-        '<a href="%s" target="_blank" rel="noopener">\u25B6 去 SoundOn 聽完整這集</a>'
+        '<a href="%s" target="_blank" rel="noopener">\u25B6 %s</a>'
         '</div>'
         '<div class="muted" style="margin-top:6px;font-size:12px">'
         '%s・非投資建議</div>'
         '</div>' % (ep,
                     (' <span style="margin-left:6px">%s</span>' % title) if title else '',
-                    when, body, html_escape(d["url"]), note))
+                    when, body, html_escape(sp_url), sp_label, note))
 
 
 def patch_gooaye(html, fname):

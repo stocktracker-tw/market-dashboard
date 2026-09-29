@@ -611,18 +611,31 @@ MAXGLASS_CSS = (
 )
 
 
-def patch_reglass(html):
-    """液態折射＋模糊最高檔：移除舊版再重插加強版（冪等、可升級）。"""
+def _root_prefix(fname):
+    """子目錄頁（stock/1101.html、etf/0050.html）回到站根要加的 ../。"""
+    return "../" * fname.replace("\\", "/").count("/")
+
+
+def patch_reglass(html, fname=""):
+    """液態折射＋模糊最高檔：移除舊版再重插加強版（冪等、可升級）。
+
+    位移圖 glassmap.png 放在站根。濾鏡原本寫死相對路徑 href="glassmap.png"，
+    在 stock/、etf/ 底下就變成 stock/glassmap.png——57 頁每次載入都 404。
+    而且拿不到位移圖時 feDisplacementMap 的 in2 是全透明（R=G=0），位移量變成
+    scale × (0 − 0.5)：整片往左上偏 15／17／19px、三個色版各偏不同量，
+    支援 url() backdrop-filter 的瀏覽器上看到的是色散錯位，不是「沒有折射」。"""
     if '</body>' not in html:
         return html, False
-    if MAXGLASS_SVG + MAXGLASS_CSS in html:
+    svg = MAXGLASS_SVG.replace('href="glassmap.png"',
+                               'href="%sglassmap.png"' % _root_prefix(fname), 1)
+    if svg + MAXGLASS_CSS in html:
         return html, False
     orig = html
     html = MAXGLASS_RE.sub('', html)
     html = LGLASS_CSS_RE.sub('', html)
     html = LGLASS_SVG_RE.sub('', html)
     anchor = '<nav class="tabbar">'
-    ins = MAXGLASS_SVG + MAXGLASS_CSS
+    ins = svg + MAXGLASS_CSS
     if anchor in html:
         html = html.replace(anchor, ins + anchor, 1)
     else:
@@ -2689,17 +2702,25 @@ def _hot_card():
         lev = ("散戶槓桿低於全市場 %d%%" % (100 - marg_p)) if marg_p is not None \
             and marg_p < 50 else ("散戶槓桿高過全市場 %d%%" % marg_p) \
             if marg_p is not None else "槓桿無資料"
+        # 個股詳情頁只有 gen_stock_pages.py 的 POPULAR 那幾十檔有；這一區是從
+        # 全市場挑，一律下連結的話，挑到清單外的就是死連結（實測 8 檔裡 7 檔
+        # 點下去 404）。沒有頁面的那一列照樣排版、只是不可點——該有的數字
+        # 這一列都已經列出來了。
+        has_page = os.path.exists(os.path.join("stock", r["c"] + ".html"))
+        row_style = ('display:flex;align-items:baseline;gap:8px;padding:8px 0;'
+                     'border-top:1px solid rgba(36,120,200,.14);'
+                     'text-decoration:none;color:inherit')
         rows.append(
-            '<a href="stock/' + r["c"] + '.html" style="display:flex;'
-            'align-items:baseline;gap:8px;padding:8px 0;border-top:1px solid '
-            'rgba(36,120,200,.14);text-decoration:none;color:inherit">'
+            ('<a href="stock/' + r["c"] + '.html" style="' + row_style + '">'
+             if has_page else '<div style="' + row_style + '">') +
             '<span style="font-weight:700;font-size:14px">'
             + html_escape(r["n"]) + '</span>'
             '<span style="font-size:11.5px;color:#7c8aa0">' + r["c"] + '</span>'
             '<span style="font-size:11.5px;color:#7c8aa0">'
             + html_escape(r.get("t") or r.get("i") or "") + '</span>'
             '<span style="margin-left:auto;font-weight:800;font-size:15px;'
-            'color:#1d5c9e">' + ("%.1f" % s) + '</span></a>'
+            'color:#1d5c9e">' + ("%.1f" % s) + '</span>' +
+            ('</a>' if has_page else '</div>') +
             '<div style="font-size:11.5px;color:#5f7183;margin:-4px 0 2px">'
             + lev + ('　法人近5日 %+d 張' % inst if inst is not None else '')
             + '</div>' + _fund_line(r["c"], fd))
@@ -2800,7 +2821,7 @@ def patch(html, fname):
     changed = changed or lq
 
     # 1d2b) 液態折射＋模糊最高檔（折射不支援時退回 blur 48px）
-    html, dg = patch_reglass(html)
+    html, dg = patch_reglass(html, fname)
     changed = changed or dg
 
     # 1d3) 縮放鎖：網頁版 iOS Safari 捏縮讓 bar 飄，事件層實際擋下

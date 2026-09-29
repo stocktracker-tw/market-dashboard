@@ -25,6 +25,13 @@ FEEDS = [
     "https://player.soundon.fm/rss/%s" % PODCAST_ID,
 ]
 OUT = "gooaye.json"
+# 「去聽」連結改到 Spotify。節目 id 取自 Spotify 上的「Gooaye 股癌」
+# （open.spotify.com/show/<id>）。RSS 裡沒有 Spotify 的集數 id，要另外找。
+SPOTIFY_SHOW = "1zWxx5pKk0XBEzMupVC7UZ"
+SPOTIFY_SHOW_URL = "https://open.spotify.com/show/%s" % SPOTIFY_SHOW
+SPOTIFY_EMBED = "https://open.spotify.com/embed/show/%s" % SPOTIFY_SHOW
+NEXT_RE = re.compile(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', re.S)
+EPISODE_URI_RE = re.compile(r"^spotify:episode:([A-Za-z0-9]{22})$")
 CONTENT_NS = "{http://purl.org/rss/1.0/modules/content/}encoded"
 ITUNES_NS = "{http://www.itunes.com/dtds/podcast-1.0.dtd}summary"
 
@@ -104,6 +111,54 @@ def guid_of(item):
     return (text_of(item, "link") or "").strip()
 
 
+def _walk(o):
+    """把 JSON 裡的每一個 dict 都走過一遍。"""
+    if isinstance(o, dict):
+        yield o
+        for v in o.values():
+            yield from _walk(v)
+    elif isinstance(o, list):
+        for v in o:
+            yield from _walk(v)
+
+
+def same_episode(title, cand):
+    """是不是同一集：標題有 EP 編號就比編號（EP70 不會配到 EP700），
+    沒有編號（特別集）就比整個標題。"""
+    m = re.search(r"EP\s*(\d+)", title, re.I)
+    if m:
+        return re.search(r"EP\s*0*%s(?!\d)" % m.group(1), cand, re.I) is not None
+    norm = lambda s: re.sub(r"\s+", " ", s).strip().lower()   # noqa: E731
+    return bool(norm(title)) and norm(title) == norm(cand)
+
+
+def spotify_episode_url(title, page=None):
+    """在 Spotify 上找這一集的網址；找不到回傳 None。
+
+    沒有 Spotify API 金鑰可用，所以讀它公開的嵌入播放器頁：頁面裡的
+    __NEXT_DATA__ 帶著節目的集數清單。這不是有文件保證的介面，所以不依賴
+    固定路徑——走遍整份 JSON，找「同一個物件裡有 spotify:episode: 的 uri、
+    而且標題是同一集」的那一個。版面怎麼搬都找得到，除非 Spotify 把欄位本身
+    拿掉；真的找不到就交給呼叫端退回節目頁。page 參數是給測試餵假資料用的。"""
+    try:
+        if page is None:
+            page = fetch(SPOTIFY_EMBED).decode("utf-8", "replace")
+        m = NEXT_RE.search(page)
+        if not m:
+            return None
+        data = json.loads(m.group(1))
+    except Exception:                                   # noqa: BLE001 — 抓不到就交給退路
+        return None
+    for d in _walk(data):
+        uri, name = d.get("uri"), d.get("title") or d.get("name")
+        if not isinstance(uri, str) or not isinstance(name, str):
+            continue
+        mm = EPISODE_URI_RE.match(uri)
+        if mm and same_episode(title, name):
+            return "https://open.spotify.com/episode/" + mm.group(1)
+    return None
+
+
 def main():
     last_err = None
     for url in FEEDS:
@@ -125,26 +180,41 @@ def main():
             last_err = "%s → 最新一集沒有標題" % url
             continue
         m = re.search(r"EP\s*(\d+)", title, re.I)
-        data = {
-            "episode": ("EP" + m.group(1)) if m else "",
-            "title": title,
-            "url": link,
-            "published": pub,
-            "summary": lines,
-            "source": url,
-            "source_kind": "notes",
-            "guid": guid_of(item),
-            "fetched_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
-        }
         old = None
         if os.path.exists(OUT):
             try:
                 old = json.load(open(OUT, encoding="utf-8"))
             except Exception:                        # noqa: BLE001
                 old = None
-        # fetched_at 每次都會變，拿它比對會每天都產生 commit；比內容就好
-        if old and {k: old.get(k) for k in ("episode", "title", "url", "published", "summary")} == \
-                   {k: data[k] for k in ("episode", "title", "url", "published", "summary")}:
+        guid = guid_of(item)
+        # Spotify 連結：先找這一集的網址。這次找不到、但上一次已經找到同一集的
+        # （例如 Spotify 暫時連不上），沿用上一次的，不要降級成節目頁；都沒有才
+        # 用節目頁——永遠是 Spotify 上存在的頁面，不會是死連結。Spotify 收錄
+        # 新的一集常比 RSS 晚一點，這時先落到節目頁（最新一集就在最上面），
+        # 下一輪（main 一天會更新好幾次）找到了就換成單集網址。
+        sp = spotify_episode_url(title)
+        if not sp and old and old.get("guid") == guid and \
+                "/episode/" in (old.get("spotify_url") or ""):
+            sp = old["spotify_url"]
+        if not sp:
+            print("::warning::Spotify 上還找不到「%s」，先連到股癌節目頁" % title)
+            sp = SPOTIFY_SHOW_URL
+        data = {
+            "episode": ("EP" + m.group(1)) if m else "",
+            "title": title,
+            "url": link,
+            "spotify_url": sp,
+            "published": pub,
+            "summary": lines,
+            "source": url,
+            "source_kind": "notes",
+            "guid": guid,
+            "fetched_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+        }
+        # fetched_at 每次都會變，拿它比對會每天都產生 commit；比內容就好。
+        # spotify_url 要算進來：同一集從「節目頁」升級成「單集網址」也得寫檔。
+        keys = ("episode", "title", "url", "spotify_url", "published", "summary")
+        if old and {k: old.get(k) for k in keys} == {k: data[k] for k in keys}:
             print("股癌：%s 無變更" % (data["episode"] or title))
             return 0
         with open(OUT, "w", encoding="utf-8") as fh:

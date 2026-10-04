@@ -1,0 +1,100 @@
+name: 持股退場分數（全市場）
+
+# 算全市場每一檔的「退場分數」寫進 exit.json，給 stocks.html 自選清單裡標「持有」
+# 的股票顯示。公式與引擎推薦卡的「離場訊號 急迫度」相同（scripts/exit_scores.py）。
+#
+# 一年份的收盤歷史放在 Actions 快取（.cache/），不進 git；每天只抓兩次交易所開放資料
+# 補當天，歷史不夠的才用 Yahoo 回補（快取掉了會自己慢慢補回來）。
+# 開發沙箱連不到 TWSE／TPEx／Yahoo，所以 PR 上會先「乾跑」一次（不寫檔、不提交），
+# 用 log 確認真的抓得到、算得出來。
+#
+# 時間：引擎每天約 08:10 台北推 universe.json（前一交易日資料），這裡排在 08:30，
+# 交易所開放資料此時也是前一交易日收盤，兩邊同一天；週二到週六＝週一到週五的盤後。
+# 自包含提交：GITHUB_TOKEN 推送不會觸發其他 workflow，所以自己跑 patch_site。
+
+on:
+  schedule:
+    - cron: "30 0 * * 2-6"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/exit_scores.py"
+      - ".github/workflows/exit-scores.yml"
+  pull_request:
+    paths:
+      - "scripts/exit_scores.py"
+      - ".github/workflows/exit-scores.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: exit-scores-${{ github.event_name == 'pull_request' && github.ref || 'main' }}
+  cancel-in-progress: false
+
+jobs:
+  scores:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 取回收盤歷史快取
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache
+          key: exit-hist-${{ github.run_id }}
+          restore-keys: exit-hist-
+
+      - name: 算退場分數（PR 上只乾跑）
+        env:
+          EXIT_BACKFILL_SECONDS: "1500"
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            python scripts/exit_scores.py --dry-run
+          else
+            python scripts/exit_scores.py
+          fi
+
+      # 補到一半時間到也要存，下次接著補
+      - name: 存回收盤歷史快取
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .cache
+          key: exit-hist-${{ github.run_id }}
+
+      - name: 補丁＋提交（基底過時就拉最新重補，最多五輪）
+        if: github.event_name != 'pull_request'
+        run: |
+          if [ ! -f exit.json ]; then
+            echo "沒有 exit.json（這次算不出來），不提交。"; exit 0
+          fi
+          if git ls-files --error-unmatch exit.json >/dev/null 2>&1 && git diff --quiet -- exit.json; then
+            echo "exit.json 無變更，不提交。"; exit 0
+          fi
+          cp exit.json "$RUNNER_TEMP/exit.json"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for i in 1 2 3 4 5; do
+            git fetch origin main
+            git reset --hard origin/main
+            cp "$RUNNER_TEMP/exit.json" exit.json
+            python scripts/patch_site.py
+            if [ -z "$(git status --porcelain)" ]; then
+              echo "第 $i 輪：無需變更，完成。"; exit 0
+            fi
+            git add -A
+            git commit -m "更新持股退場分數 [skip ci]"
+            if git push origin main; then
+              echo "第 $i 輪：已推送，完成。"; exit 0
+            fi
+            echo "第 $i 輪：push 被拒（引擎或其他排程剛推了新檔），20 秒後以最新基底重來…"
+            sleep 20
+          done
+          echo "::error::重試 5 輪仍無法推送"; exit 1

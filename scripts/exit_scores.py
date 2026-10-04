@@ -296,8 +296,14 @@ def main():
         got += len(day)
         print("%s當日收盤：%d 檔（%s）" % (name, len(day), next(iter(day.values()))[0] if day else "-"))
 
-    # 2) 歷史不夠的用 Yahoo 補；有時間上限，補不完下次接著補
-    need = [x for x in universe if len(hist.get(x["c"]) or []) < FULL_DAYS]
+    # 2) 歷史不夠的、或落後最新交易日的用 Yahoo 補；有時間上限，補不完下次接著補。
+    #    「落後」那條是給某個市場的當日資料抓失敗時用的：實測 TPEx 開放資料（4.6 MB）
+    #    在 Actions 上會被中途切斷，沒有這條的話上櫃股的分數會一直停在舊的那天。
+    newest = max((d for d, _ in days.values()), default="")
+    def behind(code):
+        seq = hist.get(code) or []
+        return len(seq) < FULL_DAYS or (newest and seq[-1][0] < newest)
+    need = [x for x in universe if behind(x["c"])]
     t0, filled, failed = time.time(), 0, 0
     for x in need:
         if time.time() - t0 > budget:

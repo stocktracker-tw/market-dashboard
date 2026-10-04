@@ -2,3 +2,6 @@
 __pycache__/
 *.pyc
 .ollama-models/
+
+# 退場分數的收盤歷史（Actions 快取，不進 git）
+.cache/

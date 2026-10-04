@@ -378,6 +378,91 @@ if(ch.length&&wlBox&&wlBox.parentNode){var h='<div style="margin:0 0 12px;paddin
 }catch(e){}})();'''
 
 
+# --- 持有股票的「退場分數」（只動 stocks.html）-----------------------------
+# 進場分數回答「現在適不適合買」；手上已經有的股票要問的是「趨勢有沒有在轉弱」。
+# 自選清單點開任一檔有「標為持有」；標了持有的，收合時那一列就多一行退場分數
+# （0–100，越高代表轉弱訊號越多），展開看是哪些訊號、50 日均線參考價在哪。
+# 按鈕放在展開的明細裡、不放在列上：放列上會吃掉約 55px，360px 寬的手機上
+# 股名被擠成三行、每列從 88 變 130px 高。
+# 分數由 .github/workflows/exit-scores.yml 每天算好寫進 exit.json，公式與引擎推薦卡
+# 的「離場訊號 急迫度」相同。持有清單存在 localStorage（myHold），跟自選一樣不跨裝置。
+# 用語跟 wlalert 一樣只描述趨勢（完好／轉弱），不用「加碼／減碼／停損」這類動作詞；
+# 顏色也跟全站一樣不用紅綠（台股紅＝漲），用偏多／中性／偏空那組。
+# 程式插在引擎腳本「抓 universe.json」之前：保證第一次畫自選清單時就用新的列。
+HOLDX_ANCHOR = '/* ===== 全市場清單外部化'
+HOLDX_JS = r'''/*holdx*/(function(){
+var HK="myHold",H={};try{(JSON.parse(localStorage.getItem(HK)||"[]")||[]).forEach(function(c){H[c]=1;});}catch(e){}
+function saveH(){try{localStorage.setItem(HK,JSON.stringify(Object.keys(H)));}catch(e){}}
+var EX=null,EXD="";
+function lv(s){return s>=55?["xr","轉弱訊號明顯"]:s>=30?["xa","出現轉弱訊號"]:["xg","趨勢完好"];}
+function sigs(r){var f=r[2],o=[];
+if(f&1)o.push("已跌破 50 日均線");if(f&2)o.push("逼近 50 日均線");
+if(f&4)o.push("跌破 200 日均線");if(f&8)o.push("均線空頭排列（50 日在 200 日之下）");
+if(f&16)o.push("高檔回落（距 20 日高 "+r[3]+"%）");
+if(f&32)o.push("RSI 由超買轉弱（"+Math.round(r[5])+"→"+Math.round(r[6])+"）");
+if(f&64)o.push("距 52 週高點 "+r[4]+"%");
+if(f&128)o.push("法人賣超、散戶融資增加");
+return o.length?o:["趨勢完好，沒有明顯轉弱訊號"];}
+function exLine(c){
+if(EX===false)return '<div class="xline muted">退場分數暫時拿不到（資料還沒產生或連線失敗）</div>';
+if(!EX)return '<div class="xline muted">退場分數載入中…</div>';
+var r=EX[c];if(!r)return '<div class="xline muted">退場分數：資料不足</div>';
+var L=lv(r[0]);return '<div class="xline">退場分數 <b class="'+L[0]+'">'+r[0]+'</b> <span class="'+L[0]+'">'+L[1]+'</span></div>';}
+function exDet(c){
+var r=EX&&EX[c];if(!r)return EX?'<div class="xdet muted">退場分數需要至少 60 個交易日的收盤；上市未滿 60 天或今天沒有收盤價時不顯示。</div>':"";var L=lv(r[0]);
+var d='<div class="xdet"><div><b>退場分數 <span class="'+L[0]+'">'+r[0]+'</span>／100・'+L[1]+'</b></div>';
+d+='<div class="muted">'+sigs(r).join("、")+'</div>';
+if(r[1])d+='<div class="muted">參考線：50 日均線約 '+r[1]+'（收盤跌破＝趨勢轉弱）</div>';
+if(r[7]<252)d+='<div class="muted">目前只有 '+r[7]+' 個交易日的資料'+(r[7]<200?'，200 日均線':'')+'、52 週高點先以現有資料計算。</div>';
+d+='<div class="muted" style="color:#7c8aa0">退場分數＝給持有者看的轉弱程度：跌破均線、高檔回落、RSI 由熱轉冷、法人賣散戶買，各計一部分；30 以上出現轉弱、55 以上轉弱明顯。'+(EXD?'資料日 '+EXD.slice(0,4)+'/'+EXD.slice(4,6)+'/'+EXD.slice(6)+'。':'')+'非投資建議。</div>';
+return d+'</div>';}
+var orig=wlRow;
+wlRow=function(c){var h=orig(c),on=!!H[c];
+h=h.replace('<div class="sdet" style="display:none">','<div class="sdet" style="display:none"><div class="xhold"><span class="wlhold'+(on?' on':'')+'" data-c="'+c+'">'+(on?'✓ 持有中（點一下取消）':'＋ 標為持有，看退場分數')+'</span></div>');
+if(!on)return h;
+var m=h.indexOf('<div class="mini">');if(m>=0){var e=h.indexOf('</div>',m);if(e>=0)h=h.slice(0,e+6)+exLine(c)+h.slice(e+6);}
+else{var n=h.indexOf('</div>',h.indexOf('<div class="nm">'));if(n>=0)h=h.slice(0,n)+exLine(c)+h.slice(n);}
+var x=exDet(c);if(x&&h.slice(-12)==="</div></div>")h=h.slice(0,-12)+x+"</div></div>";
+return h;};
+if(wlBox){
+wlBox.addEventListener("click",function(e){var t=e.target;if(!t.classList||!t.classList.contains("wlhold"))return;
+e.stopPropagation();var c=t.getAttribute("data-c");if(H[c])delete H[c];else H[c]=1;saveH();renderWL();
+var b=wlBox.querySelector('.wlhold[data-c="'+c+'"]'),it=b&&b.closest(".sitem");
+if(it){var d=it.querySelector(".sdet"),a=it.querySelector(".ar");if(d)d.style.display="block";if(a)a.textContent="▾";}},true);
+var tip=document.createElement("div");tip.className="muted xtip";tip.textContent="手上有的股票：點開它、按「標為持有」，之後這一列會多顯示退場分數（趨勢轉弱的程度，越高越該留意）。";
+wlBox.parentNode.insertBefore(tip,wlBox);}
+fetch("exit.json").then(function(r){return r.ok?r.json():null;}).then(function(d){
+if(d&&d.rows){EX=d.rows;EXD=d.asof||"";}else EX=false;
+if(wlBox&&U.length)renderWL();}).catch(function(){EX=false;if(wlBox&&U.length)renderWL();});
+if(wlBox&&U.length)renderWL();
+})();
+'''
+HOLDX_CSS = ('<style id="holdx">.xhold{margin:2px 0 8px}.xhold .wlhold{display:inline-block;cursor:pointer;'
+             'font-size:13px;color:#2478c8;border:1px solid #2478c8;border-radius:12px;padding:4px 12px;user-select:none}'
+             '.xhold .wlhold.on{color:#fff;background:#2478c8;font-weight:600}'
+             '.srow .xline{font-size:12.5px;margin-top:2px}.srow .xline b{font-size:14px}'
+             # 退場分數自己的三色：不用 .red/.amber/.green（scorecolor 會把裡面的數字當進場分數重上色，
+             # 78 會被塗成「好」的青色），沿用全站「偏多／中性／偏空」那組冷暖色。
+             '.xg{color:#1a9bdf}.xa{color:#2f7cc4}.xr{color:#c98a1e}'
+             '.sdet .xdet{margin-top:8px;padding-top:8px;border-top:1px solid #dbe4ee}'
+             '.xtip{font-size:12px;margin:0 0 6px}</style>')
+# 搜尋明細原本寫「完整趨勢與離場訊號請加進自選股」，但自選清單其實沒有離場訊號；改成指到持有。
+HOLDX_OLD_HINT = ("完整趨勢與離場訊號請加進自選股，或本機跑 stock.py '+x.c+(x.m==='otc'?'（上櫃）':'')+'")
+HOLDX_NEW_HINT = "手上有這檔的話：加進自選、點開按「標為持有」就會顯示退場分數"
+
+
+def patch_holdx(html):
+    """自選清單的「持有」與退場分數。只動 stocks.html。"""
+    orig = html
+    if HOLDX_ANCHOR in html and '/*holdx*/' not in html and 'function wlRow' in html:
+        html = html.replace(HOLDX_ANCHOR, HOLDX_JS + HOLDX_ANCHOR, 1)
+    if '/*holdx*/' in html and 'id="holdx"' not in html and '</head>' in html:
+        html = html.replace('</head>', HOLDX_CSS + '</head>', 1)
+    if '/*holdx*/' in html:
+        html = html.replace(HOLDX_OLD_HINT, HOLDX_NEW_HINT)
+    return html, html != orig
+
+
 def patch_wlalert(html):
     """自選股進站變化提醒。只動 stocks.html。"""
     if WL_ALERT_ANCHOR not in html or '/*wlalert*/' in html:
@@ -3017,6 +3102,10 @@ def patch(html, fname):
     # 8) 自選股進站變化提醒（stocks.html）
     html, wa = patch_wlalert(html)
     changed = changed or wa
+
+    # 8a) 自選清單的「持有」＋退場分數（stocks.html，資料來自 exit.json）
+    html, hx = patch_holdx(html)
+    changed = changed or hx
 
     # 8b) 自選股置頂（stocks.html）
     html, wp = patch_wlpin(html)

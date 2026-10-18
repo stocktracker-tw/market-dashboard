@@ -21,7 +21,7 @@ import sys
 import time
 import urllib.parse
 import urllib.request
-from datetime import date, datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta
 
 API = "https://graph.threads.net/v1.0"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -69,9 +69,10 @@ def score_post():
 def evening_post(d):
     """偶數日發金句、奇數日發互動，並依日期在池中輪播。"""
     doy = day_of_year(d)
+    # 奇偶已經用來選池，池內輪播要用 doy // 2，否則只會輪到一半的內容
     if doy % 2 == 0:
-        return QUOTES[doy % len(QUOTES)]
-    return POLLS[doy % len(POLLS)]
+        return QUOTES[(doy // 2) % len(QUOTES)]
+    return POLLS[(doy // 2) % len(POLLS)]
 
 
 def daily_post(d):
@@ -80,7 +81,7 @@ def daily_post(d):
     doy = day_of_year(d)
     if doy % 2 == 0:
         return score_post()
-    return QUOTES[doy % len(QUOTES)]
+    return QUOTES[(doy // 2) % len(QUOTES)]
 
 
 def build_text(slot, d):

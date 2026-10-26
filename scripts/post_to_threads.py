@@ -21,7 +21,7 @@ import sys
 import time
 import urllib.parse
 import urllib.request
-from datetime import date, datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta
 
 API = "https://graph.threads.net/v1.0"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -31,7 +31,7 @@ THREADS_HTML = os.path.join(ROOT, "threads.html")
 QUOTES = [
     "進場時機不是「猜對最低點」，\n是「在數據站在你這邊的時候，下手重一點；\n數據對你不利的時候，手輕一點」。\n\n如此而已。\n⚠️ 非投資建議",
     "別人恐懼我貪婪這句話，問題在——\n你怎麼知道現在「夠恐懼」了？\n\n恐懼是可以量化的。\nVIX、融資餘額、騰落線、估值分位…全部壓成一個數字。\n⚠️ 非投資建議",
-    "定期定額不是「不用看時機」，\n是「就算看錯時機也不會死」。\n\n但如果你願意在低分時多扣一點、高分時少扣一點，\n長期報酬會差很多。\n⚠️ 非投資建議",
+    "定期定額不是「不用看時機」，\n是「就算看錯時機也不會死」。\n\n但如果你願意在高分時多扣一點、低分時少扣一點，\n長期報酬會差很多。\n⚠️ 非投資建議",
     "散戶最容易賠錢的時刻，不是崩盤，\n是「指數創高、新聞一片樂觀、身邊每個人都在賺」的時候。\n\n學會看法人跟散戶在做相反的事，比看 K 線有用太多。\n⚠️ 非投資建議",
     "噴發很爽，但越急的噴出、回檔通常越兇。\n\n會漲不稀奇，知道「現在這波是健康還是上頭」才值錢。\n⚠️ 非投資建議",
     "市場不會獎勵勤勞，只會獎勵紀律。\n\n每天看盤十小時，不如有一套「該貪婪還是該怕」的判斷標準，\n然後乖乖照做。\n⚠️ 非投資建議",
@@ -69,9 +69,10 @@ def score_post():
 def evening_post(d):
     """偶數日發金句、奇數日發互動，並依日期在池中輪播。"""
     doy = day_of_year(d)
+    # 奇偶已經用來選池，池內輪播要用 doy // 2，否則只會輪到一半的內容
     if doy % 2 == 0:
-        return QUOTES[doy % len(QUOTES)]
-    return POLLS[doy % len(POLLS)]
+        return QUOTES[(doy // 2) % len(QUOTES)]
+    return POLLS[(doy // 2) % len(POLLS)]
 
 
 def daily_post(d):
@@ -80,7 +81,7 @@ def daily_post(d):
     doy = day_of_year(d)
     if doy % 2 == 0:
         return score_post()
-    return QUOTES[doy % len(QUOTES)]
+    return QUOTES[(doy // 2) % len(QUOTES)]
 
 
 def build_text(slot, d):

@@ -130,7 +130,8 @@ def fund_card(code, fd):
 
 
 def zone(sc):
-    return 4 if sc >= 70 else 3 if sc >= 58 else 2 if sc >= 43 else 1 if sc >= 35 else 0
+    # 門檻與引擎 config.ACTION_BANDS 一致（35/45/58/70）
+    return 4 if sc >= 70 else 3 if sc >= 58 else 2 if sc >= 45 else 1 if sc >= 35 else 0
 
 
 def e(s):
@@ -158,7 +159,8 @@ def bar(label, val, desc=""):
                 f'<div class="d" style="color:#5b6d80">這檔沒有這項資料，'
                 f'未計入分數（其餘面向的權重會按比例補上）。</div>{d}</div>')
     val = max(0, min(100, int(round(val))))
-    col = "#34d07f" if val >= 58 else "#f9b43a" if val >= 43 else "#ef5d5d"
+    # 紅綠燈與引擎 LIGHT_GREEN_MIN=58 / LIGHT_RED_MAX=42 一致（< 42 才亮紅）
+    col = "#34d07f" if val >= 58 else "#f9b43a" if val >= 42 else "#ef5d5d"
     return (f'<div class="sub"><div class="sh"><span>{e(label)}</span>'
             f'<b>{val}</b></div><div class="bar"><i style="width:{val}%;'
             f'background:{col}"></i></div>{d}</div>')
@@ -300,7 +302,8 @@ def market_score():
 
 
 def mult_of(sc):
-    return 1.5 if sc >= 70 else 1.25 if sc >= 58 else 1.0 if sc >= 43 else 0.75 if sc >= 35 else 0.5
+    # 倍數與引擎 config.ACTION_BANDS 一致
+    return 2.0 if sc >= 70 else 1.5 if sc >= 58 else 1.0 if sc >= 45 else 0.5 if sc >= 35 else 0.25
 
 
 def etf_page(meta, sc):
@@ -374,7 +377,7 @@ b.addEventListener("input",f);f();}})();</script></div>
 <div class="warn">⚠️ 進場分數反映台股大盤環境，僅供參考，<b>不構成投資建議、不預測漲跌</b>，投資前請自行評估風險。</div>
 
 <div class="card"><div class="h">怎麼用？</div><div class="t">
-定期定額最大的好處是「不用猜時機」。但如果你願意<b>在大盤分數低時多扣一點、高時少扣一點</b>，
+定期定額最大的好處是「不用猜時機」。但如果你願意<b>在大盤分數高時多扣一點、低時少扣一點</b>，
 長期有機會降低成本、減少在高點重押。這不是叫你停扣或預測漲跌，而是把市場環境量化成一個溫度計。
 完整分數與指標見 <a href="../">Stock Tracker 首頁</a>，其他 ETF 見 <a href="./">ETF 一覽</a>。</div></div>
 

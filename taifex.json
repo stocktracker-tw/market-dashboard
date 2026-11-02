@@ -1,14 +1,14 @@
 {
   "_source": "TAIFEX OpenAPI",
   "pcr": {
-    "date": "20261029",
-    "pcr_oi": 0.64,
-    "pcr_vol": 0.81
+    "date": "20261030",
+    "pcr_oi": 0.63,
+    "pcr_vol": 0.91
   },
-  "updated": "2026-10-30 22:45",
+  "updated": "2026-11-03 01:42",
   "inst": {
-    "date": "20261029",
-    "inst_net_oi": -793,
-    "foreign_net_oi": -89522
+    "date": "20261030",
+    "inst_net_oi": -1294,
+    "foreign_net_oi": -92241
   }
 }

@@ -9,6 +9,8 @@ name: 盤前預估分數（美股隔夜 + 夜盤）
 
 on:
   schedule:
+    # 主要由 site-patch 在引擎推完首頁後順便注入；這裡是備援。GitHub 排程常延遲數小時，
+    # 腳本帶 --window，過了 09:00 開盤就不算，避免盤中冒出「盤前預估」。
     - cron: "30 0 * * 1-5"   # 台灣 08:30（UTC 00:30），週一至週五；引擎 08:00 跑完後
   workflow_dispatch:
 
@@ -31,18 +33,26 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: 算盤前分數並注入
-        run: python scripts/premarket_score.py
-
-      - name: 有變更才提交
+      # 引擎同一時段會連推好幾個檔，push 被拒就以最新基底重算（最多三輪）
+      - name: 算盤前分數並注入＋提交
         run: |
-          if [ -n "$(git status --porcelain)" ]; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          FLAG="--window"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then FLAG=""; fi
+          for i in 1 2 3; do
+            git fetch origin main
+            git reset --hard origin/main
+            python scripts/premarket_score.py $FLAG
+            if [ -z "$(git status --porcelain)" ]; then
+              echo "無變更（不在開盤前、行情抓取失敗或已是最新），略過。"; exit 0
+            fi
             git add index.html
             git commit -m "盤前預估分數更新 [skip ci]"
-            git push
-            echo "已注入盤前分數並推送。"
-          else
-            echo "無變更（可能行情抓取失敗），略過。"
-          fi
+            if git push origin main; then
+              echo "已注入盤前分數並推送。"; exit 0
+            fi
+            echo "第 $i 輪：push 被拒，20 秒後以最新基底重算…"
+            sleep 20
+          done
+          echo "::error::重試 3 輪仍無法推送"; exit 1

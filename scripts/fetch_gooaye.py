@@ -87,22 +87,6 @@ def clean(raw):
     return lines
 
 
-def latest_item():
-    """回傳 (item, feed_url)。"""
-    last_err = None
-    for url in FEEDS:
-        try:
-            root = ET.fromstring(fetch(url))
-        except Exception as e:                      # noqa: BLE001 — 任何失敗都換下一個
-            last_err = "%s → %s" % (url, e)
-            continue
-        item = root.find("./channel/item")
-        if item is None:
-            last_err = "%s → feed 裡沒有 item" % url
-            continue
-        return item, url
-    raise RuntimeError(last_err or "沒有可用的 feed")
-
 
 def guid_of(item):
     g = item.find("guid")

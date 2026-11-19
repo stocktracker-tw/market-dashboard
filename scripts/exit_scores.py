@@ -26,7 +26,7 @@ import re
 import sys
 import time
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HIST = os.path.join(ROOT, ".cache", "px_hist.json")
@@ -202,6 +202,10 @@ def today_tpex():
 def yahoo_year(code, market):
     """[(YYYYMMDD, close), ...]，近兩年日線。上市 .TW、上櫃 .TWO，抓不到換另一個後綴試。"""
     sufs = (".TWO", ".TW") if market == "otc" else (".TW", ".TWO")
+    # 排程常延遲到盤中才跑，Yahoo 的最後一根就是盤中價，會被當成當天收盤存進
+    # 歷史（隔天交易所資料才蓋掉）。收盤資料出齊前（台北 14:30）不收當天那根。
+    now = datetime.now(timezone(timedelta(hours=8)))
+    today = now.strftime("%Y%m%d") if now.hour * 100 + now.minute < 1430 else None
     for suf in sufs:
         for host in ("query1", "query2"):
             url = ("https://%s.finance.yahoo.com/v8/finance/chart/%s%s?range=2y&interval=1d"
@@ -216,6 +220,8 @@ def yahoo_year(code, market):
                         continue
                     # 台股收盤時間換算成台北日期（UTC+8）
                     d = datetime.fromtimestamp(t + 8 * 3600, tz=timezone.utc).strftime("%Y%m%d")
+                    if d == today:
+                        continue
                     rows.append((d, round(float(c), 4)))
                 if rows:
                     return rows

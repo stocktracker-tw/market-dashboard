@@ -229,13 +229,18 @@ def main():
     else:
         discover()  # 三大法人抓不到 → 印出端點清單，方便校正
 
-    out["updated"] = datetime.now(TZ).strftime("%Y-%m-%d %H:%M")
     got = [k for k in ("pcr", "inst") if out.get(k)]
     print(f"--- 取得：{got or '（無，保留上次資料）'} ---")
-    if not got and "pcr" not in load_existing() and "inst" not in load_existing():
+    old = load_existing()
+    if not got and "pcr" not in old and "inst" not in old:
         # 從沒成功過也沒舊資料 → 不寫空檔，讓 patch 端略過
         print("沒有任何資料且無歷史，跳過寫檔。")
         return 1
+    # 資料跟上次一樣就不寫：只改 updated 時間戳會讓每次排程都多一個 commit
+    if all(out.get(k) == old.get(k) for k in ("pcr", "inst")):
+        print("資料與上次相同（期交所可能還沒出新的一天），不寫檔。")
+        return 0
+    out["updated"] = datetime.now(TZ).strftime("%Y-%m-%d %H:%M")
     with open(OUT, "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, indent=2)
     print(f"已寫入 {OUT}")

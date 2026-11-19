@@ -9,6 +9,7 @@
     python scripts/premarket_score.py            # 抓行情、算分、寫回 index.html
     python scripts/premarket_score.py --dry-run  # 只印出，不改檔
     python scripts/premarket_score.py --self-test # 不連網，用假資料測算法/注入
+    python scripts/premarket_score.py --window   # 只在台北週一至週五開盤前才算（排程用）
 
 行情來源：先試 Yahoo，失敗改用 Stooq（資料中心 IP 較不會被擋）。
 全部抓不到時：不動 index.html（寧可不顯示，也不顯示壞掉的數字）。
@@ -21,6 +22,7 @@ import re
 import sys
 import urllib.parse
 import urllib.request
+from datetime import datetime, timedelta, timezone
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INDEX = os.path.join(ROOT, "index.html")
@@ -152,8 +154,22 @@ def inject(html, badge):
     return VERDICT_RE.sub(lambda m: m.group(1) + badge, html, count=1)
 
 
+# 「盤前」只在開盤前有意義。GitHub 排程常延遲好幾小時（實測 08:30 的排程拖到
+# 12:52～15:01 才跑），沒有這道門，盤中甚至收盤後還會冒出一個「盤前預估」。
+OPEN_HHMM = 900                   # 台股 09:00 開盤
+TPE = timezone(timedelta(hours=8))
+
+
+def in_premarket_window(now=None):
+    now = now or datetime.now(TPE)
+    return now.weekday() < 5 and now.hour * 100 + now.minute < OPEN_HHMM
+
+
 def main():
     dry = "--dry-run" in sys.argv
+    if "--window" in sys.argv and not in_premarket_window():
+        print(f"現在台北 {datetime.now(TPE):%a %H:%M}，不在開盤前，不算盤前分數。")
+        return
     if "--self-test" in sys.argv:
         html = open(INDEX, encoding="utf-8").read()
         comp = read_composite(html)

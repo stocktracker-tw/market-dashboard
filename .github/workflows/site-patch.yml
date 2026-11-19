@@ -57,6 +57,9 @@ jobs:
             python scripts/fetch_gooaye.py      # 先更新股癌最新一集（抓不到就沿用舊的）
             python scripts/score_history.py     # 記下今天的大盤分數（算百分位要用）
             python scripts/gen_stock_pages.py   # 再產頁
+            # 盤前分數：引擎每天 08:1x 推完首頁就是最準的時機，搭這班車注入（開盤前才算；
+            # 抓不到行情或首頁格式變了都不能讓整個補丁失敗）
+            python scripts/premarket_score.py --window || echo "::warning::盤前分數沒算出來，略過"
             python scripts/patch_site.py        # 最後補丁（連新產的個股/ETF 頁一起補）
             if [ -z "$(git status --porcelain)" ]; then
               echo "第 $i 輪：無需變更，完成。"; exit 0

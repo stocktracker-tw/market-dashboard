@@ -2,8 +2,8 @@
 """外部 Bot 每天重產 HTML 後，自動補回瀏覽器分頁需要的東西：
   1) <link rel="icon">  → 子路徑網站不寫這行，分頁就會顯示預設地球
   2) 品牌前綴標題        → 「Stock Tracker — 原本頁名」
-  3) 評分分界一致性      → 中性（正常定額）下界固定為 43（避免 Bot 退回 45 時，
-                          43–44 分被標成「減碼」、和內文「中性」打架）
+  3) 評分分界一致性      → 中性下界對齊引擎 ACTION_BANDS 的 45（圖例、howto 盒、
+                          自選股提醒都用同一組 35/45/58/70）
 
 設計成「冪等」：已經補過的檔案再跑一次不會有任何變動，
 所以這支腳本只有在 Bot 把修改洗掉時才會真的產生 diff。
@@ -367,9 +367,11 @@ def patch_taifex(html):
 # 進站時比對自選股分數跟「上次造訪」相比是否跨區，標出變化。純前端、免後端。
 # 用中性字眼描述分數高低，不用「加碼/減碼」動作詞，避開投顧法規。
 WL_ALERT_ANCHOR = 'if(wlBox)renderWL();'
+WL_ZONE_OLD = 'function zone(sc){return sc>=70?4:sc>=58?3:sc>=43?2:sc>=35?1:0;}'
+WL_ZONE_NEW = 'function zone(sc){return sc>=70?4:sc>=58?3:sc>=45?2:sc>=35?1:0;}'
 WL_ALERT_JS = r'''/*wlalert*/(function(){try{
 var ZN=["低分","偏低","中性","偏高","高分"];
-function zone(sc){return sc>=70?4:sc>=58?3:sc>=43?2:sc>=35?1:0;}
+function zone(sc){return sc>=70?4:sc>=58?3:sc>=45?2:sc>=35?1:0;}
 var prev={};try{prev=JSON.parse(localStorage.getItem("wlZones")||"{}");}catch(e){}
 var now={},ch=[];
 for(var i=0;i<WL.length;i++){var c=WL[i],x=byCode[c];if(!x||typeof x.s!=="number")continue;var z=zone(x.s);now[c]=z;if(prev[c]!==undefined&&prev[c]!==z)ch.push({n:x.n||c,f:prev[c],t:z,u:z>prev[c]});}
@@ -464,6 +466,9 @@ def patch_holdx(html):
 
 def patch_wlalert(html):
     """自選股進站變化提醒。只動 stocks.html。"""
+    # 已注入的舊版門檻 43→45（marker 守門不會回改舊頁）
+    if '/*wlalert*/' in html and WL_ZONE_OLD in html:
+        return html.replace(WL_ZONE_OLD, WL_ZONE_NEW), True
     if WL_ALERT_ANCHOR not in html or '/*wlalert*/' in html:
         return html, False
     return html.replace(WL_ALERT_ANCHOR, WL_ALERT_ANCHOR + WL_ALERT_JS, 1), True

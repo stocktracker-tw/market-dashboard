@@ -5,10 +5,10 @@
     "pcr_oi": 0.3,
     "pcr_vol": 0.79
   },
-  "updated": "2026-11-24 03:44",
+  "updated": "2026-11-25 03:16",
   "inst": {
-    "date": "20261120",
-    "inst_net_oi": -9982,
-    "foreign_net_oi": -97863
+    "date": "20261123",
+    "inst_net_oi": -8549,
+    "foreign_net_oi": -103432
   }
 }

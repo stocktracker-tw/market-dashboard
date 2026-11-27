@@ -1,0 +1,11 @@
+{
+  "_note": "分數區間的唯一來源：個股頁、ETF 頁、自選股提醒、頂欄圓點、盤前分數都讀這份。必須與引擎 engine-src 的 config.ACTION_BANDS / LIGHT_GREEN_MIN / LIGHT_RED_MAX 一致，tests/test_bands.py 會比對。",
+  "bands": [
+    {"min": 70, "name": "遍地黃金區", "mult": 2.0},
+    {"min": 58, "name": "機會偏多區", "mult": 1.5},
+    {"min": 45, "name": "中性區", "mult": 1.0},
+    {"min": 35, "name": "偏熱謹慎區", "mult": 0.5},
+    {"min": 0, "name": "過熱危險區", "mult": 0.25}
+  ],
+  "light": {"green_min": 58, "red_max": 42}
+}

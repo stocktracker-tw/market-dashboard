@@ -24,6 +24,8 @@ on:
       - "scripts/score_history.py"     # 分數歷史邏輯一改也重跑
       - "scripts/gen_stock_pages.py"   # 個股頁產生器一改也重產
       - "universe.json"                # 引擎每天更新分數 → 重產個股頁
+      - "bands.json"                   # 分數區間一改，個股/ETF 頁與自選股提醒跟著改
+      - "scripts/bands.py"
       - ".github/workflows/site-patch.yml"
   workflow_dispatch:
 

@@ -1,0 +1,57 @@
+name: 檢查（PR）
+
+# 每個 PR 都跑：語法／lint、單元測試、補丁冪等、盤前分數自測。
+# 這幾項全是離線的，不連交易所或 Yahoo，所以不會因為外部網站掛掉而變紅。
+# 抓過的 bug：Threads 輪播只用一半、「低分多扣」寫反、門檻 43 vs 45 不一致——
+# 都有對應的測試（tests/）。
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      # tests/test_bands.py 要拿引擎的 config.py 比對門檻
+      - name: 取引擎分支（比對 ACTION_BANDS 用）
+        run: git fetch --depth=1 origin engine-src:refs/remotes/origin/engine-src || echo "::warning::拿不到 engine-src，跳過引擎比對"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 安裝檢查工具
+        run: pip install ruff pytest
+
+      - name: 語法與 lint
+        run: |
+          python -m py_compile scripts/*.py
+          ruff check scripts tests --select F,E9,B
+
+      - name: 單元測試
+        run: pytest -q tests
+
+      - name: 盤前分數自測
+        run: python scripts/premarket_score.py --self-test
+
+      - name: Threads 貼文試產
+        run: python scripts/post_to_threads.py --dry-run daily
+
+      # ARCHITECTURE.md 的鐵律：補丁重跑永遠收斂。第一輪可以有變更，第二輪必須「無需變更」。
+      - name: 補丁冪等
+        run: |
+          python scripts/patch_site.py
+          out="$(python scripts/patch_site.py)"
+          echo "$out"
+          case "$out" in *無需變更*) ;; *) echo "::error::patch_site.py 第二輪仍有變更，失去冪等"; exit 1 ;; esac

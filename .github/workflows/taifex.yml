@@ -8,6 +8,9 @@ name: 台指期籌碼（TAIFEX）
 on:
   schedule:
     - cron: "0 8 * * 1-5"      # 約 16:00 台北（盤後結算資料出齊後），週一至五
+    # 實測晚上那輪（排程延遲到 ~21:00）抓到的都還是前一個交易日，卡片永遠慢一天；
+    # 隔天開盤前再抓一次，讓盤前分數與首頁卡片用到最新一天。資料沒變就不會提交。
+    - cron: "30 23 * * 0-4"    # 07:30 台北，週一至五
   workflow_dispatch:
 
 permissions:
@@ -30,18 +33,29 @@ jobs:
       - name: 抓 TAIFEX 台指期籌碼
         run: python scripts/fetch_taifex.py
 
-      - name: 注入台指期籌碼卡
-        run: python scripts/patch_site.py
-
-      - name: 有變更才提交
+      # 早上那輪會撞上引擎連推，push 被拒就以最新基底重補（最多五輪）
+      - name: 注入台指期籌碼卡＋提交
         run: |
-          if [ -n "$(git status --porcelain)" ]; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- taifex.json; then
+            echo "taifex.json 無變更（可能今日資料未出或抓取失敗），略過。"; exit 0
+          fi
+          cp taifex.json "$RUNNER_TEMP/taifex.json"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for i in 1 2 3 4 5; do
+            git fetch origin main
+            git reset --hard origin/main
+            cp "$RUNNER_TEMP/taifex.json" taifex.json
+            python scripts/patch_site.py
+            if [ -z "$(git status --porcelain)" ]; then
+              echo "第 $i 輪：無需變更，完成。"; exit 0
+            fi
             git add -A
             git commit -m "更新台指期籌碼（TAIFEX）[skip ci]"
-            git push
-            echo "已更新 taifex.json 與台指期卡並推送。"
-          else
-            echo "無變更（可能今日資料未出或抓取失敗），略過。"
-          fi
+            if git push origin main; then
+              echo "第 $i 輪：已推送，完成。"; exit 0
+            fi
+            echo "第 $i 輪：push 被拒，20 秒後以最新基底重補…"
+            sleep 20
+          done
+          echo "::error::重試 5 輪仍無法推送"; exit 1

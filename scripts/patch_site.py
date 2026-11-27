@@ -13,7 +13,6 @@ import glob
 import json
 import os
 import re
-import sys
 from html import escape as html_escape
 
 # 分頁圖示（檔名帶 -r＝rounded 版；Chrome favicon 快取無視 ?v=，換版要換檔名）

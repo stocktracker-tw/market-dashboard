@@ -12,6 +12,8 @@ import os
 import re
 from datetime import date
 
+import bands
+
 BASE = "https://stocktracker-tw.github.io/market-dashboard"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUTDIR = os.path.join(ROOT, "stock")
@@ -130,8 +132,8 @@ def fund_card(code, fd):
 
 
 def zone(sc):
-    # 門檻與引擎 config.ACTION_BANDS 一致（35/45/58/70）
-    return 4 if sc >= 70 else 3 if sc >= 58 else 2 if sc >= 45 else 1 if sc >= 35 else 0
+    # 門檻讀 bands.json（與引擎 config.ACTION_BANDS 一致）
+    return bands.level(sc)
 
 
 def e(s):
@@ -159,8 +161,9 @@ def bar(label, val, desc=""):
                 f'<div class="d" style="color:#5b6d80">這檔沒有這項資料，'
                 f'未計入分數（其餘面向的權重會按比例補上）。</div>{d}</div>')
     val = max(0, min(100, int(round(val))))
-    # 紅綠燈與引擎 LIGHT_GREEN_MIN=58 / LIGHT_RED_MAX=42 一致（< 42 才亮紅）
-    col = "#34d07f" if val >= 58 else "#f9b43a" if val >= 42 else "#ef5d5d"
+    # 紅綠燈與引擎 LIGHT_GREEN_MIN / LIGHT_RED_MAX 一致（低於 red_max 才亮紅）
+    col = ("#34d07f" if val >= bands.LIGHT_GREEN_MIN
+           else "#f9b43a" if val >= bands.LIGHT_RED_MAX else "#ef5d5d")
     return (f'<div class="sub"><div class="sh"><span>{e(label)}</span>'
             f'<b>{val}</b></div><div class="bar"><i style="width:{val}%;'
             f'background:{col}"></i></div>{d}</div>')
@@ -302,8 +305,7 @@ def market_score():
 
 
 def mult_of(sc):
-    # 倍數與引擎 config.ACTION_BANDS 一致
-    return 2.0 if sc >= 70 else 1.5 if sc >= 58 else 1.0 if sc >= 45 else 0.5 if sc >= 35 else 0.25
+    return bands.mult(sc)
 
 
 def etf_page(meta, sc):

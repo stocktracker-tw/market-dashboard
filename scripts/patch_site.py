@@ -15,6 +15,8 @@ import os
 import re
 from html import escape as html_escape
 
+import bands
+
 # 分頁圖示（檔名帶 -r＝rounded 版；Chrome favicon 快取無視 ?v=，換版要換檔名）
 FAVICON = ('<link rel="icon" href="favicon-r.ico">'
            '<link rel="icon" type="image/png" sizes="32x32" href="favicon-32-r.png">')
@@ -366,17 +368,17 @@ def patch_taifex(html):
 # 進站時比對自選股分數跟「上次造訪」相比是否跨區，標出變化。純前端、免後端。
 # 用中性字眼描述分數高低，不用「加碼/減碼」動作詞，避開投顧法規。
 WL_ALERT_ANCHOR = 'if(wlBox)renderWL();'
-WL_ZONE_OLD = 'function zone(sc){return sc>=70?4:sc>=58?3:sc>=43?2:sc>=35?1:0;}'
-WL_ZONE_NEW = 'function zone(sc){return sc>=70?4:sc>=58?3:sc>=45?2:sc>=35?1:0;}'
+WL_ZONE = bands.js_zone()                       # 門檻讀 bands.json
+WL_ZONE_RE = re.compile(r'(/\*wlalert\*/.*?)(function zone\(sc\)\{return [^}]*\})', re.S)
 WL_ALERT_JS = r'''/*wlalert*/(function(){try{
 var ZN=["低分","偏低","中性","偏高","高分"];
-function zone(sc){return sc>=70?4:sc>=58?3:sc>=45?2:sc>=35?1:0;}
+@@WLZONE@@
 var prev={};try{prev=JSON.parse(localStorage.getItem("wlZones")||"{}");}catch(e){}
 var now={},ch=[];
 for(var i=0;i<WL.length;i++){var c=WL[i],x=byCode[c];if(!x||typeof x.s!=="number")continue;var z=zone(x.s);now[c]=z;if(prev[c]!==undefined&&prev[c]!==z)ch.push({n:x.n||c,f:prev[c],t:z,u:z>prev[c]});}
 try{localStorage.setItem("wlZones",JSON.stringify(now));}catch(e){}
 if(ch.length&&wlBox&&wlBox.parentNode){var h='<div style="margin:0 0 12px;padding:10px 14px;background:rgba(91,156,255,.12);border:1px solid rgba(91,156,255,.4);border-radius:12px;font-size:13px"><b>🔔 自選股分數變化</b>（與你上次造訪相比）<div style="margin-top:6px;line-height:1.8">'+ch.map(function(o){return (o.u?"⬆ ":"⬇ ")+o.n+"："+ZN[o.f]+"→"+ZN[o.t];}).join("<br>")+'</div><div style="margin-top:6px;color:var(--muted);font-size:11px">僅供參考，非投資建議。</div></div>';var d=document.createElement("div");d.innerHTML=h;wlBox.parentNode.insertBefore(d,wlBox);}
-}catch(e){}})();'''
+}catch(e){}})();'''.replace('@@WLZONE@@', WL_ZONE)
 
 
 # --- 自選清單的「退場分數」（只動 stocks.html）-----------------------------
@@ -465,9 +467,10 @@ def patch_holdx(html):
 
 def patch_wlalert(html):
     """自選股進站變化提醒。只動 stocks.html。"""
-    # 已注入的舊版門檻 43→45（marker 守門不會回改舊頁）
-    if '/*wlalert*/' in html and WL_ZONE_OLD in html:
-        return html.replace(WL_ZONE_OLD, WL_ZONE_NEW), True
+    # 已注入的提醒門檻跟 bands.json 不同就改寫（marker 守門不會回改舊頁）
+    m = WL_ZONE_RE.search(html)
+    if m and m.group(2) != WL_ZONE:
+        return html[:m.start(2)] + WL_ZONE + html[m.end(2):], True
     if WL_ALERT_ANCHOR not in html or '/*wlalert*/' in html:
         return html, False
     return html.replace(WL_ALERT_ANCHOR, WL_ALERT_ANCHOR + WL_ALERT_JS, 1), True
@@ -898,8 +901,7 @@ def _brandstat_html():
         return ''
     score, _delta, twii, twii_chg = st
     # 圓點顏色沿用儀表色帶：低分＝琥珀（過熱危險）→ 高分＝天藍（遍地黃金）
-    col = ('#1a9bdf' if score >= 70 else '#2478c8' if score >= 58
-           else '#2f7cc4' if score >= 45 else '#c98a1e')
+    col = ('#1a9bdf', '#2478c8', '#2f7cc4', '#c98a1e', '#c98a1e')[len(bands.CUTS) - bands.level(score)]
     # 只留加權指數一顆（分數在首頁 hero 已是主角，頂欄不重複）；
     # 圓點仍用分數色帶帶出市場溫度，delta 保留給指數旁邊的漲跌色語彙。
     if not twii:

@@ -24,6 +24,8 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
 
+import bands
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INDEX = os.path.join(ROOT, "index.html")
 
@@ -88,13 +90,19 @@ def read_composite(html):
     return float(m.group(1))
 
 
+# 每一區的盤前短句；區名與門檻讀 bands.json，跟首頁、個股頁同一套
+PHRASES = {
+    "遍地黃金區": "恐慌給的折扣不常有",
+    "機會偏多區": "數據站在買方這邊",
+    "中性區": "沒戲，把手機關掉",
+    "偏熱謹慎區": "想追的先想想上次的下場",
+    "過熱危險區": "逞英雄沒獎品",
+}
+
+
 def band_phrase(score):
-    """分數 → 盤前一句話。門檻與引擎 config.ACTION_BANDS 一致（35/45/58/70），避免自打架。"""
-    if score >= 70: return "遍地黃金區，恐慌給的折扣不常有"
-    if score >= 58: return "機會偏多區，數據站在買方這邊"
-    if score >= 45: return "中性區，沒戲，把手機關掉"
-    if score >= 35: return "偏熱謹慎區，想追的先想想上次的下場"
-    return "過熱危險區，逞英雄沒獎品"
+    name = bands.band(score)["name"]
+    return f"{name}，{PHRASES[name]}" if name in PHRASES else name
 
 
 # 台指期籌碼面（外資淨未平倉）對盤前的最大影響與「滿格」口數。

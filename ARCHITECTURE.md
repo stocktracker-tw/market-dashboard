@@ -36,6 +36,8 @@ GitHub Pages ─▶ 手機 PWA（sw.js 內容雜湊自動換版）
 | sw.js | PWA 快取；版本＝內容雜湊、清單由 fix_sw 正規化 | fix_sw 自動 |
 | taifex.json | 台指期籌碼 | taifex.yml（每日） |
 | universe.json | 全市場輕量分 | 引擎（patch 端 minify） |
+| bands.json | 分數區間（門檻／區名／倍數）的唯一來源，網站端全部讀它 | 手改，必須與引擎 `config.ACTION_BANDS` 一致（測試會比對） |
+| tests/、ci.yml | PR 自動檢查：lint、單元測試、補丁冪等、盤前自測 | 手改 |
 | data/rec_*、backtest_summary.json | 回測/推薦資料 | 引擎 |
 
 ## 分頁列（tabbar）的 iOS 地雷——踩過三次，別再踩
@@ -75,5 +77,8 @@ GitHub Pages ─▶ 手機 PWA（sw.js 內容雜湊自動換版）
 2. 指標去留 → 看回測頁「指標成績單」，把 `INDICATOR_WEIGHTS` 設 0 即可。
 3. 動 patch_site → 改完務必：`python scripts/patch_site.py` 兩次
    ＋ 抽查頁面標記數（askpanel/liquidglass/scorecolor 各 ≤1）。
+   PR 上的 CI 會自動跑一遍（含 `pytest tests`）。
+4. 改分數區間 → 引擎 `config.ACTION_BANDS` 與這裡的 `bands.json` 一起改，
+   不要在任何腳本裡再寫死 35/45/58/70。
 
 引擎側詳情見 engine-src 分支的 README.md。

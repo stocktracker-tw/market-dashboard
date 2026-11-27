@@ -245,7 +245,7 @@ fetch('universe.json').then(function(r){if(!r.ok)throw 0;return r.json();}).then
   U=data; for(var i=0;i<U.length;i++)byCode[U[i].c]=U[i];
   if(wlBox)renderWL();/*wlalert*/(function(){try{
 var ZN=["低分","偏低","中性","偏高","高分"];
-function zone(sc){return sc>=70?4:sc>=58?3:sc>=43?2:sc>=35?1:0;}
+function zone(sc){return sc>=70?4:sc>=58?3:sc>=45?2:sc>=35?1:0;}
 var prev={};try{prev=JSON.parse(localStorage.getItem("wlZones")||"{}");}catch(e){}
 var now={},ch=[];
 for(var i=0;i<WL.length;i++){var c=WL[i],x=byCode[c];if(!x||typeof x.s!=="number")continue;var z=zone(x.s);now[c]=z;if(prev[c]!==undefined&&prev[c]!==z)ch.push({n:x.n||c,f:prev[c],t:z,u:z>prev[c]});}

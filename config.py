@@ -74,8 +74,12 @@ INDICATOR_WEIGHTS = {
     "cpi": 1.0, "ust": 0.8, "dxy": 0.7, "copper_gold": 0.5, "ndc": 0.8,
     # 趨勢・技術面（由趨勢品質/技術指標主導；舊 trend_*/rel 已隨 bias 機制移除）
     "tq_twii": 1.6, "tq_spx": 1.0,                 # A・長期趨勢品質（主導）
-    "macd_twii": 0.6, "boll_twii": 0.5, "atr_twii": 0.4,   # C・技術面
-    "candle_twii": 0.5,                            # B・K 線型態
+    # 布林與 K 線設 0：回測頁指標成績單（2026-11，n=81 月）對未來 3 個月報酬的
+    # Spearman IC 分別為 -0.17、-0.14，超出雜訊帶（±0.11）而且方向相反——
+    # 逆勢解讀在台股這段期間指錯方向。保留計算與顯示，只是不進分數；
+    # 之後成績單轉正再調回 0.5。
+    "macd_twii": 0.6, "boll_twii": 0.0, "atr_twii": 0.4,   # C・技術面
+    "candle_twii": 0.0,                            # B・K 線型態
     # 籌碼
     "inst": 1.0, "margin": 1.0, "diverg": 1.5, "volume": 0.5,
     "ptt": 0.6,                                    # 散戶情緒溫度計（PTT，逆勢）

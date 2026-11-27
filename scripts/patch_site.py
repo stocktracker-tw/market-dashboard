@@ -364,6 +364,76 @@ def patch_taifex(html):
     return html, (html != orig)
 
 
+# --- 首頁「回測說了什麼」一行 ------------------------------------------------
+# 回測頁一直寫著「照分數加減碼」與「固定定額」的對照，但首頁只給分數，看的人
+# 會以為照著做就比較好。實際上主動策略常常沒贏（2026-11：0050 年化 33.6% vs
+# 33.8%、回撤更深）。這行直接把 backtest.html 的數字搬到分數下面，回測變了
+# 它就跟著變；讀不到就不顯示。放在盤前徽章之後（沒有徽章就接在主分數段落
+# 後），兩支程式各自重跑都不會互換位置。
+BACKTEST_HTML = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                             "backtest.html")
+BTNOTE_RE = re.compile(r'<div id="btnote".*?</div>', re.S)
+BT_ROW_RE = re.compile(r'<tr><td>(固定定額|主動)</td><td>([\d,]+)</td><td>[\d,]+</td>'
+                       r'<td>([+-]?[\d.]+)%</td><td[^>]*>([+-]?[\d.]+)%</td><td>([+-]?[\d.]+)%</td></tr>')
+VERDICT_P_RE = re.compile(r'<h2>進場分數\s*\d+</h2><p>.*?</p>', re.S)
+PREMARKET_DIV_RE = re.compile(r'<div id="premarket".*?</div>', re.S)
+
+
+def _backtest_0050(text):
+    """回 {'fixed': (投入, 報酬%, IRR%, 回撤%), 'active': ...} 與月數；讀不到回 None。"""
+    i = text.find('0050.TW')
+    if i < 0:
+        return None
+    rows = {}
+    for m in BT_ROW_RE.finditer(text[i:i + 3000]):
+        key = 'fixed' if m.group(1) == '固定定額' else 'active'
+        rows.setdefault(key, (int(m.group(2).replace(',', '')), float(m.group(3)),
+                              float(m.group(4)), float(m.group(5))))
+    if len(rows) < 2:
+        return None
+    mb = re.search(r'每月基準投入\s*([\d,]+)', text)
+    base = int(mb.group(1).replace(',', '')) if mb else 0
+    months = rows['fixed'][0] // base if base else 0
+    return rows, months
+
+
+def _btnote_html(bt):
+    rows, months = bt
+    (_, _, irr_f, dd_f), (_, _, irr_a, dd_a) = rows['fixed'], rows['active']
+    if irr_a > irr_f and dd_a >= dd_f:
+        verdict = '回測期間略勝單純定期定額，但樣本只有這一段行情，僅供參考。'
+    elif irr_a <= irr_f and dd_a <= dd_f:
+        verdict = ('目前<b>沒有打贏</b>單純定期定額，請把分數當市場溫度計，'
+                   '不是買賣訊號。')
+    else:
+        verdict = '跟單純定期定額互有勝負，差距不大。'
+    span = f'近 {months} 個月、' if months else ''
+    return (
+        '<div id="btnote" style="margin:6px 0 2px;font-size:12px;line-height:1.55;'
+        'color:#5f7183">'
+        f'📊 回測（{span}0050）：照分數加減碼年化 {irr_a:.1f}%、回撤 {dd_a:.1f}%；'
+        f'固定定額年化 {irr_f:.1f}%、回撤 {dd_f:.1f}%。{verdict}'
+        '<a href="backtest.html" style="color:#2478c8">看回測</a></div>'
+    )
+
+
+def patch_btnote(html):
+    """首頁主分數下面放一行回測對照（資料來自 backtest.html）。只動 index.html。"""
+    if 'id="gauge"' not in html:
+        return html, False
+    orig = html
+    html = BTNOTE_RE.sub('', html)
+    try:
+        with open(BACKTEST_HTML, encoding='utf-8') as f:
+            bt = _backtest_0050(f.read())
+    except Exception:                 # noqa: BLE001 — 讀不到就不顯示
+        bt = None
+    m = PREMARKET_DIV_RE.search(html) or VERDICT_P_RE.search(html)
+    if bt and m:
+        html = html[:m.end()] + _btnote_html(bt) + html[m.end():]
+    return html, (html != orig)
+
+
 # --- 自選股「進站變化提醒」(付費推播的第一塊地基) ----------------------
 # 進站時比對自選股分數跟「上次造訪」相比是否跨區，標出變化。純前端、免後端。
 # 用中性字眼描述分數高低，不用「加碼/減碼」動作詞，避開投顧法規。
@@ -3091,6 +3161,10 @@ def patch(html, fname):
     # 6c) 台指期籌碼卡（index.html，資料來自 taifex.json）
     html, tx = patch_taifex(html)
     changed = changed or tx
+
+    # 6c2) 主分數下面的回測對照（index.html，資料來自 backtest.html）
+    html, bn = patch_btnote(html)
+    changed = changed or bn
 
     # 6d) 推薦區塊補上市場情緒（stocks.html）：每張卡標出法人與散戶站在哪一邊，
     #     並讓情緒參與排序。引擎挑股是題材＋動能＋法人買超，偏技術面。

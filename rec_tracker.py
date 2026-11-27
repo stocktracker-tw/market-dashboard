@@ -61,36 +61,56 @@ def save_today(recs: List[Dict]) -> int:
 
 
 # ─────────────── ② 補填報酬 ───────────────
+# 同一次執行內的 Yahoo 歷史快取：同一檔被推薦多天時只抓一次
+_SERIES_CACHE: Dict[str, List] = {}
+
+
+def _series(symbols: List[str]) -> List:
+    """回傳 [(date, price), ...]（依序 symbols 試到有資料為止）。
+    日期與價格成對過濾 None，避免 A.clean 單獨刪值造成日期錯位。
+    價格優先用還原權值 adjclose（報酬含除息），無則退回 close。"""
+    key = symbols[0]
+    if key in _SERIES_CACHE:
+        return _SERIES_CACHE[key]
+    out: List = []
+    for sym in symbols:
+        h = src.yahoo_history(sym, rng="1y")
+        time.sleep(0.2)  # 只在真的打 Yahoo 時才等
+        if not h:
+            continue
+        ts = h.get("timestamps") or []
+        px = h.get("adjclose") or h.get("close") or []
+        for t, v in zip(ts, px):
+            if v is None or v != v or not t:
+                continue
+            try:
+                out.append((dt.date.fromtimestamp(t), float(v)))
+            except Exception:
+                continue
+        if out:
+            break
+    _SERIES_CACHE[key] = out
+    return out
+
+
+def _ret_after(series: List, start_date: dt.date, n_days: int) -> Optional[float]:
+    """start_date 當天（或之後第一個交易日）買進、第 n_days 個交易日後的報酬。
+    交易日還不夠 n_days 時回傳 None（之後再補），不拿半途價格充數。"""
+    idx_start = next((i for i, (d, _) in enumerate(series) if d >= start_date), None)
+    if idx_start is None or idx_start + n_days >= len(series):
+        return None
+    p0 = series[idx_start][1]
+    pe = series[idx_start + n_days][1]
+    return (pe - p0) / p0 if p0 else None
+
+
 def _price_after(code: str, start_date: str, n_days: int) -> Optional[float]:
-    """抓 code 在 start_date 之後第 n_days 個交易日的收盤（用 Yahoo 1y 資料推）。"""
-    h = src.yahoo_history(code + ".TW", rng="1y") or src.yahoo_history(code + ".TWO", rng="1y")
-    if not h:
-        return None
-    closes = A.clean(h.get("close", []))
-    dates = h.get("timestamp", [])
-    if not closes or not dates or len(closes) != len(dates):
-        return None
+    """（相容舊介面）code 在 start_date 後第 n_days 個交易日的報酬。"""
     try:
         start = dt.date.fromisoformat(start_date)
     except Exception:
         return None
-    idx_start = None
-    for i, ts in enumerate(dates):
-        try:
-            d = dt.date.fromtimestamp(ts)
-        except Exception:
-            d = dt.date.fromisoformat(str(ts)[:10])
-        if d >= start:
-            idx_start = i
-            break
-    if idx_start is None:
-        return None
-    idx_end = min(idx_start + n_days, len(closes) - 1)
-    p0 = closes[idx_start]
-    pe = closes[idx_end]
-    if not p0:
-        return None
-    return (pe - p0) / p0
+    return _ret_after(_series([code + ".TW", code + ".TWO"]), start, n_days)
 
 
 def update_returns() -> int:
@@ -100,32 +120,7 @@ def update_returns() -> int:
     with open(REC_CSV, newline="", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
     updated = 0
-    bench_cache: Dict[str, List] = {}
-
-    def bench_ret(d_str, n):
-        if BENCH not in bench_cache:
-            bh = src.yahoo_history(BENCH, rng="1y")
-            bench_cache[BENCH] = (A.clean(bh.get("close", [])), bh.get("timestamp", [])) if bh else ([], [])
-        closes, dates = bench_cache[BENCH]
-        if not closes:
-            return None
-        try:
-            start = dt.date.fromisoformat(d_str)
-        except Exception:
-            return None
-        ix = None
-        for i, ts in enumerate(dates):
-            try:
-                d = dt.date.fromtimestamp(ts)
-            except Exception:
-                d = dt.date.fromisoformat(str(ts)[:10])
-            if d >= start:
-                ix = i; break
-        if ix is None:
-            return None
-        ie = min(ix + n, len(closes) - 1)
-        p0, pe = closes[ix], closes[ie]
-        return (pe - p0) / p0 if p0 else None
+    today = dt.date.today()
 
     for row in rows:
         d_str = row.get("date", "")
@@ -136,23 +131,25 @@ def update_returns() -> int:
             rec_date = dt.date.fromisoformat(d_str)
         except Exception:
             continue
+        # 只處理「已過 n 個交易日（粗估 n*1.4 日曆天）且還沒填」的欄位
+        due = [n for n in HORIZONS
+               if (not row.get("ret%d" % n) or not row.get("bench%d" % n))
+               and (today - rec_date).days >= n * 1.4]
+        if not due:
+            continue
         changed = False
-        for n in HORIZONS:
-            key = "ret%d" % n
-            bkey = "bench%d" % n
-            if row.get(key):
-                continue
-            # 只補填已過 n 個交易日（粗估：n*1.5 個日曆天）
-            if (dt.date.today() - rec_date).days < n * 1.4:
-                continue
-            ret = _price_after(code, d_str, n)
-            if ret is not None:
-                row[key] = "%.4f" % ret
-                changed = True
-            br = bench_ret(d_str, n)
-            if br is not None:
-                row[bkey] = "%.4f" % br
-            time.sleep(0.2)
+        for n in due:
+            key, bkey = "ret%d" % n, "bench%d" % n
+            if not row.get(key):
+                ret = _ret_after(_series([code + ".TW", code + ".TWO"]), rec_date, n)
+                if ret is not None:
+                    row[key] = "%.4f" % ret
+                    changed = True
+            if not row.get(bkey):
+                br = _ret_after(_series([BENCH]), rec_date, n)
+                if br is not None:
+                    row[bkey] = "%.4f" % br
+                    changed = True
         if changed:
             updated += 1
 
@@ -173,9 +170,7 @@ def simulate_history(universe: List[Dict], n_sim: int = 30) -> Dict:
     """
     if not universe:
         return {}
-    bench_h = src.yahoo_history(BENCH, rng="1y")
-    bench_closes = A.clean(bench_h.get("close", [])) if bench_h else []
-    bench_dates = bench_h.get("timestamp", []) if bench_h else []
+    bench_closes = [p for _, p in _series([BENCH])]
 
     def bench_ret_from(n_ago_days):
         if not bench_closes or len(bench_closes) < n_ago_days:
@@ -190,10 +185,7 @@ def simulate_history(universe: List[Dict], n_sim: int = 30) -> Dict:
     results = []
     for x in top:
         code = x["code"]
-        h = src.yahoo_history(code + ".TW", rng="1y") or src.yahoo_history(code + ".TWO", rng="1y")
-        if not h:
-            continue
-        closes = A.clean(h.get("close", []))
+        closes = [p for _, p in _series([code + ".TW", code + ".TWO"])]
         if len(closes) < 10:
             continue
         row = {"code": code, "name": x.get("name", code),
@@ -208,7 +200,6 @@ def simulate_history(universe: List[Dict], n_sim: int = 30) -> Dict:
             ret = (pe - p0) / p0 if p0 else None
             row[label] = ret
         results.append(row)
-        time.sleep(0.15)
 
     br3 = bench_ret_from(65)
     br6 = bench_ret_from(130)

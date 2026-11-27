@@ -460,10 +460,13 @@ def compute(code, env=None, shared=None, record=True):
     cands = (["%s.%s" % (base, suffix)] if suffix else ["%s.TW" % base, "%s.TWO" % base])
 
     hist = None
-    for c in cands:
-        hist = src.yahoo_history(c, rng="2y")
-        if hist and A.clean(hist["close"]):
-            break
+    if not suffix and base in _YH_CACHE:          # recommend() 已抓過就直接用
+        hist = _YH_CACHE[base][0]
+    if hist is None:
+        for c in cands:
+            hist = src.yahoo_history(c, rng="2y")
+            if hist and A.clean(hist["close"]):
+                break
     if not hist or not A.clean(hist["close"]):
         return None
     close = A.clean(hist["close"])
@@ -659,35 +662,63 @@ def compute_lite(code, env, shared):
             "val_disp": val_disp, "diverg": diverg}
 
 
+# 推薦排序用的 Yahoo 歷史快取（同一次執行內共用；compute() 也會讀，避免同檔重抓）
+_YH_CACHE = {}
+
+
+def _yahoo_2y(code):
+    """回傳 (hist, 代碼字尾)；先試上市 .TW 再試上櫃 .TWO。"""
+    if code in _YH_CACHE:
+        return _YH_CACHE[code]
+    out = (None, None)
+    for suf in ("TW", "TWO"):
+        h = src.yahoo_history("%s.%s" % (code, suf), rng="2y")
+        time.sleep(0.15)
+        if h and A.clean(h.get("close") or []):
+            out = (h, suf)
+            break
+    _YH_CACHE[code] = out
+    return out
+
+
+def _rank_feats(hist):
+    """風險調整中期動能所需特徵（只用到最新一根收盤為止）。
+    m6_1 = 6 個月前→1 個月前的報酬（跳過最近一個月，避開短期反轉）；
+    vol  = 近 60 日年化波動；mom20 = 近 20 日漲幅（過熱濾網用）。"""
+    px = [v for v in (hist.get("adjclose") or hist.get("close") or []) if v is not None and v == v]
+    if len(px) < 125:
+        return None
+    rets = [px[i] / px[i - 1] - 1 for i in range(len(px) - 60, len(px)) if px[i - 1]]
+    if len(rets) < 40:
+        return None
+    m = sum(rets) / len(rets)
+    vol = (sum((r - m) ** 2 for r in rets) / len(rets)) ** 0.5 * (250 ** 0.5)
+    return {"mom20": px[-1] / px[-21] - 1, "m6_1": px[-21] / px[-121] - 1, "vol": vol}
+
+
 def recommend(env, shared, universe, n=None):
-    """自動選股（順勢版）：動能為主、風口題材加成、法人買超背書；
-    綜合分只當底——便宜不是上榜理由，會漲＋有人抬轎才是。
-    保留名額制：榜上至少一半給「熱門題材＋正動能」的合格者（有才給，不硬塞）。"""
+    """自動選股（風險調整中期動能版，2026-11 改）。
+
+    排序＝ 6-1 動能 ÷ 波動（max(vol, 15%)）。濾網：近 20 日漲跌須在
+    [STOCK_TOP_MIN_MOM20, STOCK_TOP_MAX_MOM20]、60 日年化波動 ≤ STOCK_TOP_MAX_VOL。
+    依據：實盤 2026/6~11 舊版「20 日動能為主」20 日超額 −4.0%、勝 0050 僅 31%、beta 1.44。
+    題材池 604 檔、2024/12~2026/10 價格回測（每 5 日換、持有 20 日、8 檔）：
+      舊版 全期 +1.90%／6 月後 −4.80%／0050 跌時 −2.66%（6 月後 −11.6%）
+      本版 全期 +1.24%／6 月後 −0.25%／0050 跌時 −0.91%（6 月後 −4.2%）
+    報酬差在雜訊內（t≈1.5），改的是風險：大盤跌時不再加倍跌。不是聖杯。
+    保留的硬篩選（無歷史可回測，照舊）：股價、融資餘額、法人近 5 日買超、有題材。
+    綜合分 / 風口題材只做顯示，不再進排序（實盤相關係數 ≈0）。"""
     n = n or getattr(cfg, "STOCK_TOP_N", 8)
+    max_m20 = getattr(cfg, "STOCK_TOP_MAX_MOM20", 0.20)
+    min_m20 = getattr(cfg, "STOCK_TOP_MIN_MOM20", -0.20)
+    max_vol = getattr(cfg, "STOCK_TOP_MAX_VOL", 0.80)
     stocks = (shared.get("valuation") or {}).get("stocks", {})
     margin = shared.get("margin") or {}
     industry = shared.get("industry") or {}
     require_theme = getattr(cfg, "STOCK_TOP_REQUIRE_THEME", True)
-    phist = shared.get("pricehist") or {}
     hot = theme_heat(shared, universe)
     hot_names = [t["theme"] for t in hot]
     tmap = _theme_map()
-
-    def _mom20(code):
-        closes = list(phist.get(code) or [])
-        px = (stocks.get(code) or {}).get("close")
-        if px:
-            closes = closes + [px]
-        if len(closes) < 11:
-            return None
-        look = min(20, len(closes) - 1)
-        return closes[-1] / closes[-1 - look] - 1.0
-
-    def _rankkey(score, m, my_hot):
-        # 動能為主（%×100）、風口 +12、綜合分打三折當底；
-        # 妖股末端（20日 >+50%）動能歸零計——追不動的不追
-        mm = 0.0 if m is None else (m if m <= 0.50 else 0.0)
-        return mm * 100 + (12 if my_hot else 0) + score * 0.30
 
     def pool(theme_filter):
         out = []
@@ -702,36 +733,38 @@ def recommend(env, shared, universe, n=None):
                 _, _, has = _tags(code, industry.get(code, ""))
                 if not has:
                     continue
-            m = _mom20(code)
-            my_hot = next((t for t in tmap.get(code, []) if t in hot_names), None)
-            out.append((_rankkey(x["score"], m, my_hot), code, my_hot, m))
+            out.append(code)
         return out
 
-    cand = pool(require_theme)
-    if not cand and require_theme:        # 題材篩完沒東西就放寬，避免空清單
-        cand = pool(False)
-    cand.sort(reverse=True)
-    hotmeta = {}
-    full = []
-    for _, code, my_hot, m in cand[:max(n * 2, 16)]:
-        r = compute(code, env=env, shared=shared)
-        if r:
-            r["hot_theme"] = my_hot
-            r["mom20"] = m
-            r["_rk"] = _rankkey(r["score"], m, my_hot)
-            full.append(r)
-        time.sleep(0.15)
-    full.sort(key=lambda r: r["_rk"], reverse=True)
-    # 保留名額：前 n 席至少 n//2 席給「風口題材＋20日正動能≥+5%」合格者
-    riders = [r for r in full if r.get("hot_theme") and (r.get("mom20") or 0) >= 0.05]
-    picks = riders[:n // 2]
-    for r in full:
+    codes = pool(require_theme)
+    if not codes and require_theme:        # 題材篩完沒東西就放寬，避免空清單
+        codes = pool(False)
+
+    cand = []
+    for code in codes:
+        hist, _ = _yahoo_2y(code)
+        f = _rank_feats(hist) if hist else None
+        if (not f or f["mom20"] > max_m20 or f["mom20"] < min_m20
+                or f["vol"] > max_vol):
+            continue
+        rk = f["m6_1"] / max(f["vol"], 0.15)
+        cand.append((rk, code, f))
+    cand.sort(key=lambda c: -c[0])
+
+    picks = []
+    for rk, code, f in cand:
         if len(picks) >= n:
             break
-        if r not in picks:
-            picks.append(r)
-    picks.sort(key=lambda r: r["_rk"], reverse=True)
-    return picks[:n]
+        r = compute(code, env=env, shared=shared)
+        if not r:
+            continue
+        r["hot_theme"] = next((t for t in tmap.get(code, []) if t in hot_names), None)
+        r["mom20"] = f["mom20"]
+        r["m6_1"] = f["m6_1"]
+        r["vol"] = f["vol"]
+        r["_rk"] = rk
+        picks.append(r)
+    return picks
 
 
 def theme_heat(shared, universe, top=3):

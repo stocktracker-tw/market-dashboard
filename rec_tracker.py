@@ -26,22 +26,37 @@ BENCH = "0050.TW"          # 基準：元大台灣50
 HORIZONS = [10, 20, 60]   # 追蹤 N 個交易日後的報酬（約 2 週、1 個月、3 個月）
 FIELDNAMES = ["date", "code", "name", "score", "close", "themes",
               "ret10", "ret20", "ret60",
-              "bench10", "bench20", "bench60"]
+              "bench10", "bench20", "bench60",
+              "mom20", "m6_1", "vol", "rk"]   # 入榜原因（2026-11 起記錄，供日後診斷）
 
 
 # ─────────────── ① 存今日推薦 ───────────────
+def _fmt(v):
+    return "%.4f" % v if isinstance(v, (int, float)) else ""
+
+
 def save_today(recs: List[Dict]) -> int:
     """把今日推薦存入 CSV（已存過同日就跳過）。回傳新增筆數。"""
     if not recs:
         return 0
+    if dt.date.today().weekday() >= 5:
+        return 0   # 週末資料仍是週五的，存了只會灌重複樣本
     today = dt.date.today().isoformat()
     os.makedirs(cfg.DATA_DIR, exist_ok=True)
     existing = set()
     if os.path.exists(REC_CSV):
         with open(REC_CSV, newline="", encoding="utf-8") as f:
-            for row in csv.DictReader(f):
-                if row.get("date") == today:
-                    existing.add(row.get("code"))
+            rd = csv.DictReader(f)
+            old_rows = list(rd)
+            header = rd.fieldnames or []
+        for row in old_rows:
+            if row.get("date") == today:
+                existing.add(row.get("code"))
+        if header and header != FIELDNAMES:   # 欄位升級：整檔改寫成新表頭，舊列新欄留空
+            with open(REC_CSV, "w", newline="", encoding="utf-8") as f:
+                w = csv.DictWriter(f, fieldnames=FIELDNAMES, extrasaction="ignore")
+                w.writeheader()
+                w.writerows(old_rows)
     new_rows = [r for r in recs if r["code"] not in existing]
     if not new_rows:
         return 0
@@ -56,7 +71,9 @@ def save_today(recs: List[Dict]) -> int:
                         "close": r.get("price") or r.get("close") or "",
                         "themes": "/".join(r.get("themes", []) or []),
                         "ret10": "", "ret20": "", "ret60": "",
-                        "bench10": "", "bench20": "", "bench60": ""})
+                        "bench10": "", "bench20": "", "bench60": "",
+                        "mom20": _fmt(r.get("mom20")), "m6_1": _fmt(r.get("m6_1")),
+                        "vol": _fmt(r.get("vol")), "rk": _fmt(r.get("_rk"))})
     return len(new_rows)
 
 

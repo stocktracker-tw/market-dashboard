@@ -191,6 +191,9 @@ STOCK_VAL_MIN_HISTORY = 15         # 個股估值改用「自身歷史百分位�
 STOCK_TOP_N = 8                    # 推薦檔數
 STOCK_TOP_MIN_PRICE = 15          # 篩選：股價下限（避開雞蛋水餃股）
 STOCK_TOP_MIN_MARGIN = 2000       # 篩選：融資餘額下限（張，確保有流動性/信用交易）
+STOCK_TOP_MAX_MOM20 = 0.20        # 排序濾網：近 20 日已漲超過此幅度不推（避開短期過熱後的反轉）
+STOCK_TOP_MIN_MOM20 = -0.20       # 排序濾網：近 20 日已跌超過此幅度不推（避開崩跌中的前強勢股）
+STOCK_TOP_MAX_VOL = 0.80          # 排序濾網：近 60 日年化波動上限（壓低 beta，大盤跌時少跌）
 
 # 題材：推薦要「有題材」才入選（避開沒故事的價值陷阱）。
 STOCK_TOP_REQUIRE_THEME = True
